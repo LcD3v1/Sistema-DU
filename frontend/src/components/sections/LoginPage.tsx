@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/authStore'
 import Brand from '@/components/ui/Brand'
+import MusicPlayer from '@/components/ui/MusicPlayer'
 import PublicOverlay from '@/components/sections/PublicOverlay'
 import type { AuthUser } from '@/types'
 
@@ -268,6 +269,9 @@ export default function LoginPage() {
           Desenvolvido por <span className="text-gold3/80">LC Dev</span>
         </p>
       </footer>
+
+      {/* ── Player de música (canto inferior esquerdo) ──────────── */}
+      <MusicPlayer />
 
       {/* ── Overlay Ranking/Membros ─────────────────────────────── */}
       <AnimatePresence>

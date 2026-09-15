@@ -278,6 +278,33 @@ input[type=range].hud-slider::-moz-range-thumb {
   border: 2px solid var(--gold3);
 }
 
+/* ── Slider do player de música ──────────────────────────────── */
+.fast-range {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 9999px;
+  outline: none;
+}
+.fast-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--gold, #3a72c4);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(58,114,196,0.6);
+}
+.fast-range::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--gold, #3a72c4);
+  cursor: pointer;
+}
+
 /* ── Logo ring ───────────────────────────────────────────────── */
 .logo-ring {
   border-radius: 50%;
