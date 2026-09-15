@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { LogOut, ChevronDown, User as UserIcon, Eye } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useMe } from '@/hooks/useMe'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':        'Visão geral',
@@ -40,6 +41,7 @@ const NIVEL_LABEL: Record<string, string> = {
 
 export default function Topbar() {
   const { user, logout } = useAuthStore()
+  const { data: me } = useMe()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const title = resolveTitle(pathname)
@@ -88,7 +90,9 @@ export default function Topbar() {
               </p>
             </div>
             <div className="w-9 h-9 rounded-full bg-card2 border border-bdr2 flex items-center justify-center text-gold3 text-xs font-semibold overflow-hidden">
-              {initials}
+              {me?.avatar
+                ? <img src={me.avatar} alt="" className="w-full h-full object-cover" />
+                : initials}
             </div>
             <ChevronDown size={15} className="text-txt3 group-hover:text-txt2 transition-colors" />
           </button>

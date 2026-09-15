@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, Lock, User, X, Trophy, Users, UserPlus, Send } from 'lucide-react'
@@ -32,10 +32,32 @@ function DiscordIcon({ size = 17 }: { size?: number }) {
 
 /* Fundo em vídeo */
 function VideoBackdrop() {
+  const ref = useRef<HTMLVideoElement>(null)
+
+  // O React nem sempre aplica o atributo `muted`; forçamos via propriedade e
+  // chamamos play() (retry no 1º toque) para garantir o autoplay do fundo.
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.muted = true
+    v.defaultMuted = true
+    const tryPlay = () => { v.play().catch(() => {}) }
+    tryPlay()
+    const onReady = () => tryPlay()
+    v.addEventListener('canplay', onReady)
+    document.addEventListener('pointerdown', tryPlay, { once: true })
+    document.addEventListener('keydown', tryPlay, { once: true })
+    return () => {
+      v.removeEventListener('canplay', onReady)
+      document.removeEventListener('pointerdown', tryPlay)
+      document.removeEventListener('keydown', tryPlay)
+    }
+  }, [])
+
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
       {/* scale 1.35 recorta o letterbox gravado no arquivo (barras de 12,5% em cima/baixo) */}
-      <video className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.35)', transformOrigin: 'center' }} src="/media/login-bg.mp4" autoPlay muted loop playsInline />
+      <video ref={ref} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.35)', transformOrigin: 'center' }} src="/media/login-bg.mp4" autoPlay muted loop playsInline preload="auto" />
       {/* scrim da esquerda para legibilidade do hero */}
       <div className="absolute inset-0 pointer-events-none"
            style={{ background: 'linear-gradient(90deg, rgba(4,6,11,0.9) 0%, rgba(4,6,11,0.6) 42%, rgba(4,6,11,0.15) 78%, rgba(4,6,11,0.35) 100%)' }} />
