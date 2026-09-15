@@ -1,0 +1,14 @@
+{
+  "name": "unidade-fast",
+  "version": "1.0.0",
+  "description": "FAST — North Police Department · Sistema de Gestão Operacional",
+  "scripts": {
+    "build": "npm run install:all && cd frontend && npm run build && cd ../backend && npm run build",
+    "start": "npm run build && NODE_ENV=production node backend/dist/index.js",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "security": "cd backend && npm run security && cd ../frontend && npm audit --audit-level=high",
+    "audit": "cd backend && npm audit && cd ../frontend && npm audit"
+  }
+}

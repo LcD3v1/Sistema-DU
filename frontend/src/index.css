@@ -1,0 +1,347 @@
+@import "tailwindcss";
+
+/* Wordmark próprio — Chakra Petch (angular/tático), difere do Azonix da referência */
+
+@theme {
+  --color-bg:    #050505;
+  --color-sb:    #0a0a0a;
+  --color-card:  #0e0e0e;
+  --color-card2: #151515;
+  --color-bdr:   #1c1c1c;
+  --color-bdr2:  #272727;
+  --color-bdrg:  #383838;
+  --color-txt:   #ededed;
+  --color-txt2:  #8b8b8b;
+  --color-txt3:  #565656;
+  --color-gold:  #3a72c4;
+  --color-gold2: #5b93de;
+  --color-gold3: #9cc0f5;
+  --color-navy:  #14213d;
+  --color-navy2: #1c2e52;
+  --color-green: #2ecc71;
+  --color-red:   #d0453a;
+  --color-blue:  #3a72c4;
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+:root {
+  --bg:    #050505;
+  --sb:    #0a0a0a;
+  --card:  #0e0e0e;
+  --card2: #151515;
+  --bdr:   #1c1c1c;
+  --bdr2:  #272727;
+  --bdrg:  #383838;
+  --txt:   #ededed;
+  --txt2:  #8b8b8b;
+  --txt3:  #565656;
+  --gold:  #3a72c4;
+  --gold2: #5b93de;
+  --gold3: #9cc0f5;
+  --navy:  #14213d;
+  --navy2: #1c2e52;
+  --green: #2ecc71;
+  --red:   #d0453a;
+  --blue:  #3a72c4;
+  /* rgba base do accent para glows */
+  --accent-rgb: 58, 114, 196;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--txt);
+  font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  min-width: 1024px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: 'Geist', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.font-orbitron, .font-display {
+  font-family: 'Chakra Petch', 'Geist', sans-serif;
+}
+
+.font-mono, code {
+  font-family: 'Geist Mono', ui-monospace, 'Share Tech Mono', monospace;
+}
+
+/* Wordmark FAST — Chakra Petch (própria) */
+.wordmark {
+  font-family: 'Chakra Petch', 'Orbitron', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* ── Aura/anim da logo ────────────────────────────────────────── */
+@keyframes logo-aura  { 0%,100% { opacity: .4; transform: scale(1); } 50% { opacity: .9; transform: scale(1.12); } }
+@keyframes logo-ring  { to { transform: rotate(360deg); } }
+@keyframes logo-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+/* ── Fundo animado da login (assets próprios, sem vídeo) ───────── */
+@keyframes fast-beams {
+  0%   { transform: translate3d(-8%, 0, 0); }
+  100% { transform: translate3d(8%, 0, 0); }
+}
+@keyframes fast-glow {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.08); }
+}
+@keyframes fast-sweep {
+  0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  15%  { opacity: 0.5; }
+  60%  { opacity: 0; }
+  100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+}
+.grain-noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Scrollbar customizado ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--sb); }
+::-webkit-scrollbar-thumb { background: var(--bdrg); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ── Scanlines ─────────────────────────────────────────────────── */
+.scanlines-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.10) 2px,
+    rgba(0, 0, 0, 0.10) 4px
+  );
+}
+
+/* ── HUD corners ──────────────────────────────────────────────── */
+.hud-corners {
+  position: relative;
+}
+.hud-corners::before,
+.hud-corners::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--gold);
+  border-style: solid;
+  opacity: 0.7;
+}
+.hud-corners::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+.hud-corners::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+/* ── Cyber card (neon sharp) ─────────────────────────────────── */
+.cyber-card-wrap {
+  filter: drop-shadow(0 0 3px rgba(var(--accent-rgb), 0.12));
+  transition: filter 0.35s ease;
+}
+.cyber-card-wrap:hover {
+  filter:
+    drop-shadow(0 0 10px rgba(var(--accent-rgb), 0.55))
+    drop-shadow(0 0 26px rgba(var(--accent-rgb), 0.18));
+}
+
+.cyber-card {
+  --cut: 12px;
+  position: relative;
+  background: var(--card);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  clip-path: polygon(
+    var(--cut) 0%,
+    100% 0%,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0% 100%,
+    0% var(--cut)
+  );
+  transition: border-color 0.35s ease, background 0.35s ease;
+  overflow: hidden;
+}
+.cyber-card-wrap:hover .cyber-card {
+  border-color: rgba(var(--accent-rgb), 0.75);
+  background: #0d1119;
+}
+
+/* Linha diagonal decorativa nos cantos cortados */
+.cyber-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: var(--cut);
+  height: var(--cut);
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent calc(50% - 0.5px),
+    rgba(var(--accent-rgb), 0.45) calc(50% - 0.5px),
+    rgba(var(--accent-rgb), 0.45) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+.cyber-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: var(--cut);
+  height: var(--cut);
+  background: linear-gradient(
+    315deg,
+    transparent 0%,
+    transparent calc(50% - 0.5px),
+    rgba(var(--accent-rgb), 0.45) calc(50% - 0.5px),
+    rgba(var(--accent-rgb), 0.45) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Hex grid background ─────────────────────────────────────── */
+.hex-grid-bg {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52' viewBox='0 0 60 52'%3E%3Cpolygon points='30,1 58,16 58,46 30,51 2,46 2,16' fill='none' stroke='%233a72c4' stroke-width='0.4' opacity='0.15'/%3E%3C/svg%3E");
+  background-size: 60px 52px;
+}
+
+/* ── Input focus glow ─────────────────────────────────────────── */
+.input-gold:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 12px rgba(var(--accent-rgb), 0.25);
+}
+
+/* ── Pulse animation ─────────────────────────────────────────── */
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0); }
+}
+.pulse-gold { animation: pulse-gold 2s ease-in-out infinite; }
+
+/* ── Range slider customizado ────────────────────────────────── */
+input[type=range].hud-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--bdrg);
+  border-radius: 2px;
+  outline: none;
+}
+input[type=range].hud-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
+  border: 2px solid var(--gold3);
+}
+input[type=range].hud-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
+  border: 2px solid var(--gold3);
+}
+
+/* ── Logo ring ───────────────────────────────────────────────── */
+.logo-ring {
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 0 28px rgba(var(--accent-rgb), 0.5), 0 0 60px rgba(var(--accent-rgb), 0.2);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+@keyframes logoPulse {
+  0%, 100% { box-shadow: 0 0 28px rgba(var(--accent-rgb), 0.5), 0 0 60px rgba(var(--accent-rgb), 0.2); }
+  50%       { box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.8), 0 0 80px rgba(var(--accent-rgb), 0.4); }
+}
+
+.logo-circle {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.logo-fallback {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gold);
+  text-align: center;
+  line-height: 1.3;
+  letter-spacing: 1px;
+}
+
+/* ── Logo drop area ──────────────────────────────────────────── */
+.logo-drop-area {
+  border: 2px dashed var(--bdrg);
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+}
+.logo-drop-area:hover,
+.logo-drop-area.drag-active {
+  border-color: var(--gold);
+  background: rgba(var(--accent-rgb), 0.05);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.15);
+}
+.logo-drop-area.error {
+  border-color: var(--red);
+  box-shadow: 0 0 12px rgba(184, 67, 58, 0.3);
+}
+
+/* ── Typing cursor ────────────────────────────────────────────── */
+@keyframes blink {
+  50% { opacity: 0; }
+}
+.cursor-blink::after {
+  content: '|';
+  animation: blink 1s step-end infinite;
+  color: var(--gold);
+  margin-left: 2px;
+}

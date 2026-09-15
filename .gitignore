@@ -1,0 +1,57 @@
+# Dependências
+node_modules/
+**/node_modules/
+
+# Builds compilados
+dist/
+**/dist/
+
+# Variáveis de ambiente (contêm segredos)
+.env
+**/.env
+.env.local
+**/.env.local
+.env.*.local
+**/.env.*.local
+.env.secbak-*
+**/.env.secbak-*
+# (.env.example e .env.production — sem segredos — permanecem versionados)
+
+# Dados persistidos em disco (não versionar dados de produção)
+backend/data.json
+# Backups de dados/segredos gerados localmente
+backend/data.json.*
+**/*.bak
+**/*.bak-*
+
+# Log de auditoria de segurança
+backend/audit.log
+*.log
+
+# Chaves de serviço
+serviceAccountKey.json
+**/serviceAccountKey.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code
+.claude/
+
+# Mídia pesada (excede o limite de 100MB do GitHub — hospedar via Git LFS ou externamente)
+frontend/public/media/login-bg.mp4
+*.mp4
+
+# SO
+.DS_Store
+Thumbs.db

@@ -1,0 +1,63 @@
+import { Router, Request, Response } from 'express'
+import { requireAuth } from '../middleware/auth'
+import { modOrAdmin } from '../middleware/roles'
+import { validateBody, avisoSchema } from '../middleware/validate'
+import { audit } from '../security/audit'
+import { readData, writeData } from '../data'
+import { Aviso } from '../types'
+
+const router = Router()
+
+// GET /api/avisos — lista + contagem de não vistos do usuário atual
+router.get('/', requireAuth, (req: Request, res: Response): void => {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  const lastSeen = conta?.avisoLastSeen ?? 0
+  const avisos = [...data.avisos].sort((a, b) => b.id - a.id)
+  const naoVistos = avisos.filter(a => a.id > lastSeen).length
+  res.json({ avisos, naoVistos })
+})
+
+// POST /api/avisos — publica um aviso (comando)
+router.post('/', requireAuth, modOrAdmin, validateBody(avisoSchema), (req: Request, res: Response): void => {
+  const { titulo, mensagem } = req.body as { titulo: string; mensagem: string }
+  const data = readData()
+  const novo: Aviso = {
+    id: data.nextAvisoId,
+    titulo,
+    mensagem,
+    autor: req.user!.username,
+    criadoEm: new Date().toISOString(),
+  }
+  data.avisos.push(novo)
+  data.nextAvisoId++
+  writeData(data)
+  audit('AVISO_CREATED', req, `${titulo}`)
+  res.status(201).json(novo)
+})
+
+// POST /api/avisos/marcar-lido — marca todos como vistos
+router.post('/marcar-lido', requireAuth, (req: Request, res: Response): void => {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  if (conta) {
+    conta.avisoLastSeen = data.avisos.reduce((m, a) => Math.max(m, a.id), 0)
+    writeData(data)
+  }
+  res.json({ ok: true })
+})
+
+// DELETE /api/avisos/:id
+router.delete('/:id', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+  const data = readData()
+  const idx = data.avisos.findIndex(a => a.id === id)
+  if (idx === -1) { res.status(404).json({ error: 'Aviso não encontrado' }); return }
+  data.avisos.splice(idx, 1)
+  writeData(data)
+  audit('AVISO_DELETED', req, `ID: ${id}`)
+  res.json({ ok: true })
+})
+
+export default router
