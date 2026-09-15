@@ -1,20 +1,21 @@
 # Mídia do painel
 
-Alguns arquivos de mídia **não são versionados** no Git por excederem o limite de
-tamanho do GitHub (100 MB por arquivo). Após clonar o repositório, adicione‑os
-manualmente nesta pasta:
+Os arquivos de mídia usados pelo painel ficam nesta pasta.
 
-| Arquivo | Uso | Observação |
-|---------|-----|------------|
-| `login-bg.mp4` | Vídeo de fundo da tela de login | ~180 MB — recomenda‑se comprimir (H.264/H.265, ~1080p) ou usar Git LFS |
+- `login-bg.mp4` — vídeo de fundo da tela de login. **Comprimido** para ~28 MB
+  (1080p, H.264, sem áudio, pois é reproduzido mudo) para caber no limite de
+  tamanho do GitHub. O original de 1080p sem compressão tinha ~180 MB.
 
-> Se o `login-bg.mp4` estiver ausente, a tela de login ainda funciona — apenas
-> ficará com o fundo escuro/animado (fallback CSS) em vez do vídeo.
-
-Para versionar vídeos grandes no futuro, use **Git LFS**:
-
-```bash
-git lfs install
-git lfs track "*.mp4"
-git add .gitattributes
-```
+> Se substituir o vídeo por uma versão maior, comprima antes ou use **Git LFS**
+> (o GitHub bloqueia arquivos acima de 100 MB):
+>
+> ```bash
+> git lfs install
+> git lfs track "*.mp4"
+> git add .gitattributes
+> ```
+>
+> Para comprimir com ffmpeg:
+> ```bash
+> ffmpeg -i entrada.mp4 -vf "scale='min(1920,iw)':-2" -c:v libx264 -preset slow -crf 28 -pix_fmt yuv420p -movflags +faststart -an login-bg.mp4
+> ```

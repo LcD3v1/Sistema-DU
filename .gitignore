@@ -48,9 +48,8 @@ npm-debug.log*
 # Claude Code
 .claude/
 
-# Mídia pesada (excede o limite de 100MB do GitHub — hospedar via Git LFS ou externamente)
-frontend/public/media/login-bg.mp4
-*.mp4
+# Mídia pesada acima de 90MB deve ser comprimida ou hospedada via Git LFS
+# (o login-bg.mp4 foi comprimido para ~28MB e agora é versionado normalmente)
 
 # SO
 .DS_Store

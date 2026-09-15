@@ -81,7 +81,7 @@ export default function GerarCarteiraPage() {
     // Assinatura (fonte manuscrita, sobre a linha)
     if (assinatura.trim()) {
       ctx.textAlign = 'center'
-      ctx.font = '400 54px "Great Vibes", cursive'
+      ctx.font = '400 68px "Great Vibes", cursive'
       ctx.fillStyle = '#f0d98c'
       ctx.fillText(assinatura.trim(), SIG.cx, SIG.y)
       ctx.textAlign = 'left'
@@ -139,7 +139,7 @@ export default function GerarCarteiraPage() {
           <div><label className={labelCls}>Date of issue</label>
             <input value={data} onChange={e => setData(e.target.value)} placeholder="Ex: 14/09/2026" className={inputCls} /></div>
           <div><label className={labelCls}>Assinatura do comandante</label>
-            <input value={assinatura} onChange={e => setAssinatura(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} style={{ fontFamily: '"Great Vibes", cursive', fontSize: 18 }} /></div>
+            <input value={assinatura} onChange={e => setAssinatura(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} style={{ fontFamily: '"Great Vibes", cursive', fontSize: 22 }} /></div>
 
           <div>
             <label className={labelCls}>Foto do oficial</label>
