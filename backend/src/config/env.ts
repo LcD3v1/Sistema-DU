@@ -66,7 +66,7 @@ validateMongo()
 export const env = {
   JWT_SECRET: validateJwtSecret(),
   PROD,
-  PORT: parseInt(process.env.PORT || '3001', 10),
+  PORT: parseInt(process.env.PORT || (PROD ? '80' : '3001'), 10),
   ALLOWED_ORIGIN: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
 }
 

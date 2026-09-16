@@ -123,14 +123,15 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Erro interno do servidor' })
 })
 
-const PORT = parseInt(process.env.PORT || '3001', 10)
+// A hospedagem (Shard Cloud) injeta PORT; em produção sem PORT, usa 80
+const PORT = parseInt(process.env.PORT || (PROD ? '80' : '3001'), 10)
 
 async function iniciar(): Promise<void> {
   await initData()
   ensureDefaultAdmin()
   ensureNivelMigration()
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[FAST] Sistema rodando em http://0.0.0.0:${PORT}`)
+    console.log(`[FAST] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
     console.log(`[FAST] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
   iniciarGateway()
