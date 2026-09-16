@@ -10,6 +10,7 @@ import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { tentarPostarRegistro } from '../discord/forum'
 import { bloqueioDeAcesso } from '../efetivo'
+import { buscarMembroServidor, aplicarIdentidade } from '../discord/identidade'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { isAdmin, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
@@ -164,6 +165,14 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
       conta.discordUsername = me.global_name || me.username
     }
 
+    // Nome e foto iguais aos do servidor da unidade
+    try {
+      const membroServidor = await buscarMembroServidor(me.id)
+      if (membroServidor) aplicarIdentidade(conta, membroServidor)
+    } catch (err) {
+      console.error('[FAST][DISCORD] identidade no servidor:', err instanceof Error ? err.message : err)
+    }
+
     writeData(data)
 
     const bloqueio = bloqueioDeAcesso(conta, data)
@@ -208,6 +217,8 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     nivel: conta.nivel,
     membroId: conta.membroId ?? null,
     discordUsername: conta.discordUsername ?? null,
+    nomeServidor: conta.nomeServidor ?? conta.discordUsername ?? conta.username,
+    avatarServidor: conta.avatarServidor ?? null,
     avatar: conta.avatar ?? null,
     banner: conta.banner ?? null,
     onboarded: conta.onboarded !== false,

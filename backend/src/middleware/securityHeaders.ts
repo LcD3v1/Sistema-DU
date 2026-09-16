@@ -12,7 +12,7 @@ export const securityHeaders: RequestHandler = helmet({
       scriptSrc:      ["'self'"],
       styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc:         ["'self'", 'data:', 'blob:'],
+      imgSrc:         ["'self'", 'data:', 'blob:', 'https://cdn.discordapp.com'],
       mediaSrc:       ["'self'", 'data:', 'blob:'], // vídeo/áudio do login
       connectSrc:     ["'self'"],
       // Flipbook do Protocolo (Heyzine) é o único embed de terceiro permitido.

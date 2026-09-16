@@ -1,13 +1,21 @@
-import { useState } from 'react'
-import { Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown, ChevronUp, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown, ChevronUp, ChevronDown, MoreHorizontal, X, Users, Eye,
+} from 'lucide-react'
 import { PERM_AREAS, emptyPermMap, type PermMap } from '@/lib/permAreas'
 import {
   useCargosPermissao, useCreateCargoPerm, useUpdateCargoPerm, useDeleteCargoPerm, useReorderCargosPerm,
   type CargoPermissao,
 } from '@/hooks/useCargosPermissao'
+import { useContas } from '@/hooks/useContas'
 import { useUIStore } from '@/store/uiStore'
 import HudButton from '@/components/ui/HudButton'
 import { confirmar } from '@/lib/dialogo'
+
+const erroApi = (e: unknown, padrao: string) =>
+  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? padrao
 
 /* Checkbox estilizado ─ quadrado com check quando marcado */
 function PermCheck({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -27,24 +35,29 @@ function PermCheck({ checked, onChange }: { checked: boolean; onChange: (v: bool
 
 /* Grade de áreas ─ ÁREA / VER / EDITAR */
 function PermGrid({ value, onToggle }: { value: PermMap; onToggle: (area: string, campo: 'ver' | 'editar', v: boolean) => void }) {
+  const todas = (campo: 'ver' | 'editar') => PERM_AREAS.every(a => value[a.id]?.[campo])
+  const marcarTodas = (campo: 'ver' | 'editar') => {
+    const v = !todas(campo)
+    PERM_AREAS.forEach(a => onToggle(a.id, campo, v))
+  }
   return (
     <div className="border border-bdr rounded-lg overflow-hidden">
       <div className="flex items-center px-3 py-2 bg-card2/60 border-b border-bdr">
-        <span className="flex-1 font-mono text-[10px] text-txt3 tracking-wider uppercase">Área</span>
-        <span className="w-14 text-center font-mono text-[10px] text-txt3 tracking-wider uppercase">Ver</span>
-        <span className="w-16 text-center font-mono text-[10px] text-txt3 tracking-wider uppercase">Editar</span>
+        <span className="flex-1 font-mono text-[10px] text-txt3 tracking-wider uppercase">Área da dashboard</span>
+        <button type="button" onClick={() => marcarTodas('ver')} className="w-14 text-center font-mono text-[10px] text-txt3 hover:text-gold3 tracking-wider uppercase" title="Marcar/desmarcar todas">Ver</button>
+        <button type="button" onClick={() => marcarTodas('editar')} className="w-16 text-center font-mono text-[10px] text-txt3 hover:text-gold3 tracking-wider uppercase" title="Marcar/desmarcar todas">Editar</button>
       </div>
-      <div className="max-h-72 overflow-y-auto">
+      <div className="max-h-[46vh] overflow-y-auto">
         {PERM_AREAS.map(({ id, label }, i) => {
           const p = value[id] ?? { ver: false, editar: false }
           return (
             <div key={id} className={`flex items-center px-3 py-2 ${i % 2 ? 'bg-card2/20' : ''}`}>
               <span className="flex-1 text-sm text-txt">{label}</span>
               <span className="w-14 flex justify-center">
-                <PermCheck checked={p.ver} onChange={v => onToggle(id, 'ver', v)} />
+                <PermCheck checked={p.ver} onChange={v => { onToggle(id, 'ver', v); if (!v && p.editar) onToggle(id, 'editar', false) }} />
               </span>
               <span className="w-16 flex justify-center">
-                <PermCheck checked={p.editar} onChange={v => onToggle(id, 'editar', v)} />
+                <PermCheck checked={p.editar} onChange={v => { onToggle(id, 'editar', v); if (v && !p.ver) onToggle(id, 'ver', true) }} />
               </span>
             </div>
           )
@@ -54,94 +67,183 @@ function PermGrid({ value, onToggle }: { value: PermMap; onToggle: (area: string
   )
 }
 
-/* Card de um cargo já existente (auto-salva as alterações) */
-function CargoCard({ cargo, posicao, total, onMover }: { cargo: CargoPermissao; posicao: number; total: number; onMover: (delta: -1 | 1) => void }) {
+/* Modal central de edição de um cargo (abre pelo menu ⋯ → Editar) */
+function EditarCargoModal({ cargo, onClose }: { cargo: CargoPermissao; onClose: () => void }) {
   const update = useUpdateCargoPerm()
-  const del = useDeleteCargoPerm()
   const { addToast } = useUIStore()
-  const [renaming, setRenaming] = useState(false)
   const [nome, setNome] = useState(cargo.nome)
+  const [admin, setAdmin] = useState(!!cargo.admin)
+  const [perm, setPerm] = useState<PermMap>({ ...emptyPermMap(), ...cargo.permissoes })
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   function toggle(area: string, campo: 'ver' | 'editar', v: boolean) {
-    const next: PermMap = { ...cargo.permissoes, [area]: { ...(cargo.permissoes[area] ?? { ver: false, editar: false }), [campo]: v } }
-    update.mutate({ id: cargo.id, permissoes: next })
+    setPerm(p => ({ ...p, [area]: { ...(p[area] ?? { ver: false, editar: false }), [campo]: v } }))
   }
-  function salvarNome() {
+  function salvar() {
     const n = nome.trim()
-    if (!n || n === cargo.nome) { setRenaming(false); setNome(cargo.nome); return }
-    update.mutate({ id: cargo.id, nome: n }, {
-      onSuccess: () => { addToast('success', 'Cargo renomeado.'); setRenaming(false) },
-      onError: (e: unknown) => { addToast('error', (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao renomear.'); setNome(cargo.nome) },
+    if (!n) { addToast('error', 'Informe o nome do cargo.'); return }
+    update.mutate({ id: cargo.id, nome: n, admin, permissoes: perm }, {
+      onSuccess: () => { addToast('success', `Cargo "${n}" atualizado.`); onClose() },
+      onError: e => addToast('error', erroApi(e, 'Erro ao salvar o cargo.')),
     })
   }
 
-  return (
-    <div className="bg-card border border-bdr rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-bdr">
-        <div className="flex flex-col -my-1">
-          <button onClick={() => onMover(-1)} disabled={posicao === 0} title="Subir na hierarquia"
-            className="text-txt3 hover:text-gold3 disabled:opacity-20 transition-colors"><ChevronUp size={14} /></button>
-          <button onClick={() => onMover(1)} disabled={posicao === total - 1} title="Descer na hierarquia"
-            className="text-txt3 hover:text-gold3 disabled:opacity-20 transition-colors"><ChevronDown size={14} /></button>
+  const qtdVer = PERM_AREAS.filter(a => perm[a.id]?.ver).length
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9000] flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(6px)', background: 'rgba(5,5,5,0.75)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+      role="dialog" aria-modal="true"
+    >
+      <motion.div
+        initial={{ scale: 0.94, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        className="w-full max-w-lg bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-bdr">
+          <h2 className="text-sm font-semibold text-txt flex items-center gap-2"><Pencil size={15} className="text-gold3" /> Editar cargo</h2>
+          <button onClick={onClose} className="text-txt3 hover:text-txt" aria-label="Fechar"><X size={16} /></button>
         </div>
-        <span className="font-mono text-[10px] text-txt3 w-6">{posicao + 1}º</span>
-        {renaming ? (
-          <input
-            autoFocus value={nome} onChange={e => setNome(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') salvarNome(); if (e.key === 'Escape') { setRenaming(false); setNome(cargo.nome) } }}
-            onBlur={salvarNome}
-            className="input-gold flex-1 bg-card2 border border-bdr2 rounded px-2 py-1 text-sm text-txt"
-          />
-        ) : (
-          <h3 className="flex-1 text-sm font-semibold text-txt flex items-center gap-2">
-            {cargo.nome}
-            {cargo.admin && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red/15 border border-red/40 text-red text-[10px] font-mono"><Crown size={10} /> acesso total</span>}
-            {cargo.padrao && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gold/15 border border-gold/40 text-gold3 text-[10px] font-mono"><Star size={10} /> padrão</span>}
-          </h3>
-        )}
-        <button onClick={() => update.mutate({ id: cargo.id, admin: !cargo.admin }, { onSuccess: () => addToast('success', cargo.admin ? 'Acesso total removido.' : 'Cargo com acesso total (administrador).') })}
-          title="Acesso total (administrador do sistema)"
-          className={`p-1.5 rounded transition-colors ${cargo.admin ? 'text-red' : 'text-txt3 hover:text-red'}`}>
-          <Crown size={15} fill={cargo.admin ? 'currentColor' : 'none'} />
-        </button>
-        <button onClick={() => update.mutate({ id: cargo.id, padrao: !cargo.padrao }, { onSuccess: () => addToast('success', cargo.padrao ? 'Removido dos padrões.' : 'Definido como cargo padrão.') })}
-          title="Definir como cargo padrão (atribuído a novos membros)"
-          className={`p-1.5 rounded transition-colors ${cargo.padrao ? 'text-gold3' : 'text-txt3 hover:text-gold3'}`}>
-          <Star size={15} fill={cargo.padrao ? 'currentColor' : 'none'} />
-        </button>
-        <button onClick={() => setRenaming(true)} title="Renomear" className="p-1.5 rounded text-txt3 hover:text-txt transition-colors">
-          <Pencil size={15} />
-        </button>
-        <button onClick={async () => { if (await confirmar({ titulo: 'Excluir cargo', mensagem: `Excluir o cargo "${cargo.nome}"? As contas que o usam ficam sem cargo (sem acesso) até receberem outro.`, tom: 'perigo', textoConfirmar: 'Excluir' })) del.mutate(cargo.id, { onSuccess: () => addToast('success', 'Cargo excluído.') }) }}
-          title="Excluir" className="p-1.5 rounded text-txt3 hover:text-red transition-colors">
-          <Trash2 size={15} />
-        </button>
-      </div>
-      <div className="p-3">
-        {cargo.admin ? (
-          <div className="px-3 py-4 text-center text-[11px] text-txt3 border border-red/20 rounded-lg bg-red/[0.03]">
-            Este cargo tem <span className="text-red font-medium">acesso total</span> — todas as áreas liberadas, incluindo a administração do sistema (contas, cargos e aprovações).
+
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="font-mono text-[10px] text-txt2 tracking-wider uppercase">Nome do cargo</label>
+            <input value={nome} onChange={e => setNome(e.target.value)} maxLength={50}
+              className="input-gold mt-1 w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm text-txt" />
           </div>
-        ) : (
-          <PermGrid value={cargo.permissoes} onToggle={toggle} />
-        )}
+
+          <button type="button" onClick={() => setAdmin(v => !v)}
+            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs transition-colors ${admin ? 'border-red/40 bg-red/10 text-red' : 'border-bdr2 text-txt2 hover:text-txt'}`}>
+            <PermCheck checked={admin} onChange={setAdmin} />
+            <Crown size={13} /> Acesso total (administra o sistema: contas, cargos, canais e aprovações)
+          </button>
+
+          {admin ? (
+            <p className="text-[11px] text-txt3 px-1">Com acesso total, todas as áreas ficam liberadas — não é preciso marcar nada.</p>
+          ) : (
+            <>
+              <p className="text-[11px] text-txt3 px-1">
+                Marque o que quem tem este cargo pode <span className="text-gold3">ver</span> e <span className="text-gold3">editar</span> na dashboard.
+                <span className="text-txt2"> {qtdVer} de {PERM_AREAS.length} áreas visíveis.</span>
+              </p>
+              <PermGrid value={perm} onToggle={toggle} />
+            </>
+          )}
+        </div>
+
+        <div className="flex gap-2 px-5 pb-5">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-txt transition-colors">Cancelar</button>
+          <button onClick={salvar} disabled={update.isPending}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50">
+            <Check size={15} /> {update.isPending ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  )
+}
+
+/* Linha de um cargo com o menu ⋯ (Editar, padrão, excluir) */
+function CargoLinha({ cargo, posicao, total, membros, onMover }: {
+  cargo: CargoPermissao; posicao: number; total: number; membros: number; onMover: (delta: -1 | 1) => void
+}) {
+  const update = useUpdateCargoPerm()
+  const del = useDeleteCargoPerm()
+  const { addToast } = useUIStore()
+  const [menu, setMenu] = useState(false)
+  const [editando, setEditando] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menu) return
+    const fechar = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setMenu(false) }
+    document.addEventListener('mousedown', fechar)
+    return () => document.removeEventListener('mousedown', fechar)
+  }, [menu])
+
+  const visiveis = cargo.admin ? PERM_AREAS.length : PERM_AREAS.filter(a => cargo.permissoes[a.id]?.ver).length
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-card border border-bdr rounded-xl hover:border-gold/30 transition-colors">
+      <div className="flex flex-col -my-1">
+        <button onClick={() => onMover(-1)} disabled={posicao === 0} title="Subir na hierarquia"
+          className="text-txt3 hover:text-gold3 disabled:opacity-20 transition-colors"><ChevronUp size={14} /></button>
+        <button onClick={() => onMover(1)} disabled={posicao === total - 1} title="Descer na hierarquia"
+          className="text-txt3 hover:text-gold3 disabled:opacity-20 transition-colors"><ChevronDown size={14} /></button>
       </div>
+      <span className="font-mono text-[10px] text-txt3 w-6">{posicao + 1}º</span>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-txt flex items-center gap-2 flex-wrap">
+          {cargo.nome}
+          {cargo.admin && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red/15 border border-red/40 text-red text-[10px] font-mono"><Crown size={10} /> acesso total</span>}
+          {cargo.padrao && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gold/15 border border-gold/40 text-gold3 text-[10px] font-mono"><Star size={10} /> padrão</span>}
+        </p>
+        <p className="text-[11px] text-txt3 flex items-center gap-3 mt-0.5">
+          <span className="flex items-center gap-1"><Users size={11} /> {membros} conta{membros === 1 ? '' : 's'}</span>
+          <span className="flex items-center gap-1"><Eye size={11} /> {visiveis} de {PERM_AREAS.length} áreas</span>
+        </p>
+      </div>
+
+      <div className="relative" ref={ref}>
+        <button onClick={() => setMenu(v => !v)} aria-label="Opções do cargo"
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${menu ? 'bg-gold/15 text-gold3' : 'text-txt2 hover:text-txt hover:bg-white/[0.05]'}`}>
+          <MoreHorizontal size={18} />
+        </button>
+        <AnimatePresence>
+          {menu && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+              className="absolute right-0 top-full mt-1 z-50 w-52 bg-card border border-bdr2 rounded-lg shadow-2xl p-1"
+            >
+              <button onClick={() => { setMenu(false); setEditando(true) }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-txt hover:bg-white/[0.05]">
+                <Pencil size={14} className="text-gold3" /> Editar
+              </button>
+              <button onClick={() => { setMenu(false); update.mutate({ id: cargo.id, padrao: !cargo.padrao }, { onSuccess: () => addToast('success', cargo.padrao ? 'Removido como padrão.' : 'Definido como cargo padrão.') }) }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-txt hover:bg-white/[0.05]">
+                <Star size={14} className="text-gold3" /> {cargo.padrao ? 'Remover como padrão' : 'Definir como padrão'}
+              </button>
+              <div className="h-px bg-bdr my-1" />
+              <button
+                onClick={async () => {
+                  setMenu(false)
+                  if (await confirmar({ titulo: 'Excluir cargo', mensagem: `Excluir o cargo "${cargo.nome}"? As contas que o usam ficam sem cargo (sem acesso) até receberem outro.`, tom: 'perigo', textoConfirmar: 'Excluir' })) {
+                    del.mutate(cargo.id, { onSuccess: () => addToast('success', 'Cargo excluído.') })
+                  }
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red hover:bg-red/10">
+                <Trash2 size={14} /> Excluir
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {editando && <EditarCargoModal cargo={cargo} onClose={() => setEditando(false)} />}
+      </AnimatePresence>
     </div>
   )
 }
 
 export default function PermissoesEditor() {
   const { data: cargos = [] } = useCargosPermissao()
+  const { data: contas = [] } = useContas()
   const create = useCreateCargoPerm()
   const reorder = useReorderCargosPerm()
   const { addToast } = useUIStore()
   const [nome, setNome] = useState('')
-  const [novaAdmin, setNovaAdmin] = useState(false)
-  const [novaPerm, setNovaPerm] = useState<PermMap>(emptyPermMap())
 
-  function toggleNova(area: string, campo: 'ver' | 'editar', v: boolean) {
-    setNovaPerm(p => ({ ...p, [area]: { ...(p[area] ?? { ver: false, editar: false }), [campo]: v } }))
-  }
   function mover(i: number, delta: -1 | 1) {
     const ids = cargos.map(c => c.id)
     const j = i + delta
@@ -151,56 +253,51 @@ export default function PermissoesEditor() {
   }
 
   function criar() {
-    if (!nome.trim()) { addToast('error', 'Informe um nome para o cargo.'); return }
-    create.mutate({ nome: nome.trim(), admin: novaAdmin, permissoes: novaPerm }, {
-      onSuccess: () => { addToast('success', 'Cargo criado!'); setNome(''); setNovaAdmin(false); setNovaPerm(emptyPermMap()) },
-      onError: (e: unknown) => addToast('error', (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao criar cargo.'),
+    const n = nome.trim()
+    if (!n) { addToast('error', 'Informe um nome para o cargo.'); return }
+    create.mutate({ nome: n, admin: false, permissoes: emptyPermMap() }, {
+      onSuccess: () => { addToast('success', `Cargo "${n}" criado. Use ⋯ → Editar para escolher o que ele acessa.`); setNome('') },
+      onError: e => addToast('error', erroApi(e, 'Erro ao criar cargo.')),
     })
   }
 
   return (
     <div className="space-y-5">
-      {/* ── Criar novo cargo ─────────────────────────────── */}
       <div>
         <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1 flex items-center gap-2">
           <ShieldCheck size={14} /> CARGOS DE PERMISSÃO
         </h3>
-        <p className="text-[11px] text-txt3 mb-3">Defina o que cada cargo pode <span className="text-gold3">ver</span> e <span className="text-gold3">editar</span> em cada área do painel.</p>
+        <p className="text-[11px] text-txt3 mb-3">
+          Cada cargo define o que aparece na dashboard de quem o recebe. Clique em <span className="text-gold3">⋯ → Editar</span> para escolher as áreas que o cargo pode ver e editar.
+        </p>
 
-        <div className="flex gap-2 mb-3">
+        <div className="flex gap-2">
           <input
             value={nome}
             onChange={e => setNome(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') criar() }}
-            placeholder="Nome do cargo..."
+            placeholder="Nome do novo cargo..."
+            maxLength={50}
             className="input-gold flex-1 bg-card2 border border-bdr2 rounded-lg px-4 py-2.5 text-sm font-mono text-txt"
           />
           <HudButton onClick={criar} loading={create.isPending}>
             <Plus size={15} className="inline mr-1" /> Criar
           </HudButton>
         </div>
-
-        <button type="button" onClick={() => setNovaAdmin(v => !v)}
-          className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg border text-xs transition-colors ${novaAdmin ? 'border-red/40 bg-red/10 text-red' : 'border-bdr2 text-txt2 hover:text-txt'}`}>
-          <PermCheck checked={novaAdmin} onChange={setNovaAdmin} />
-          <Crown size={13} /> Administrador (acesso total ao sistema)
-        </button>
-
-        {novaAdmin
-          ? <p className="text-[11px] text-txt3 px-1">Com acesso total, todas as áreas ficam liberadas — não é preciso marcar nada abaixo.</p>
-          : <PermGrid value={novaPerm} onToggle={toggleNova} />}
       </div>
 
-      {/* ── Cargos existentes ────────────────────────────── */}
-      {cargos.length > 0 && (
-        <div className="space-y-4 pt-2 border-t border-bdr">
-          <p className="text-[11px] text-txt3">
-            <span className="text-gold3">Hierarquia:</span> o primeiro cargo é o mais alto. Mudar alguém para um cargo acima é <span className="text-green">promoção</span>; para um abaixo, <span className="text-orange-400">rebaixamento</span>. Use as setas para reordenar.
+      {cargos.length > 0 ? (
+        <div className="space-y-2 pt-2 border-t border-bdr">
+          <p className="text-[11px] text-txt3 pt-2">
+            <span className="text-gold3">Hierarquia:</span> o primeiro cargo é o mais alto. Mudar alguém para um cargo acima é <span className="text-green">promoção</span>; para um abaixo, <span className="text-orange-400">rebaixamento</span>.
           </p>
-          {cargos.map((c, i) => <CargoCard key={c.id} cargo={c} posicao={i} total={cargos.length} onMover={d => mover(i, d)} />)}
+          {cargos.map((c, i) => (
+            <CargoLinha key={c.id} cargo={c} posicao={i} total={cargos.length}
+              membros={contas.filter(ct => ct.cargoPermId === c.id).length}
+              onMover={d => mover(i, d)} />
+          ))}
         </div>
-      )}
-      {cargos.length === 0 && (
+      ) : (
         <div className="flex flex-col items-center justify-center py-10 gap-2 text-txt3 border border-dashed border-bdr rounded-xl">
           <ShieldCheck size={26} className="opacity-40" />
           <p className="font-mono text-xs">Nenhum cargo criado ainda</p>

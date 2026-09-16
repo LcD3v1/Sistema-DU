@@ -10,6 +10,8 @@ export interface Me {
   nivel: Nivel
   membroId: number | null
   discordUsername: string | null
+  nomeServidor: string
+  avatarServidor: string | null
   avatar: string | null
   banner: string | null
   onboarded: boolean

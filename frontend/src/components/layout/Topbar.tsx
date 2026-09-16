@@ -56,7 +56,9 @@ export default function Topbar() {
     navigate('/login')
   }
 
-  const initials = (user?.username ?? '?').slice(0, 2).toUpperCase()
+  const nomeExibido = me?.nomeServidor || user?.username || '?'
+  const fotoExibida = me?.avatarServidor || me?.avatar || null
+  const initials = nomeExibido.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '?'
   const roleLabel = me?.admin ? 'Administrador' : 'Membro'
 
   return (
@@ -74,14 +76,14 @@ export default function Topbar() {
             className="flex items-center gap-3 group"
           >
             <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-txt">{user.username}</p>
+              <p className="text-sm font-medium text-txt max-w-[180px] truncate">{nomeExibido}</p>
               <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase">
                 {roleLabel}
               </p>
             </div>
             <div className="w-9 h-9 rounded-full bg-card2 border border-bdr2 flex items-center justify-center text-gold3 text-xs font-semibold overflow-hidden">
-              {me?.avatar
-                ? <img src={me.avatar} alt="" className="w-full h-full object-cover" />
+              {fotoExibida
+                ? <img src={fotoExibida} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                 : initials}
             </div>
             <ChevronDown size={15} className="text-txt3 group-hover:text-txt2 transition-colors" />

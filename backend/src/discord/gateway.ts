@@ -5,6 +5,7 @@ import { PROTECTED_OWNER_ID } from '../access'
 import { botConfigurado } from './forum'
 import { exonerarMembro, ehContaDona } from '../efetivo'
 import { notificarArea } from '../notificacoes'
+import { aplicarIdentidade, MembroServidor } from './identidade'
 
 /**
  * Conexão em tempo real com o Discord (gateway) para detectar quando alguém
@@ -60,12 +61,41 @@ export function iniciarGateway(): void {
     }
   })
 
+  // Apelido/foto do servidor mudou → atualiza no painel
+  client.on(Events.GuildMemberUpdate, (_antes, depois) => {
+    if (depois.guild.id !== guildId) return
+    try {
+      const data = readData()
+      const conta = data.contas.find(c => c.discordId === depois.id)
+      const m: MembroServidor = {
+        user: { id: depois.id, username: depois.user.username, global_name: depois.user.globalName, avatar: depois.user.avatar },
+        nick: depois.nickname, avatar: depois.avatar,
+      }
+      if (conta && aplicarIdentidade(conta, m)) writeData(data)
+    } catch (err) {
+      console.error('[FAST][DISCORD] atualizar identidade:', err instanceof Error ? err.message : err)
+    }
+  })
+
   // Ao conectar, confere quem saiu enquanto o sistema estava desligado.
   client.once(Events.ClientReady, async c => {
     console.log(`[FAST][DISCORD] Bot conectado como ${c.user.tag}`)
     try {
       const guild = await c.guilds.fetch(guildId)
       const membros = await guild.members.fetch()
+
+      // Sincroniza apelido e foto do servidor de todas as contas
+      const dados = readData()
+      let mudou = false
+      for (const conta of dados.contas) {
+        const m = conta.discordId ? membros.get(conta.discordId) : undefined
+        if (m && aplicarIdentidade(conta, {
+          user: { id: m.id, username: m.user.username, global_name: m.user.globalName, avatar: m.user.avatar },
+          nick: m.nickname, avatar: m.avatar,
+        })) mudou = true
+      }
+      if (mudou) writeData(dados)
+
       for (const conta of readData().contas) {
         if (conta.discordId && conta.id !== PROTECTED_OWNER_ID && !conta.exonerado && !membros.has(conta.discordId)) {
           processarSaida(conta.discordId, 'Verificação ao iniciar')

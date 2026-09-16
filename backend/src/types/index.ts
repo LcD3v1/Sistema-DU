@@ -68,6 +68,8 @@ export interface Conta {
   banner?: string
   onboarded?: boolean
   cargoPermId?: number
+  nomeServidor?: string      // apelido no servidor do Discord da unidade
+  avatarServidor?: string    // foto no servidor (URL do CDN do Discord)
   exonerado?: boolean        // perde o acesso e vê o aviso de exoneração ao entrar
   exoneradoEm?: string
   exoneradoMotivo?: string

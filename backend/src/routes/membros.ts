@@ -37,6 +37,8 @@ function comVinculo(data: FastData, m: Membro) {
     contaId: conta?.id ?? null,
     cargoPermId: conta?.cargoPermId ?? null,
     cargoNome: nomeCargoAtual(data, m),
+    nomeServidor: conta?.nomeServidor ?? null,
+    avatarServidor: conta?.avatarServidor ?? null,
     ausenteAte: aus?.dataFim ?? null,
   }
 }

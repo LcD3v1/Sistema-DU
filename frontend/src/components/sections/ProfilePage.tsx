@@ -66,7 +66,7 @@ export default function ProfilePage() {
   if (!me) return null
 
   const rankPos = desempenho?.posicao ?? null
-  const nome = membro?.policial || me.username
+  const nome = me.nomeServidor || membro?.policial || me.username
   const banner = resolveBanner(me.banner, rankPos)
   const tiers = unlockedTiers(rankPos)
 
@@ -128,7 +128,7 @@ export default function ProfilePage() {
           {/* Avatar */}
           <div className="relative group shrink-0">
             <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center text-2xl font-bold text-white backdrop-blur">
-              {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : initials(nome)}
+              {(me.avatarServidor || me.avatar) ? <img src={me.avatarServidor || me.avatar || ''} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : initials(nome)}
             </div>
             <button onClick={() => avatarInput.current?.click()}
               className="absolute inset-0 rounded-2xl bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
@@ -212,7 +212,7 @@ export default function ProfilePage() {
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between"><dt className="text-txt2">Usuário</dt><dd className="text-txt font-medium">{me.username}</dd></div>
               <div className="flex justify-between"><dt className="text-txt2">Acesso</dt><dd className="text-txt font-medium">{me.admin ? 'Administrador' : 'Membro'}</dd></div>
-              <div className="flex justify-between"><dt className="text-txt2">Discord</dt><dd className="text-txt font-medium">{me.discordUsername ? `@${me.discordUsername}` : 'não vinculado'}</dd></div>
+              <div className="flex justify-between"><dt className="text-txt2">Discord</dt><dd className="text-txt font-medium">{me.nomeServidor ? me.nomeServidor : me.discordUsername ? `@${me.discordUsername}` : 'não vinculado'}</dd></div>
             </dl>
           </div>
 

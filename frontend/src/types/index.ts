@@ -23,6 +23,8 @@ export interface Membro {
   cargoPermId?: number | null
   cargoNome?: string
   ausenteAte?: string | null
+  nomeServidor?: string | null
+  avatarServidor?: string | null
 }
 
 export interface Advertencia {

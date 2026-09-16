@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { Plus } from 'lucide-react'
+import { Plus, Trophy, Target, ShieldAlert, CalendarClock, BadgeCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAllAcoes } from '@/hooks/useAcoes'
 import { useMembros } from '@/hooks/useMembros'
 import { useAusencias, statusAusencia } from '@/hooks/useAusencias'
 import { useAuthStore } from '@/store/authStore'
+import { useMe } from '@/hooks/useMe'
+import { usePerms } from '@/hooks/usePerms'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { calcWinRate } from '@/lib/utils'
 import type { Membro, Acao } from '@/types'
@@ -105,6 +107,8 @@ export default function DashboardPage() {
   const { data: acoesData, isLoading: acoesLoading } = useAllAcoes()
   const { data: membros, isLoading: membrosLoading } = useMembros()
   const { data: ausencias } = useAusencias()
+  const { data: me } = useMe()
+  const { canEdit, admin } = usePerms()
 
   const [win, setWin] = useState<Win>(30)
 
@@ -184,30 +188,75 @@ export default function DashboardPage() {
 
   if (acoesLoading || membrosLoading) return <LoadingHud />
 
-  const firstName = (user?.username ?? 'operador').split(/[.\s]/)[0]
-  const nomeCap = firstName.charAt(0).toUpperCase() + firstName.slice(1)
+  // ── Dados pessoais do usuário logado ─────────────────────────
+  const nomeExibido = me?.nomeServidor || user?.username || 'operador'
+  const fotoExibida = me?.avatarServidor || me?.avatar || null
+  const meuMembro = membrosList.find(m => m.id === me?.membroId)
+  const minhas = meuMembro ? acoes.filter(a => a.participants.some(p => p.memberId === meuMembro.id)) : []
+  const minhasVitorias = minhas.filter(a => a.resultado === 'Vitória').length
+  const minhasDerrotas = minhas.filter(a => a.resultado === 'Derrota').length
+  const meuAproveitamento = minhasVitorias + minhasDerrotas ? Math.round((minhasVitorias / (minhasVitorias + minhasDerrotas)) * 100) : 0
+  const minhaAdv = meuMembro ? (meuMembro.adv3 ? 3 : meuMembro.adv2 ? 2 : meuMembro.adv1 ? 1 : 0) : 0
+  const meuCargo = meuMembro?.cargoNome || (admin ? 'Acesso total' : 'Sem cargo')
   const pendentes = acoes.filter(a => a.resultado === 'Empate').length
 
   return (
     <div className="p-6 space-y-8 max-w-[1600px]">
       {/* ── Cabeçalho ──────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-bold text-txt">Bem vindo {nomeCap}!</h1>
-          <p className="text-sm text-txt2 mt-1 capitalize">
-            {dateStr}
-            <span className="text-txt3"> · {pendentes} pendência{pendentes === 1 ? '' : 's'} aguardando ação</span>
-          </p>
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-16 h-16 rounded-full border-2 border-gold/50 bg-card2 overflow-hidden flex items-center justify-center text-gold3 text-lg font-semibold shrink-0 shadow-[0_0_24px_-6px_rgba(58,114,196,0.6)]">
+            {fotoExibida
+              ? <img src={fotoExibida} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+              : nomeExibido.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold text-txt truncate">Bem-vindo, {nomeExibido}!</h1>
+            <p className="text-sm text-txt2 mt-1 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold3 text-xs font-medium">
+                <BadgeCheck size={12} /> {meuCargo}
+              </span>
+              <span className="capitalize">{dateStr}</span>
+              <span className="text-txt3">· {pendentes} pendência{pendentes === 1 ? '' : 's'} aguardando ação</span>
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/acoes/nova')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_8px_24px_-10px_rgba(58,114,196,0.7)]"
-          >
-            <Plus size={16} /> Nova apreensão
-          </button>
-        </div>
+        {canEdit('registrar_acao') && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/acoes/nova')}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_8px_24px_-10px_rgba(58,114,196,0.7)]"
+            >
+              <Plus size={16} /> Nova apreensão
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* ── Meu desempenho (específico de cada usuário) ─────────── */}
+      {meuMembro && (
+        <section>
+          <p className="font-mono text-[10px] text-txt2 tracking-[0.18em] uppercase mb-3">Meu desempenho</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-card border border-bdr rounded-xl p-4 flex items-center gap-3">
+              <Target size={20} className="text-gold3 shrink-0" />
+              <div><p className="text-2xl font-bold text-txt leading-none">{minhas.length}</p><p className="text-[11px] text-txt2 mt-1">apreensões que participei</p></div>
+            </div>
+            <div className="bg-card border border-bdr rounded-xl p-4 flex items-center gap-3">
+              <Trophy size={20} className="text-green shrink-0" />
+              <div><p className="text-2xl font-bold text-txt leading-none">{meuAproveitamento}%</p><p className="text-[11px] text-txt2 mt-1">{minhasVitorias} vitória{minhasVitorias === 1 ? '' : 's'} · {minhasDerrotas} derrota{minhasDerrotas === 1 ? '' : 's'}</p></div>
+            </div>
+            <div className="bg-card border border-bdr rounded-xl p-4 flex items-center gap-3">
+              <ShieldAlert size={20} className={minhaAdv ? 'text-orange-400 shrink-0' : 'text-txt3 shrink-0'} />
+              <div><p className="text-2xl font-bold text-txt leading-none">{minhaAdv ? `Nível ${minhaAdv}` : 'Nenhuma'}</p><p className="text-[11px] text-txt2 mt-1">advertência</p></div>
+            </div>
+            <div className="bg-card border border-bdr rounded-xl p-4 flex items-center gap-3">
+              <CalendarClock size={20} className="text-blue shrink-0" />
+              <div><p className="text-2xl font-bold text-txt leading-none">{meuMembro.status}</p><p className="text-[11px] text-txt2 mt-1">{meuMembro.ausenteAte ? `ausente até ${meuMembro.ausenteAte.split('-').reverse().join('/')}` : 'status atual'}</p></div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Inteligência operacional ───────────────────────────── */}
       <section>
