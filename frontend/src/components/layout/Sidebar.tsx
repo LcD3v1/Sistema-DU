@@ -112,7 +112,7 @@ export default function Sidebar() {
             <Brand size={62} />
           </div>
         </div>
-        <p className="wordmark text-[15px] text-txt tracking-[0.18em] mt-1">Fast Division</p>
+        <p className="wordmark text-[15px] text-txt tracking-[0.18em] mt-1">Fast Unit</p>
       </div>
 
       {/* Navegação */}
