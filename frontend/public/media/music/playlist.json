@@ -1,1 +1,6 @@
-[]
+[
+  { "title": "Devil Eyes", "artist": "Hippie Sabotage", "src": "/media/music/devil-eyes.mp3" },
+  { "title": "Running Miles", "artist": "Hippie Sabotage", "src": "/media/music/running-miles.mp3" },
+  { "title": "Toretto", "artist": "PiuTrap", "src": "/media/music/toretto.mp3" },
+  { "title": "QTA", "artist": "S4DRAC", "src": "/media/music/qta.mp3" }
+]
