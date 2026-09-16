@@ -8,6 +8,7 @@ import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 import ModalOverlay from '@/components/ui/ModalOverlay'
 import HudButton from '@/components/ui/HudButton'
+import { confirmar } from '@/lib/dialogo'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
@@ -117,7 +118,7 @@ export default function FardamentoPage() {
                       className="w-7 h-7 rounded-md bg-black/60 backdrop-blur border border-white/15 text-white/80 hover:text-white flex items-center justify-center">
                       <Pencil size={13} />
                     </button>
-                    <button onClick={() => { if (confirm(`Remover o fardamento de ${f.patente}?`)) remover.mutate(f.id, { onSuccess: () => addToast('success', 'Fardamento removido.') }) }}
+                    <button onClick={async () => { if (await confirmar({ titulo: 'Remover fardamento', mensagem: `Remover o fardamento de ${f.patente}?`, tom: 'perigo', textoConfirmar: 'Remover' })) remover.mutate(f.id, { onSuccess: () => addToast('success', 'Fardamento removido.') }) }}
                       title="Excluir"
                       className="w-7 h-7 rounded-md bg-black/60 backdrop-blur border border-white/15 text-white/80 hover:text-red flex items-center justify-center">
                       <Trash2 size={13} />

@@ -17,6 +17,17 @@ export interface Membro {
   adv2: boolean
   adv3: boolean
   ordem?: number
+  discordThreadId?: string   // postagem no fórum de Registro
+  advertencias?: Advertencia[]
+}
+
+export type NivelAdvertencia = 1 | 2 | 3
+
+export interface Advertencia {
+  nivel: NivelAdvertencia
+  motivo: string
+  autor: string
+  data: string        // ISO
 }
 
 export interface ParticipanteAcao {
@@ -40,12 +51,13 @@ export interface Acao {
   local?: string
   imagem?: string
   status?: 'pendente' | 'aprovada'
+  discordThreadId?: string   // postagem no fórum de Apreensões
+  criadoPorContaId?: number
 }
 
 export interface Conta {
   id: number
   username: string
-  password: string
   nivel: Nivel
   ativo: boolean
   discordId?: string
@@ -56,6 +68,9 @@ export interface Conta {
   banner?: string
   onboarded?: boolean
   cargoPermId?: number
+  exonerado?: boolean        // perde o acesso e vê o aviso de exoneração ao entrar
+  exoneradoEm?: string
+  exoneradoMotivo?: string
 }
 
 export interface PermArea {
@@ -69,14 +84,6 @@ export interface CargoPermissao {
   padrao?: boolean
   admin?: boolean   // "acesso total" — administra o sistema (contas, cargos, aprovações)
   permissoes: Record<string, PermArea>
-}
-
-export interface Solicitacao {
-  id: number
-  username: string
-  senha: string       // já com hash
-  nome: string
-  criadoEm: string
 }
 
 export interface Aviso {
@@ -126,6 +133,8 @@ export interface Recruta {
   observacoes?: string
 }
 
+export type StatusAusencia = 'pendente' | 'aprovada' | 'recusada' | 'encerrada'
+
 export interface Ausencia {
   id: number
   memberId?: number
@@ -134,6 +143,13 @@ export interface Ausencia {
   dataFim: string
   motivo: string
   criadoEm: string
+  status?: StatusAusencia     // ausente em dados legados = 'aprovada'
+  solicitadoPor?: string
+  decididoPor?: string
+  encerradaEm?: string
+  encerradaPor?: string
+  motivoRecusa?: string
+  inicioNotificado?: boolean
 }
 
 export interface SituacaoAnuncio {
@@ -141,6 +157,41 @@ export interface SituacaoAnuncio {
   label: string
   titulo: string
   texto: string
+}
+
+export type TipoNotificacao =
+  | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
+  | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
+  | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro'
+
+export interface Notificacao {
+  id: number
+  contaId: number
+  tipo: TipoNotificacao
+  titulo: string
+  mensagem: string
+  link?: string
+  lida: boolean
+  criadaEm: string
+}
+
+export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteNPD' | 'patenteInterna'
+
+export interface SolicitacaoPerfil {
+  id: number
+  membroId: number
+  contaId: number
+  alteracoes: { campo: CampoPerfil; de: string; para: string }[]
+  status: 'pendente' | 'aprovada' | 'recusada'
+  criadoEm: string
+  decididoPor?: string
+  decididoEm?: string
+  motivoRecusa?: string
+}
+
+export interface CanaisDiscord {
+  registro?: string     // ID do canal Fórum de registro
+  apreensoes?: string   // ID do canal Fórum de apreensões
 }
 
 export interface FastData {
@@ -153,7 +204,6 @@ export interface FastData {
   patentes: string[]
   cargos: string[]
   contas: Conta[]
-  solicitacoes: Solicitacao[]
   ausencias: Ausencia[]
   avisos: Aviso[]
   fardamentos: Fardamento[]
@@ -165,12 +215,16 @@ export interface FastData {
   nextAusId: number
   nextSitId: number
   nextAvisoId: number
-  nextSolId: number
   nextFardId: number
   nextCargoPermId: number
   nivelMigrado?: boolean   // flag: migração nível→cargos já executada
   logo: string
   membrosOrder: number[]
+  canais: CanaisDiscord
+  notificacoes: Notificacao[]
+  nextNotifId: number
+  solicitacoesPerfil: SolicitacaoPerfil[]
+  nextSolPerfilId: number
 }
 
 export interface AuthPayload {

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { AuthPayload } from '../types'
 import { isRevoked } from '../security/tokenBlacklist'
 import { readData } from '../data'
+import { bloqueioDeAcesso } from '../efetivo'
 
 declare global {
   namespace Express {
@@ -36,10 +37,22 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   // 2. Conta ainda existe e está ativa? (efeito imediato ao desativar)
-  // readData() é rápido — lê arquivo local em memória do SO
-  const conta = readData().contas.find(c => c.id === payload.contaId)
+  // readData() é rápido — lê do cache em memória (espelho do MongoDB)
+  const data = readData()
+  const conta = data.contas.find(c => c.id === payload.contaId)
+  if (conta?.exonerado) {
+    res.status(401).json({ error: 'EXONERADO' })
+    return
+  }
   if (!conta || !conta.ativo) {
     res.status(401).json({ error: 'CONTA_DESATIVADA' })
+    return
+  }
+
+  // 3. Em ausência aprovada → sem acesso até o fim do período
+  const bloqueio = bloqueioDeAcesso(conta, data)
+  if (bloqueio?.codigo === 'AUSENTE') {
+    res.status(401).json({ error: 'AUSENTE', ate: bloqueio.ate })
     return
   }
 

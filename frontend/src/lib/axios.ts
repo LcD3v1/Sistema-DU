@@ -18,7 +18,11 @@ api.interceptors.response.use(
   err => {
     if (err.response?.status === 401) {
       useAuthStore.getState().clearAuth()
-      const reason = err.response?.data?.error === 'CONTA_DESATIVADA' ? '?reason=desativada' : ''
+      const body = err.response?.data ?? {}
+      let reason = ''
+      if (body.error === 'CONTA_DESATIVADA') reason = '?reason=desativada'
+      else if (body.error === 'EXONERADO') reason = '?reason=exonerado'
+      else if (body.error === 'AUSENTE') reason = `?reason=ausente&ate=${encodeURIComponent(body.ate ?? '')}`
       window.location.href = '/login' + reason
     }
     return Promise.reject(err)

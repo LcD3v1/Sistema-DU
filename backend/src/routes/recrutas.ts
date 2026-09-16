@@ -4,6 +4,7 @@ import { requireArea } from '../middleware/roles'
 import { validateBody, recrutaCreateSchema, avaliacaoRecrutaSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
+import { notificarArea } from '../notificacoes'
 import { AvaliacaoIndividual, Recruta } from '../types'
 
 const router = Router()
@@ -40,6 +41,8 @@ router.post('/', requireAuth, requireArea('recrutamento', 'editar'), validateBod
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data.recrutas.push(novo as any)
   data.nextRecId++
+  notificarArea(data, 'recrutamento', [req.user!.contaId], 'recrutamento', 'Novo candidato',
+    `${novo.nome} foi adicionado ao recrutamento por ${req.user!.username}.`, `/recrutamento/${novo.id}`)
   writeData(data)
   audit('RECRUTA_CREATED', req, `Nome: ${novo.nome}`)
   res.status(201).json(novo)
@@ -100,6 +103,8 @@ router.put('/:id/fechar', requireAuth, requireArea('recrutamento', 'editar'), (r
     r.resultado = totalFinal >= data.recCfg.notaMinima ? 'Aprovado' : 'Reprovado'
   }
   r.status = 'fechado'
+  notificarArea(data, 'recrutamento', [], 'recrutamento', `Recrutamento encerrado: ${r.nome}`,
+    `Resultado: ${r.resultado ?? 'sem avaliações'}. Encerrado por ${req.user!.username}.`, `/recrutamento/${id}`)
   writeData(data)
   audit('RECRUTA_FECHADO', req, `ID: ${id}`)
   res.json(normalize(r))

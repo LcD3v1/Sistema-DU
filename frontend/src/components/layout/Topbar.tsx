@@ -3,6 +3,7 @@ import { LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
+import NotificationBell from './NotificationBell'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':        'Visão geral',
@@ -63,6 +64,8 @@ export default function Topbar() {
       <p className="font-mono text-[11px] text-txt2 tracking-[0.25em] uppercase flex-1">
         {title}
       </p>
+
+      {user && <NotificationBell />}
 
       {user && (
         <div className="relative" ref={ref}>

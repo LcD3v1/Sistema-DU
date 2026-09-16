@@ -39,15 +39,29 @@ function validateJwtSecret(): string {
   return secret!
 }
 
-// Discord OAuth é opcional; se parcialmente configurado, avisa.
+// Discord OAuth é o ÚNICO método de login; avisa se não estiver configurado.
 function validateDiscord(): void {
   const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI } = process.env
   const some = DISCORD_CLIENT_ID || DISCORD_CLIENT_SECRET || DISCORD_REDIRECT_URI
   const all = DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI
-  if (some && !all) {
-    console.warn('[FAST][SEGURANÇA] Discord OAuth parcialmente configurado — login por Discord ficará desativado até preencher CLIENT_ID, CLIENT_SECRET e REDIRECT_URI.')
+  if (!all) {
+    console.warn(`[FAST][ATENÇÃO] Discord OAuth ${some ? 'parcialmente configurado' : 'não configurado'} — o login é SÓ via Discord, então ninguém conseguirá entrar até preencher DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET e DISCORD_REDIRECT_URI.`)
   }
 }
+
+function validateMongo(): void {
+  const uri = process.env.MONGODB_URI
+  if (!uri) {
+    console.error('\n[FAST][CONFIG] MONGODB_URI não está definido — o servidor não vai iniciar.')
+    console.error('  Defina a string de conexão do MongoDB no arquivo backend/.env.\n')
+    process.exit(1)
+  }
+  if (uri.includes('<db_username>') || uri.includes('<db_password>')) {
+    console.error('\n[FAST][CONFIG] MONGODB_URI ainda contém <db_username> — substitua pelo usuário do banco.\n')
+    process.exit(1)
+  }
+}
+validateMongo()
 
 export const env = {
   JWT_SECRET: validateJwtSecret(),

@@ -17,6 +17,26 @@ export interface Membro {
   adv2: boolean
   adv3: boolean
   ordem?: number
+  advertencias?: Advertencia[]
+  // Calculados pelo backend a partir da conta vinculada
+  contaId?: number | null
+  cargoPermId?: number | null
+  cargoNome?: string
+  ausenteAte?: string | null
+}
+
+export interface Advertencia {
+  nivel: 1 | 2 | 3
+  motivo: string
+  autor: string
+  data: string
+}
+
+export interface CargoHierarquia {
+  id: number
+  nome: string
+  admin: boolean
+  posicao: number
 }
 
 export interface ParticipanteAcao {
@@ -48,6 +68,11 @@ export interface Conta {
   nivel: Nivel
   ativo: boolean
   cargoPermId?: number | null
+  discordId?: string
+  discordUsername?: string
+  onboarded?: boolean
+  exonerado?: boolean
+  exoneradoMotivo?: string
 }
 
 export interface CategoriaRecrutamento {

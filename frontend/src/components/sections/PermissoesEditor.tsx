@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown } from 'lucide-react'
+import { Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown, ChevronUp, ChevronDown } from 'lucide-react'
 import { PERM_AREAS, emptyPermMap, type PermMap } from '@/lib/permAreas'
 import {
-  useCargosPermissao, useCreateCargoPerm, useUpdateCargoPerm, useDeleteCargoPerm,
+  useCargosPermissao, useCreateCargoPerm, useUpdateCargoPerm, useDeleteCargoPerm, useReorderCargosPerm,
   type CargoPermissao,
 } from '@/hooks/useCargosPermissao'
 import { useUIStore } from '@/store/uiStore'
 import HudButton from '@/components/ui/HudButton'
+import { confirmar } from '@/lib/dialogo'
 
 /* Checkbox estilizado ─ quadrado com check quando marcado */
 function PermCheck({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -54,7 +55,7 @@ function PermGrid({ value, onToggle }: { value: PermMap; onToggle: (area: string
 }
 
 /* Card de um cargo já existente (auto-salva as alterações) */
-function CargoCard({ cargo }: { cargo: CargoPermissao }) {
+function CargoCard({ cargo, posicao, total, onMover }: { cargo: CargoPermissao; posicao: number; total: number; onMover: (delta: -1 | 1) => void }) {
   const update = useUpdateCargoPerm()
   const del = useDeleteCargoPerm()
   const { addToast } = useUIStore()
@@ -77,6 +78,13 @@ function CargoCard({ cargo }: { cargo: CargoPermissao }) {
   return (
     <div className="bg-card border border-bdr rounded-xl overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-bdr">
+        <div className="flex flex-col -my-1">
+          <button onClick={() => onMover(-1)} disabled={posicao === 0} title="Subir na hierarquia"
+            className="text-txt3 hover:text-gold3 disabled:opacity-20 transition-colors"><ChevronUp size={14} /></button>
+          <button onClick={() => onMover(1)} disabled={posicao === total - 1} title="Descer na hierarquia"
+            className="text-txt3 hover:text-gold3 disabled:opacity-20 transition-colors"><ChevronDown size={14} /></button>
+        </div>
+        <span className="font-mono text-[10px] text-txt3 w-6">{posicao + 1}º</span>
         {renaming ? (
           <input
             autoFocus value={nome} onChange={e => setNome(e.target.value)}
@@ -104,7 +112,7 @@ function CargoCard({ cargo }: { cargo: CargoPermissao }) {
         <button onClick={() => setRenaming(true)} title="Renomear" className="p-1.5 rounded text-txt3 hover:text-txt transition-colors">
           <Pencil size={15} />
         </button>
-        <button onClick={() => { if (confirm(`Excluir o cargo "${cargo.nome}"? As contas que o usam voltam ao acesso do nível.`)) del.mutate(cargo.id, { onSuccess: () => addToast('success', 'Cargo excluído.') }) }}
+        <button onClick={async () => { if (await confirmar({ titulo: 'Excluir cargo', mensagem: `Excluir o cargo "${cargo.nome}"? As contas que o usam ficam sem cargo (sem acesso) até receberem outro.`, tom: 'perigo', textoConfirmar: 'Excluir' })) del.mutate(cargo.id, { onSuccess: () => addToast('success', 'Cargo excluído.') }) }}
           title="Excluir" className="p-1.5 rounded text-txt3 hover:text-red transition-colors">
           <Trash2 size={15} />
         </button>
@@ -125,6 +133,7 @@ function CargoCard({ cargo }: { cargo: CargoPermissao }) {
 export default function PermissoesEditor() {
   const { data: cargos = [] } = useCargosPermissao()
   const create = useCreateCargoPerm()
+  const reorder = useReorderCargosPerm()
   const { addToast } = useUIStore()
   const [nome, setNome] = useState('')
   const [novaAdmin, setNovaAdmin] = useState(false)
@@ -133,6 +142,14 @@ export default function PermissoesEditor() {
   function toggleNova(area: string, campo: 'ver' | 'editar', v: boolean) {
     setNovaPerm(p => ({ ...p, [area]: { ...(p[area] ?? { ver: false, editar: false }), [campo]: v } }))
   }
+  function mover(i: number, delta: -1 | 1) {
+    const ids = cargos.map(c => c.id)
+    const j = i + delta
+    if (j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    reorder.mutate(ids, { onError: () => addToast('error', 'Erro ao reordenar a hierarquia.') })
+  }
+
   function criar() {
     if (!nome.trim()) { addToast('error', 'Informe um nome para o cargo.'); return }
     create.mutate({ nome: nome.trim(), admin: novaAdmin, permissoes: novaPerm }, {
@@ -177,7 +194,10 @@ export default function PermissoesEditor() {
       {/* ── Cargos existentes ────────────────────────────── */}
       {cargos.length > 0 && (
         <div className="space-y-4 pt-2 border-t border-bdr">
-          {cargos.map(c => <CargoCard key={c.id} cargo={c} />)}
+          <p className="text-[11px] text-txt3">
+            <span className="text-gold3">Hierarquia:</span> o primeiro cargo é o mais alto. Mudar alguém para um cargo acima é <span className="text-green">promoção</span>; para um abaixo, <span className="text-orange-400">rebaixamento</span>. Use as setas para reordenar.
+          </p>
+          {cargos.map((c, i) => <CargoCard key={c.id} cargo={c} posicao={i} total={cargos.length} onMover={d => mover(i, d)} />)}
         </div>
       )}
       {cargos.length === 0 && (

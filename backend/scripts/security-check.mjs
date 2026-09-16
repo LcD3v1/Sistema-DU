@@ -85,7 +85,6 @@ const expect = [
   'src/middleware/sanitize.ts',
   'src/middleware/auth.ts',
   'src/middleware/roles.ts',
-  'src/security/bruteForce.ts',
   'src/security/tokenBlacklist.ts',
   'src/security/audit.ts',
 ]

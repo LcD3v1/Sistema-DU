@@ -20,7 +20,7 @@ reagir em caso de incidente.
 | Validação de schema | Zod em todas as rotas de escrita | `backend/src/middleware/validate.ts` |
 | Autenticação | JWT (8h) com `jti` revogável | `backend/src/routes/auth.ts`, `middleware/auth.ts` |
 | Hashing de senha | bcrypt (cost 12) + comparação timing‑safe | `backend/src/routes/auth.ts` |
-| Força bruta | Lockout por conta (5 tentativas / 15 min) | `backend/src/security/bruteForce.ts` |
+| Autenticação | Somente Discord OAuth2 (sem senhas armazenadas), `state` anti-CSRF | `backend/src/routes/auth.ts` |
 | Revogação de token | Blacklist de `jti` (logout) | `backend/src/security/tokenBlacklist.ts` |
 | Autorização (RBAC) | Níveis admin/moderador/membro/view_only | `backend/src/middleware/roles.ts` |
 | Permissões granulares | Cargos por área (ver/editar) | `backend/src/permAreas.ts`, `routes/config.ts` |
@@ -33,10 +33,10 @@ reagir em caso de incidente.
 - **A01 Broken Access Control** → `requireAuth` + `roles.ts` + cargos por área; rotas de escrita bloqueiam `view_only`.
 - **A02 Cryptographic Failures** → bcrypt cost 12; JWT com segredo forte validado no boot; HSTS/HTTPS em produção.
 - **A03 Injection** → sem SQL (persistência JSON); Zod valida tipos; `sanitize.ts` remove null‑bytes/path traversal; `hpp` evita poluição de parâmetros. **Não** há `eval`/`child_process`/exec no código.
-- **A04 Insecure Design** → princípio do menor privilégio, lockout, fail‑fast de config.
+- **A04 Insecure Design** → princípio do menor privilégio, contas novas sem cargo até aprovação, fail‑fast de config.
 - **A05 Security Misconfiguration** → Helmet, CSP restritiva, `X‑Powered‑By` desligado, erros genéricos.
 - **A06 Vulnerable Components** → `npm run audit` / `audit:fix`; hoje **0 vulnerabilidades**.
-- **A07 Auth Failures** → lockout de força bruta, rate limit de login, mensagens genéricas, expiração de token.
+- **A07 Auth Failures** → login exclusivo via Discord OAuth2 (sem senhas), rate limit no fluxo OAuth, expiração de token.
 - **A08 Integrity Failures** → CSP `object-src 'none'`, `base-uri 'self'`; sem scripts de terceiros exceto o embed do Protocolo (heyzine).
 - **A09 Logging & Monitoring** → `audit.log` com login, alterações e tentativas suspeitas.
 - **A10 SSRF** → o backend não faz requisições a URLs fornecidas pelo usuário (apenas Discord OAuth com endpoints fixos).
@@ -93,13 +93,13 @@ Sempre rode `npm run typecheck` (backend e frontend) após atualizar.
    de escrita além de `DATA_PATH` e do log.
 5. **`trust proxy`** já está configurado (`app.set('trust proxy', 1)`) para o rate
    limit enxergar o IP real atrás do proxy.
-6. Troque a senha do admin padrão (`admin/admin123`) **no primeiro acesso**.
+6. Defina `DISCORD_OWNER_ID` e faça o primeiro login para assumir a conta dona.
 
 ---
 
 ## 5. Backup e recuperação
 
-- **Dados**: `backend/data.json`. Faça backup periódico (o painel também tem
+- **Dados**: MongoDB (`MONGODB_URI`). Faça backup periódico (o painel também tem
   **Configurações → Backup** para admins, que exporta com senhas mascaradas).
 - **Restauração**: use um backup **completo** (com hashes) — o restore recusa backups
   sanitizados. Sempre copie `data.json` antes de restaurar.

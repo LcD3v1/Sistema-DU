@@ -5,6 +5,7 @@ import { useAvisos, useCreateAviso, useDeleteAviso, useMarcarAvisosLidos } from 
 import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
+import { confirmar } from '@/lib/dialogo'
 
 function initials(n: string) {
   return n.split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('')
@@ -103,7 +104,7 @@ export default function AvisosPage() {
                   <div className="flex items-start justify-between gap-3">
                     <h3 className="text-sm font-semibold text-txt">{a.titulo}</h3>
                     {isMod && (
-                      <button onClick={() => { if (confirm('Remover este aviso?')) remover.mutate(a.id) }}
+                      <button onClick={async () => { if (await confirmar({ titulo: 'Remover aviso', mensagem: `Remover o aviso "${a.titulo}"?`, tom: 'perigo', textoConfirmar: 'Remover' })) remover.mutate(a.id) }}
                         className="text-txt3 hover:text-red transition-colors shrink-0 opacity-0 group-hover:opacity-100">
                         <Trash2 size={14} />
                       </button>

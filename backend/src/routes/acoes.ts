@@ -5,6 +5,9 @@ import { validateBody, acaoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Acao } from '../types'
+import { postarApreensao, emSegundoPlano } from '../discord/forum'
+import { notificar, notificarAprovadores } from '../notificacoes'
+import { contaDoMembro } from '../efetivo'
 
 const router = Router()
 
@@ -81,10 +84,15 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     local: body.local,
     imagem: body.imagem,
     status: 'pendente',
+    criadoPorContaId: req.user!.contaId,
   }
 
   data.acoes.push(novaAcao)
   data.nextAcId++
+  notificar(data, req.user!.contaId, 'solicitacao', 'Apreensão enviada',
+    `Sua apreensão (${novaAcao.qru}) foi enviada. Você está aguardando a aprovação.`, '/acoes/historico')
+  notificarAprovadores(data, 'pendentes', undefined, req.user!.contaId, 'pendente_aprovacao', 'Apreensão aguardando aprovação',
+    `${req.user!.username} registrou uma apreensão (${novaAcao.qru}).`, '/acoes/pendentes')
   writeData(data)
 
   audit('ACAO_CREATED', req, `ID: ${novaAcao.id} | QRU: ${novaAcao.qru} | ${novaAcao.resultado} | PENDENTE`)
@@ -99,10 +107,33 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
   const acao = data.acoes.find(a => a.id === id)
   if (!acao) { res.status(404).json({ error: 'Ação não encontrada' }); return }
 
+  const jaAprovada = acao.status === 'aprovada'
   acao.status = 'aprovada'
+  if (!jaAprovada) {
+    notificar(data, acao.criadoPorContaId, 'aprovada', 'Apreensão aprovada',
+      `Sua apreensão (${acao.qru}) foi aprovada por ${req.user!.username} e enviada ao canal de apreensões.`, '/acoes/historico')
+    const avisados = new Set<number | undefined>([acao.criadoPorContaId])
+    for (const p of acao.participants) {
+      const contaId = contaDoMembro(data, p.memberId)?.id
+      if (!contaId || avisados.has(contaId)) continue
+      avisados.add(contaId)
+      notificar(data, contaId, 'apreensao', `Apreensão registrada · BO Nº ${acao.id}`,
+        `Você participou da apreensão ${acao.qru} (${acao.resultado}), aprovada por ${req.user!.username}.`, '/acoes/historico')
+    }
+  }
   writeData(data)
 
   audit('ACAO_APPROVED', req, `ID: ${id} | QRU: ${acao.qru}`)
+  if (!jaAprovada && !acao.discordThreadId) {
+    const aprovadoPor = req.user!.username
+    emSegundoPlano('postagem de apreensão', async () => {
+      const threadId = await postarApreensao(readData(), acao, aprovadoPor)
+      if (!threadId) return
+      const fresco = readData()
+      const alvo = fresco.acoes.find(a => a.id === id)
+      if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
+    })
+  }
   res.json(acao)
 })
 
@@ -114,7 +145,12 @@ router.delete('/:id', requireAuth, requireArea('pendentes', 'editar'), (req: Req
   const idx = data.acoes.findIndex(a => a.id === id)
   if (idx === -1) { res.status(404).json({ error: 'Ação não encontrada' }); return }
 
+  const removida = data.acoes[idx]
   data.acoes.splice(idx, 1)
+  if (removida.status === 'pendente') {
+    notificar(data, removida.criadoPorContaId, 'recusada', 'Apreensão recusada',
+      `Sua apreensão (${removida.qru}) foi recusada por ${req.user!.username}.`, '/acoes/historico')
+  }
   writeData(data)
 
   audit('ACAO_DELETED', req, `ID: ${id}`)

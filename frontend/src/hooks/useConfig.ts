@@ -144,3 +144,26 @@ export function useUpdateRecCfg() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'recrutamento'] }),
   })
 }
+
+export type CanalChave = 'registro' | 'apreensoes'
+export interface CanaisConfig {
+  botConfigurado: boolean
+  erro?: string
+  canais: Partial<Record<CanalChave, string>>
+  foruns: { id: string; name: string }[]
+}
+
+export function useCanais(enabled = true) {
+  return useQuery<CanaisConfig>({
+    queryKey: ['config', 'canais'],
+    queryFn: async () => (await api.get<CanaisConfig>('/config/canais')).data,
+    enabled,
+  })
+}
+
+export function useUpdateCanais() {
+  return useMutation({
+    mutationFn: (body: Partial<Record<CanalChave, string | null>>) => api.put('/config/canais', body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'canais'] }),
+  })
+}

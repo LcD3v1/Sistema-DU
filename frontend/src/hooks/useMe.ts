@@ -43,12 +43,31 @@ export function useOnboarding() {
   })
 }
 
+export interface MinhaSolicitacaoPerfil {
+  id: number
+  alteracoes: { campo: string; de: string; para: string }[]
+  status: 'pendente' | 'aprovada' | 'recusada'
+  criadoEm: string
+  decididoPor?: string
+  motivoRecusa?: string
+}
+
+export function useMinhaSolicitacaoPerfil() {
+  return useQuery<MinhaSolicitacaoPerfil | null>({
+    queryKey: ['me', 'solicitacao-perfil'],
+    queryFn: async () => (await api.get<MinhaSolicitacaoPerfil | null>('/auth/me/solicitacao-perfil')).data,
+    refetchInterval: 30_000,
+  })
+}
+
+/** Envia alteração de perfil — fica pendente até um superior aprovar. */
 export function useUpdateMeuMembro() {
   return useMutation({
-    mutationFn: (body: Partial<OnboardingData>) => api.put('/auth/me/membro-dados', body),
+    mutationFn: (body: Partial<OnboardingData>) => api.put<{ pendente: boolean }>('/auth/me/membro-dados', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] })
       queryClient.invalidateQueries({ queryKey: ['membros'] })
+      queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
     },
   })
 }

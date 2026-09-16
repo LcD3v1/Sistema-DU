@@ -10,8 +10,13 @@ export interface Ausencia {
   dataFim: string
   motivo: string
   criadoEm: string
+  status: 'pendente' | 'aprovada' | 'recusada' | 'encerrada'
+  solicitadoPor?: string
+  decididoPor?: string
+  encerradaPor?: string
+  motivoRecusa?: string
 }
-export type AusenciaInput = Omit<Ausencia, 'id' | 'criadoEm'>
+export type AusenciaInput = { memberId: number; nome: string; dataInicio: string; dataFim: string; motivo: string }
 
 export function useAusencias() {
   return useQuery<Ausencia[]>({
@@ -24,8 +29,32 @@ export function useAusencias() {
 export function useCreateAusencia() {
   return useMutation({
     mutationFn: (body: AusenciaInput) => api.post<Ausencia>('/ausencias', body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ausencias'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ausencias'] })
+      queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
+    },
   })
+}
+
+function invalidarAusencias() {
+  queryClient.invalidateQueries({ queryKey: ['ausencias'] })
+  queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
+  queryClient.invalidateQueries({ queryKey: ['membros'] })
+}
+
+export function useAprovarAusencia() {
+  return useMutation({ mutationFn: (id: number) => api.put(`/ausencias/${id}/aprovar`), onSuccess: invalidarAusencias })
+}
+
+export function useRecusarAusencia() {
+  return useMutation({
+    mutationFn: ({ id, motivo }: { id: number; motivo?: string }) => api.put(`/ausencias/${id}/recusar`, { motivo }),
+    onSuccess: invalidarAusencias,
+  })
+}
+
+export function useEncerrarAusencia() {
+  return useMutation({ mutationFn: (id: number) => api.put(`/ausencias/${id}/encerrar`), onSuccess: invalidarAusencias })
 }
 
 export function useDeleteAusencia() {
@@ -35,10 +64,13 @@ export function useDeleteAusencia() {
   })
 }
 
-export type AusenciaStatus = 'ativa' | 'programada' | 'encerrada'
+export type AusenciaStatus = 'pendente' | 'ativa' | 'programada' | 'encerrada' | 'recusada'
 
 export function statusAusencia(a: Ausencia): AusenciaStatus {
-  const hoje = new Date().toISOString().slice(0, 10)
+  if (a.status === 'pendente') return 'pendente'
+  if (a.status === 'recusada') return 'recusada'
+  if (a.status === 'encerrada') return 'encerrada'
+  const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
   if (a.dataFim < hoje) return 'encerrada'
   if (a.dataInicio > hoje) return 'programada'
   return 'ativa'

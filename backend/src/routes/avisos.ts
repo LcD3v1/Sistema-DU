@@ -5,6 +5,7 @@ import { validateBody, avisoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Aviso } from '../types'
+import { notificar, notificarArea } from '../notificacoes'
 
 const router = Router()
 
@@ -31,6 +32,9 @@ router.post('/', requireAuth, requireArea('avisos', 'editar'), validateBody(avis
   }
   data.avisos.push(novo)
   data.nextAvisoId++
+  const resumo = mensagem.length > 140 ? mensagem.slice(0, 139) + '…' : mensagem
+  notificarArea(data, 'avisos', [req.user!.contaId], 'aviso', `Novo aviso: ${titulo}`, `${resumo} — ${novo.autor}`, '/avisos')
+  notificar(data, req.user!.contaId, 'aviso', 'Aviso publicado', `Seu aviso "${titulo}" foi publicado para a unidade.`, '/avisos')
   writeData(data)
   audit('AVISO_CREATED', req, `${titulo}`)
   res.status(201).json(novo)

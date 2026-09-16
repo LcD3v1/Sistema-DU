@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import ToastContainer from '@/components/ui/ToastNotification'
+import DialogoCentral from '@/components/ui/DialogoCentral'
 import OnboardingPage from '@/components/sections/OnboardingPage'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/authStore'
@@ -32,6 +33,11 @@ export default function AppShell() {
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar />
+        {me && !me.admin && !me.cargoPermId && (
+          <div className="px-6 py-2 bg-gold/10 border-b border-gold/30 text-xs font-mono text-gold3">
+            Seu cadastro está aguardando aprovação do comando. Você terá acesso assim que um cargo for atribuído.
+          </div>
+        )}
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <AnimatePresence mode="wait">
@@ -50,6 +56,7 @@ export default function AppShell() {
       </div>
 
       <ToastContainer />
+      <DialogoCentral />
     </div>
   )
 }

@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   Shield, Trophy, Target, Crosshair, CalendarDays, BadgeCheck, Link2, UserCog, Award, Percent,
-  Camera, Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save,
+  Camera, Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle,
 } from 'lucide-react'
-import { useMe, useLinkMembro, useSetAvatar, useSetBanner, useUpdateMeuMembro } from '@/hooks/useMe'
+import { useMe, useLinkMembro, useSetAvatar, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil } from '@/hooks/useMe'
+import { ROTULO_CAMPO } from '@/lib/perfil'
 import { useMembros } from '@/hooks/useMembros'
 import { useAllAcoes } from '@/hooks/useAcoes'
 import { useUIStore } from '@/store/uiStore'
@@ -35,6 +36,7 @@ export default function ProfilePage() {
   const setAvatar = useSetAvatar()
   const setBanner = useSetBanner()
   const updateMeuMembro = useUpdateMeuMembro()
+  const { data: minhaSolicitacao } = useMinhaSolicitacaoPerfil()
   const { addToast } = useUIStore()
   const [sel, setSel] = useState('')
   const [pickBanner, setPickBanner] = useState(false)
@@ -88,7 +90,12 @@ export default function ProfilePage() {
   function salvarEdicao() {
     if (!form.policial.trim()) { addToast('error', 'O nome é obrigatório.'); return }
     updateMeuMembro.mutate(form, {
-      onSuccess: () => { addToast('success', 'Perfil atualizado!'); setEditMembro(false) },
+      onSuccess: r => {
+        addToast('success', r.data.pendente
+          ? 'Solicitação enviada! Você está aguardando a aprovação de um superior.'
+          : 'Perfil atualizado!')
+        setEditMembro(false)
+      },
       onError: (err: unknown) => addToast('error', (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao salvar.'),
     })
   }
@@ -216,8 +223,25 @@ export default function ProfilePage() {
                 <button onClick={abrirEdicao} className="flex items-center gap-1 text-xs text-txt3 hover:text-gold3 transition-colors font-mono"><Pencil size={12} /> Editar</button>
               )}
             </div>
+            {minhaSolicitacao?.status === 'pendente' && !editMembro && (
+              <div className="mb-4 px-3 py-2.5 rounded-lg border border-orange-400/40 bg-orange-400/10">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-orange-400"><Hourglass size={13} /> Alteração aguardando aprovação</p>
+                <div className="mt-1.5 space-y-0.5">
+                  {minhaSolicitacao.alteracoes.map(a => (
+                    <p key={a.campo} className="text-[11px] text-txt2"><span className="text-txt3">{ROTULO_CAMPO[a.campo] ?? a.campo}:</span> {a.de || '—'} → <span className="text-txt">{a.para || '—'}</span></p>
+                  ))}
+                </div>
+              </div>
+            )}
+            {minhaSolicitacao?.status === 'recusada' && !editMembro && (
+              <div className="mb-4 px-3 py-2 rounded-lg border border-red/30 bg-red/10">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-red"><XCircle size={13} /> Última alteração recusada{minhaSolicitacao.decididoPor ? ` por ${minhaSolicitacao.decididoPor}` : ''}</p>
+                {minhaSolicitacao.motivoRecusa && <p className="text-[11px] text-txt2 mt-0.5">Motivo: {minhaSolicitacao.motivoRecusa}</p>}
+              </div>
+            )}
             {membro && editMembro ? (
               <div className="space-y-3">
+                <p className="text-[11px] text-txt3">As alterações só valem depois da aprovação de um superior.</p>
                 {([
                   ['policial', 'Nome do policial', 'Ex.: Peter Wolf'],
                   ['badge', 'Badge', 'Ex.: 4521'],
@@ -238,7 +262,7 @@ export default function ProfilePage() {
                 <div className="flex gap-2 pt-1">
                   <button onClick={salvarEdicao} disabled={updateMeuMembro.isPending}
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50">
-                    <Save size={14} /> {updateMeuMembro.isPending ? 'Salvando...' : 'Salvar'}
+                    <Save size={14} /> {updateMeuMembro.isPending ? 'Enviando...' : 'Enviar para aprovação'}
                   </button>
                   <button onClick={() => setEditMembro(false)} className="px-3 py-2 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-txt transition-colors">Cancelar</button>
                 </div>

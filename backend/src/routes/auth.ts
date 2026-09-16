@@ -1,70 +1,22 @@
 import { Router, Request, Response } from 'express'
-import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { requireAuth } from '../middleware/auth'
-import { loginLimiter, criticalLimiter } from '../middleware/rateLimiter'
-import { validateBody, loginSchema, changePasswordSchema, solicitacaoSchema, onboardingSchema, membroSelfSchema } from '../middleware/validate'
+import { loginLimiter } from '../middleware/rateLimiter'
+import { validateBody, onboardingSchema, membroSelfSchema } from '../middleware/validate'
 import { Membro, Conta, FastData } from '../types'
-import { checkLockout, recordFailed, clearAttempts } from '../security/bruteForce'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { isAdmin, resolvePerms } from '../access'
+import { tentarPostarRegistro } from '../discord/forum'
+import { bloqueioDeAcesso } from '../efetivo'
+import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
+import { CampoPerfil } from '../types'
+import { isAdmin, resolvePerms, PROTECTED_OWNER_ID } from '../access'
 
 const router = Router()
 
-// POST /api/auth/login
-router.post(
-  '/login',
-  loginLimiter,
-  validateBody(loginSchema),
-  async (req: Request, res: Response): Promise<void> => {
-    const { username, password } = req.body as { username: string; password: string }
-
-    // Verificar bloqueio por força bruta
-    const lockout = checkLockout(username)
-    if (lockout.locked) {
-      const mins = Math.ceil((lockout.remainingMs ?? 0) / 60000)
-      audit('LOGIN_LOCKED', req, `Conta bloqueada: ${username}`)
-      res.status(429).json({
-        error: `Conta bloqueada por excesso de tentativas. Tente novamente em ${mins} minuto(s).`,
-      })
-      return
-    }
-
-    const data = readData()
-    const conta = data.contas.find(c => c.username.toLowerCase() === username.toLowerCase())
-
-    // Timing-safe: sempre faz bcrypt para não revelar se usuário existe
-    const hash = conta?.password ?? '$2b$12$invalidsalthashusedtopreventtimingattackXXXXXXXXXXXXXX'
-    const senhaCorreta = await bcrypt.compare(password, hash)
-
-    if (!conta || !conta.ativo || !senhaCorreta) {
-      const remaining = recordFailed(username)
-      audit('LOGIN_FAILED', req, `Usuário: ${username} | Restantes: ${remaining}`)
-      // Mensagem genérica — não revelar se conta existe ou está desativada
-      res.status(401).json({ error: 'Credenciais inválidas' })
-      return
-    }
-
-    clearAttempts(username)
-
-    const jti = crypto.randomUUID()
-    const token = jwt.sign(
-      { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti },
-      process.env.JWT_SECRET!,
-      { expiresIn: '8h' },
-    )
-
-    audit('LOGIN_SUCCESS', req, `Usuário: ${conta.username} | Nível: ${conta.nivel}`)
-
-    res.json({
-      token,
-      user: { contaId: conta.id, username: conta.username, nivel: conta.nivel },
-    })
-  },
-)
+// Autenticação exclusivamente via Discord OAuth2 (sem login por senha).
 
 // ── Discord OAuth ────────────────────────────────────────────────
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
@@ -87,7 +39,7 @@ function issueToken(conta: { id: number; username: string; nivel: string }): str
 }
 
 // GET /api/auth/discord — inicia o fluxo
-router.get('/discord', (_req: Request, res: Response): void => {
+router.get('/discord', loginLimiter, (_req: Request, res: Response): void => {
   if (!discordConfigured()) {
     res.redirect(`${FRONTEND_URL}/login?reason=discord_off`)
     return
@@ -108,7 +60,7 @@ router.get('/discord', (_req: Request, res: Response): void => {
 })
 
 // GET /api/auth/discord/callback — Discord retorna aqui
-router.get('/discord/callback', async (req: Request, res: Response): Promise<void> => {
+router.get('/discord/callback', loginLimiter, async (req: Request, res: Response): Promise<void> => {
   if (!discordConfigured()) { res.redirect(`${FRONTEND_URL}/login?reason=discord_off`); return }
 
   const { code, state } = req.query as { code?: string; state?: string }
@@ -142,6 +94,25 @@ router.get('/discord/callback', async (req: Request, res: Response): Promise<voi
     const data = readData()
     let conta = data.contas.find(c => c.discordId === me.id)
 
+    // Conta dona: o Discord definido em DISCORD_OWNER_ID assume a conta id 1
+    // no primeiro login (enquanto ela ainda não tiver Discord vinculado).
+    if (!conta && process.env.DISCORD_OWNER_ID && me.id === process.env.DISCORD_OWNER_ID) {
+      const dono = data.contas.find(c => c.id === PROTECTED_OWNER_ID)
+      if (dono && !dono.discordId) {
+        dono.discordId = me.id
+        dono.ativo = true
+        conta = dono
+        audit('DISCORD_ACCOUNT_CREATED', req, `Conta dona vinculada ao Discord ${me.username} (${me.id})`)
+      }
+    }
+
+    // Exonerado → aviso específico
+    if (conta?.exonerado) {
+      audit('DISCORD_LOGIN_DENIED', req, `Exonerado — Discord: ${me.username} (${me.id})`)
+      res.redirect(`${FRONTEND_URL}/login?reason=exonerado`)
+      return
+    }
+
     // Conta vinculada porém desativada → nega
     if (conta && !conta.ativo) {
       audit('DISCORD_LOGIN_DENIED', req, `Conta inativa — Discord: ${me.username} (${me.id})`)
@@ -166,20 +137,31 @@ router.get('/discord/callback', async (req: Request, res: Response): Promise<voi
       conta = {
         id: data.nextContaId,
         username,
-        password: await bcrypt.hash(crypto.randomUUID(), 12),
         nivel,
         ativo: true,
         discordId: me.id,
         discordUsername: displayName,
+        onboarded: false,   // completa o cadastro no primeiro acesso
       }
       data.contas.push(conta)
       data.nextContaId++
-      audit('DISCORD_ACCOUNT_CREATED', req, `Nova conta via Discord: ${username} | nível: ${nivel}`)
+      notificar(data, conta.id, 'cadastro', 'Bem-vindo à FAST!',
+        'Preencha seu cadastro para enviá-lo ao comando. Após a aprovação, você recebe seu cargo e o acesso ao painel.', '/perfil')
+      notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Novo acesso pelo Discord',
+        `${displayName} entrou pelo Discord e está preenchendo o cadastro.`, '/configuracoes')
+      audit('DISCORD_ACCOUNT_CREATED', req, `Nova conta via Discord: ${username} | aguardando aprovação`)
     } else {
       conta.discordUsername = me.global_name || me.username
     }
 
     writeData(data)
+
+    const bloqueio = bloqueioDeAcesso(conta, data)
+    if (bloqueio?.codigo === 'AUSENTE') {
+      audit('DISCORD_LOGIN_DENIED', req, `Em ausência até ${bloqueio.ate} — ${conta.username}`)
+      res.redirect(`${FRONTEND_URL}/login?reason=ausente&ate=${bloqueio.ate}`)
+      return
+    }
 
     const token = issueToken(conta)
     audit('DISCORD_LOGIN_SUCCESS', req, `Usuário: ${conta.username} | Discord: ${me.username}`)
@@ -225,26 +207,6 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
   })
 })
 
-// POST /api/auth/solicitar — pessoa pede cadastro (público)
-router.post('/solicitar', loginLimiter, validateBody(solicitacaoSchema), async (req: Request, res: Response): Promise<void> => {
-  const { username, password, nome } = req.body as { username: string; password: string; nome: string }
-  const data = readData()
-  const u = username.toLowerCase()
-  if (data.contas.some(c => c.username.toLowerCase() === u)) { res.status(409).json({ error: 'Usuário já existe.' }); return }
-  if (data.solicitacoes.some(s => s.username.toLowerCase() === u)) { res.status(409).json({ error: 'Já existe uma solicitação com esse usuário.' }); return }
-  data.solicitacoes.push({
-    id: data.nextSolId,
-    username: username.trim(),
-    senha: await bcrypt.hash(password, 12),
-    nome: nome.trim(),
-    criadoEm: new Date().toISOString(),
-  })
-  data.nextSolId++
-  writeData(data)
-  audit('SIGNUP_REQUESTED', req, `Usuário: ${username} | Nome: ${nome}`)
-  res.status(201).json({ ok: true })
-})
-
 // POST /api/auth/onboarding — primeiro acesso cria o perfil de membro e vincula
 router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Request, res: Response): void => {
   const data = readData()
@@ -253,6 +215,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   const body = req.body as { policial: string; badge: string; passaporte: string; patenteNPD: string; patenteInterna: string }
 
   let membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+  const novo = !membro
   if (!membro) {
     membro = {
       id: data.nextMemId,
@@ -271,24 +234,75 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna })
   }
   conta.onboarded = true
+
+  const resumo = `${membro.policial}${membro.passaporte ? ` | ID ${membro.passaporte}` : ''}`
+  const aprovado = conta.id === PROTECTED_OWNER_ID || Boolean(conta.cargoPermId)
+  if (aprovado) {
+    notificar(data, conta.id, 'aprovada', 'Cadastro concluído',
+      'Seu cadastro foi registrado e enviado ao seu canal da unidade.', '/perfil')
+    if (novo) notificarArea(data, 'membros', [conta.id], 'membro', 'Novo membro na unidade', `${resumo} entrou para o efetivo.`, '/membros')
+  } else {
+    notificar(data, conta.id, 'solicitacao', 'Cadastro enviado',
+      'Seu cadastro foi enviado. Você está aguardando a aprovação do comando.', '/perfil')
+    notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Cadastro aguardando aprovação',
+      `${resumo} enviou o cadastro e aguarda aprovação.`, '/configuracoes')
+  }
   writeData(data)
   audit('ONBOARDING_DONE', req, `Membro: ${membro.policial} (#${membro.id})`)
+  if (novo) tentarPostarRegistro(conta.id)
   res.json({ ok: true, membroId: membro.id })
 })
 
-// PUT /api/auth/me/membro-dados — usuário edita o próprio perfil de membro
+// PUT /api/auth/me/membro-dados — o usuário PEDE alteração do próprio perfil;
+// só passa a valer quando um superior aprovar (a conta dona aplica direto).
 router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req: Request, res: Response): void => {
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)
   if (!conta?.membroId) { res.status(400).json({ error: 'Nenhum perfil de membro vinculado' }); return }
   const membro = data.membros.find(m => m.id === conta.membroId)
   if (!membro) { res.status(404).json({ error: 'Membro não encontrado' }); return }
-  const allowed: (keyof Membro)[] = ['policial', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
-  const body = req.body as Partial<Membro>
-  allowed.forEach(k => { if (k in body) (membro as unknown as Record<string, unknown>)[k] = body[k] })
+
+  const campos: CampoPerfil[] = ['policial', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
+  const body = req.body as Partial<Record<CampoPerfil, string>>
+  const alteracoes = campos
+    .filter(k => body[k] !== undefined && String(body[k]) !== String(membro[k] ?? ''))
+    .map(k => ({ campo: k, de: String(membro[k] ?? ''), para: String(body[k]) }))
+  if (alteracoes.length === 0) { res.status(400).json({ error: 'Nenhuma alteração em relação ao perfil atual.' }); return }
+
+  if (conta.id === PROTECTED_OWNER_ID) {
+    for (const a of alteracoes) (membro as unknown as Record<string, unknown>)[a.campo] = a.para
+    writeData(data)
+    audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona)`)
+    res.json({ pendente: false, membro })
+    return
+  }
+
+  // Uma solicitação pendente por membro: a nova substitui a anterior
+  data.solicitacoesPerfil = data.solicitacoesPerfil.filter(sp => !(sp.membroId === membro.id && sp.status === 'pendente'))
+  const sol = {
+    id: data.nextSolPerfilId++,
+    membroId: membro.id,
+    contaId: conta.id,
+    alteracoes,
+    status: 'pendente' as const,
+    criadoEm: new Date().toISOString(),
+  }
+  data.solicitacoesPerfil.push(sol)
+  notificar(data, conta.id, 'solicitacao', 'Alteração de perfil enviada',
+    'Sua solicitação de alteração de perfil foi enviada. Você está aguardando a aprovação de um superior.', '/perfil')
+  notificarAprovadores(data, 'membros', membro.id, conta.id, 'pendente_aprovacao', 'Alteração de perfil aguardando aprovação',
+    `${membro.policial} pediu para alterar: ${alteracoes.map(a => a.campo).join(', ')}.`, '/membros')
   writeData(data)
-  audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id}`)
-  res.json(membro)
+  audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: ${alteracoes.map(a => `${a.campo}=${a.para}`).join(', ')}`)
+  res.status(202).json({ pendente: true, solicitacao: sol })
+})
+
+// GET /api/auth/me/solicitacao-perfil — solicitação pendente do próprio usuário (ou null)
+router.get('/me/solicitacao-perfil', requireAuth, (req: Request, res: Response): void => {
+  const sp = readData().solicitacoesPerfil
+    .filter(x => x.contaId === req.user!.contaId)
+    .sort((a, b) => b.id - a.id)[0]
+  res.json(sp ?? null)
 })
 
 // PUT /api/auth/me/avatar — foto de perfil (data URL) ou null p/ remover
@@ -335,56 +349,14 @@ router.put('/me/membro', requireAuth, (req: Request, res: Response): void => {
     if (!data.membros.some(m => m.id === membroId)) {
       res.status(400).json({ error: 'Membro não encontrado' }); return
     }
+    if (data.contas.some(c => c.id !== conta.id && c.membroId === membroId)) {
+      res.status(409).json({ error: 'Este perfil já está vinculado a outra conta.' }); return
+    }
     conta.membroId = membroId
   }
   writeData(data)
   audit('PROFILE_MEMBER_LINKED', req, `membroId: ${conta.membroId ?? 'nenhum'}`)
   res.json({ ok: true, membroId: conta.membroId ?? null })
 })
-
-// PUT /api/auth/change-password
-router.put(
-  '/change-password',
-  requireAuth,
-  criticalLimiter,
-  validateBody(changePasswordSchema),
-  async (req: Request, res: Response): Promise<void> => {
-    const { currentPassword, newPassword } = req.body as {
-      currentPassword: string
-      newPassword: string
-    }
-
-    const data = readData()
-    const conta = data.contas.find(c => c.id === req.user!.contaId)
-
-    if (!conta) {
-      res.status(404).json({ error: 'Conta não encontrada' })
-      return
-    }
-
-    const senhaCorreta = await bcrypt.compare(currentPassword, conta.password)
-    if (!senhaCorreta) {
-      audit('PASSWORD_CHANGED', req, 'Falha — senha atual incorreta')
-      res.status(401).json({ error: 'Senha atual incorreta' })
-      return
-    }
-
-    if (newPassword === currentPassword) {
-      res.status(400).json({ error: 'A nova senha deve ser diferente da atual' })
-      return
-    }
-
-    conta.password = await bcrypt.hash(newPassword, 12)
-    writeData(data)
-
-    // Revogar token atual — obriga novo login com nova senha
-    if (req.user!.jti && req.user!.exp) {
-      revokeToken(req.user!.jti, req.user!.exp * 1000)
-    }
-
-    audit('PASSWORD_CHANGED', req, 'Senha alterada com sucesso')
-    res.json({ ok: true, message: 'Senha alterada. Faça login novamente.' })
-  },
-)
 
 export default router

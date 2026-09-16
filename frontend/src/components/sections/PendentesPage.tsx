@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion'
-import { ClipboardCheck, Check, X, Calendar, MapPin, Users, Trophy, Image as ImageIcon, ShieldAlert } from 'lucide-react'
+import { ClipboardCheck, Scale, Calendar, MapPin, Users, Trophy, Image as ImageIcon, ShieldAlert } from 'lucide-react'
 import { useAcoes, useApproveAcao, useDeleteAcao } from '@/hooks/useAcoes'
 import { useMembros } from '@/hooks/useMembros'
 import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 import type { Membro } from '@/types'
+import { decidir } from '@/lib/dialogo'
 
 const RESULTADO_CLS: Record<string, string> = {
   'Vitória': 'text-green border-green/40 bg-green/10',
@@ -88,18 +89,27 @@ export default function PendentesPage() {
                 </div>
 
                 {isMod ? (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => aprovar.mutate(a.id, { onSuccess: () => addToast('success', `BO Nº ${a.id} aprovado!`) })}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green/15 border border-green/40 text-green text-sm font-medium hover:bg-green/25 transition-colors">
-                      <Check size={15} /> Aprovar
-                    </button>
-                    <button
-                      onClick={() => { if (confirm(`Recusar o BO Nº ${a.id}? Ele será excluído.`)) recusar.mutate(a.id, { onSuccess: () => addToast('success', 'Apreensão recusada.') }) }}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-red hover:border-red/40 transition-colors">
-                      <X size={15} /> Recusar
-                    </button>
-                  </div>
+                  <button
+                    disabled={aprovar.isPending || recusar.isPending}
+                    onClick={async () => {
+                      const r = await decidir({
+                        titulo: `Apreensão · BO Nº ${a.id}`,
+                        mensagem: 'Ao aprovar, a apreensão entra no histórico e é enviada ao canal de apreensões. Ao reprovar, ela é excluída.',
+                        detalhes: [
+                          { label: 'QRU', valor: a.qru },
+                          { label: 'Data', valor: fmt(a.data) },
+                          { label: 'Resultado', valor: a.resultado },
+                          ...(a.local ? [{ label: 'Local', valor: a.local }] : []),
+                          { label: 'Participantes', valor: a.participants.map(p => membrosMap.get(p.memberId)?.policial ?? `#${p.memberId}`).join(', ') || '—' },
+                        ],
+                        motivoReprovar: 'nenhum',
+                      })
+                      if (r?.decisao === 'aprovar') aprovar.mutate(a.id, { onSuccess: () => addToast('success', `BO Nº ${a.id} aprovado!`) })
+                      else if (r?.decisao === 'reprovar') recusar.mutate(a.id, { onSuccess: () => addToast('success', 'Apreensão reprovada.') })
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gold/15 border border-gold/40 text-gold3 text-sm font-medium hover:bg-gold/25 transition-colors disabled:opacity-50 shrink-0">
+                    <Scale size={15} /> Analisar
+                  </button>
                 ) : (
                   <span className="flex items-center gap-1.5 text-txt3 text-xs font-mono shrink-0">
                     <ShieldAlert size={13} /> Aguardando comando

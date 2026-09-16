@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarPlus, Shield, CalendarDays } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useCreateAusencia } from '@/hooks/useAusencias'
 import { useMembros } from '@/hooks/useMembros'
+import { useMe } from '@/hooks/useMe'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
@@ -25,6 +26,14 @@ export default function RegistrarAusenciaPage() {
   const [nome, setNome] = useState('')
   const [memberId, setMemberId] = useState<number | undefined>(undefined)
   const [showDropdown, setShowDropdown] = useState(false)
+  const { data: me } = useMe()
+
+  // Por padrão, a ausência é do próprio usuário
+  useEffect(() => {
+    if (memberId !== undefined || nome || !me?.membroId || !membros) return
+    const eu = membros.find(m => m.id === me.membroId)
+    if (eu) { setNome(eu.policial); setMemberId(eu.id) }
+  }, [me, membros, memberId, nome])
 
   const today = new Date().toISOString().slice(0, 10)
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
@@ -40,7 +49,7 @@ export default function RegistrarAusenciaPage() {
   )
 
   async function onSubmit(data: FormData) {
-    if (!nome.trim()) { addToast('error', 'Informe o nome do membro.'); return }
+    if (memberId === undefined) { addToast('error', 'Selecione um membro da lista.'); return }
     try {
       await createAusencia.mutateAsync({
         nome: nome.trim(),
@@ -49,10 +58,10 @@ export default function RegistrarAusenciaPage() {
         dataFim: data.dataFim,
         motivo: data.motivo.trim(),
       })
-      addToast('success', 'Ausência registrada!')
+      addToast('success', 'Ausência enviada para aprovação!')
       navigate('/ausencias')
-    } catch {
-      addToast('error', 'Erro ao registrar ausência.')
+    } catch (e) {
+      addToast('error', (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao registrar ausência.')
     }
   }
 
@@ -82,7 +91,7 @@ export default function RegistrarAusenciaPage() {
                   onChange={e => { setNome(e.target.value); setMemberId(undefined); setShowDropdown(true) }}
                   onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
                   onFocus={() => setShowDropdown(true)}
-                  placeholder="Buscar membro ou digitar nome..."
+                  placeholder="Buscar membro..."
                   className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt placeholder-txt3"
                 />
                 {showDropdown && filtered.length > 0 && (
@@ -102,7 +111,7 @@ export default function RegistrarAusenciaPage() {
                   </div>
                 )}
               </div>
-              <p className="font-mono text-[10px] text-txt3 mt-1.5">Selecione um membro da unidade ou digite o nome</p>
+              <p className="font-mono text-[10px] text-txt3 mt-1.5">Selecione o membro na lista. Após aprovada, ele fica sem acesso ao painel durante o período.</p>
             </div>
 
             {/* Período */}
@@ -144,7 +153,7 @@ export default function RegistrarAusenciaPage() {
 
             <div className="pt-2">
               <HudButton type="submit" loading={createAusencia.isPending} size="lg" className="w-full justify-center">
-                <span className="flex items-center justify-center gap-2"><CalendarDays size={16} /> Registrar ausência</span>
+                <span className="flex items-center justify-center gap-2"><CalendarDays size={16} /> Solicitar ausência</span>
               </HudButton>
             </div>
           </form>

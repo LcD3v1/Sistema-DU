@@ -11,7 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Image, List, Briefcase, Radio, UserPlus, Users,
-  Plus, Trash2, Megaphone, Inbox, Check, X, Clock, ShieldCheck,
+  Plus, Trash2, Megaphone, Inbox, Clock, ShieldCheck, MessagesSquare, Scale,
 } from 'lucide-react'
 import {
   useQrus, useAddQru, useDeleteQru, useReorderQrus,
@@ -22,20 +22,20 @@ import {
   useAnuncioSituacoes, useAddSituacao, useUpdateSituacao, useDeleteSituacao,
 } from '@/hooks/useConfig'
 import type { SituacaoAnuncio } from '@/hooks/useConfig'
-import { useContas, useCreateConta, useUpdateConta, useDeleteConta } from '@/hooks/useContas'
-import { useSolicitacoes, useAprovarSolicitacao, useRejeitarSolicitacao } from '@/hooks/useSolicitacoes'
+import { useContas, useUpdateConta, useDeleteConta } from '@/hooks/useContas'
 import { useCargosPermissao } from '@/hooks/useCargosPermissao'
 import PermissoesEditor from '@/components/sections/PermissoesEditor'
+import CanaisEditor from '@/components/sections/CanaisEditor'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
-import ModalOverlay from '@/components/ui/ModalOverlay'
 import LoadingHud from '@/components/ui/LoadingHud'
 import LogoUploader from '@/components/ui/LogoUploader'
 import DragHandle from '@/components/ui/DragHandle'
 import { usePerms } from '@/hooks/usePerms'
 import type { CategoriaRecrutamento } from '@/types'
+import { confirmar, decidir } from '@/lib/dialogo'
 
 const TABS = [
   { id: 'logo',       label: 'Logo',          icon: Image,    minNivel: 'moderador' },
@@ -45,6 +45,7 @@ const TABS = [
   { id: 'anuncios',   label: 'Anúncios',       icon: Megaphone, minNivel: 'moderador' },
   { id: 'recrutamento', label: 'Recrutamento', icon: UserPlus, minNivel: 'moderador' },
   { id: 'solicitacoes', label: 'Solicitações', icon: Inbox,    minNivel: 'admin' },
+  { id: 'canais',     label: 'Canais',         icon: MessagesSquare, minNivel: 'admin' },
   { id: 'permissoes', label: 'Permissões',     icon: ShieldCheck, minNivel: 'admin' },
   { id: 'contas',     label: 'Contas',         icon: Users,    minNivel: 'admin' },
 ] as const
@@ -193,7 +194,7 @@ function SituacaoItem({
           placeholder="Título"
           className="input-gold w-48 bg-card2 border border-bdr2 rounded px-3 py-1.5 text-xs font-mono text-txt2"
         />
-        <button onClick={() => { if (confirm(`Remover a situação "${s.label}"?`)) onDelete(s.id) }}
+        <button onClick={async () => { if (await confirmar({ titulo: 'Remover situação', mensagem: `Remover a situação "${s.label}"?`, tom: 'perigo', textoConfirmar: 'Remover' })) onDelete(s.id) }}
           className="text-txt3 hover:text-red transition-colors p-1 opacity-0 group-hover:opacity-100">
           <Trash2 size={14} />
         </button>
@@ -291,18 +292,14 @@ export default function ConfiguracoesPage() {
   const updateRecCfg = useUpdateRecCfg()
 
   const { data: contas = [] } = useContas()
-  const createConta = useCreateConta()
   const updateConta = useUpdateConta()
   const deleteConta = useDeleteConta()
 
-  const { data: solicitacoes = [] } = useSolicitacoes(isAdmin)
   const { data: cargosPerm = [] } = useCargosPermissao(isAdmin)
-  const aprovarSol = useAprovarSolicitacao()
-  const rejeitarSol = useRejeitarSolicitacao()
+  // Pendentes = contas criadas pelo Discord que ainda não receberam cargo
+  const solicitacoes = contas.filter(c => c.id !== 1 && !c.cargoPermId && c.ativo)
+  const cargoPadraoId = cargosPerm.find(c => c.padrao)?.id
   const [cargoPorSol, setCargoPorSol] = useState<Record<number, number | ''>>({})
-
-  const [novaContaModal, setNovaContaModal] = useState(false)
-  const [novaContaForm, setNovaContaForm] = useState<{ username: string; password: string; cargoPermId: number | '' }>({ username: '', password: '', cargoPermId: '' })
 
   // Recrutamento
   const [newCatNome, setNewCatNome] = useState('')
@@ -470,7 +467,7 @@ export default function ConfiguracoesPage() {
             <div className="space-y-4">
               <div>
                 <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">SOLICITAÇÕES DE CADASTRO</h3>
-                <p className="text-[11px] text-txt3">Aprove um pedido e escolha o nível de acesso. A pessoa completa o próprio perfil no primeiro login.</p>
+                <p className="text-[11px] text-txt3">Quem entra pelo Discord pela primeira vez aparece aqui. Aprove escolhendo um cargo de permissão — ao aprovar (com o cadastro concluído), o registro é postado no fórum.</p>
               </div>
 
               {solicitacoes.length === 0 ? (
@@ -481,14 +478,14 @@ export default function ConfiguracoesPage() {
               ) : (
                 <div className="space-y-2">
                   {solicitacoes.map(sol => {
-                    const cargoSel = cargoPorSol[sol.id] ?? ''
+                    const cargoSel = cargoPorSol[sol.id] ?? cargoPadraoId ?? ''
                     return (
                       <div key={sol.id} className="flex flex-wrap items-center gap-3 px-4 py-3 bg-card2 border border-bdr rounded-lg">
                         <div className="flex-1 min-w-[180px]">
-                          <p className="text-sm text-txt font-medium">{sol.nome}</p>
+                          <p className="text-sm text-txt font-medium">{sol.discordUsername ?? sol.username}</p>
                           <p className="font-mono text-[11px] text-txt3 flex items-center gap-2">
                             <span className="text-gold3">@{sol.username}</span>
-                            <span className="flex items-center gap-1"><Clock size={10} /> {new Date(sol.criadoEm).toLocaleDateString('pt-BR')}</span>
+                            <span className="flex items-center gap-1"><Clock size={10} /> {sol.onboarded === false ? 'cadastro pendente' : 'cadastro concluído'}</span>
                           </p>
                         </div>
                         <select
@@ -496,28 +493,41 @@ export default function ConfiguracoesPage() {
                           onChange={e => setCargoPorSol(p => ({ ...p, [sol.id]: e.target.value ? Number(e.target.value) : '' }))}
                           className="bg-card border border-bdr2 rounded px-2 py-1.5 text-xs font-mono text-txt"
                         >
-                          <option value="">Cargo: padrão</option>
+                          <option value="">Escolha o cargo</option>
                           {cargosPerm.map(cp => <option key={cp.id} value={cp.id}>{cp.nome}</option>)}
                         </select>
                         <button
-                          disabled={aprovarSol.isPending}
-                          onClick={() => aprovarSol.mutate({ id: sol.id, cargoPermId: cargoSel === '' ? null : cargoSel }, {
-                            onSuccess: () => addToast('success', `${sol.nome} aprovado.`),
-                            onError: (err: unknown) => addToast('error', (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao aprovar.'),
-                          })}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-green/15 border border-green/40 text-green text-xs font-mono hover:bg-green/25 transition-colors disabled:opacity-50"
-                        >
-                          <Check size={13} /> Aprovar
-                        </button>
-                        <button
-                          disabled={rejeitarSol.isPending}
-                          onClick={() => {
-                            if (!confirm(`Recusar a solicitação de ${sol.nome}?`)) return
-                            rejeitarSol.mutate(sol.id, { onSuccess: () => addToast('success', 'Solicitação recusada.') })
+                          disabled={updateConta.isPending || deleteConta.isPending}
+                          onClick={async () => {
+                            const nome = sol.discordUsername ?? sol.username
+                            const cargoNome = cargosPerm.find(cp => cp.id === cargoSel)?.nome
+                            const r = await decidir({
+                              titulo: 'Solicitação de acesso',
+                              mensagem: cargoNome
+                                ? `Ao aprovar, ${nome} recebe o cargo ${cargoNome} e passa a ver o que esse cargo libera.`
+                                : 'Escolha um cargo na lista antes de aprovar.',
+                              detalhes: [
+                                { label: 'Discord', valor: nome },
+                                { label: 'Usuário', valor: `@${sol.username}` },
+                                { label: 'Cadastro', valor: sol.onboarded === false ? 'ainda não preenchido' : 'concluído' },
+                                { label: 'Cargo', valor: cargoNome ?? 'não selecionado' },
+                              ],
+                              motivoReprovar: 'nenhum',
+                              textoReprovar: 'Reprovar e remover',
+                            })
+                            if (r?.decisao === 'aprovar') {
+                              if (cargoSel === '') { addToast('error', 'Escolha o cargo antes de aprovar.'); return }
+                              updateConta.mutate({ id: sol.id, cargoPermId: cargoSel }, {
+                                onSuccess: () => addToast('success', `${nome} aprovado.`),
+                                onError: (err: unknown) => addToast('error', (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao aprovar.'),
+                              })
+                            } else if (r?.decisao === 'reprovar') {
+                              deleteConta.mutate(sol.id, { onSuccess: () => addToast('success', 'Solicitação reprovada.') })
+                            }
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-red/10 border border-red/40 text-red text-xs font-mono hover:bg-red/20 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-gold/15 border border-gold/40 text-gold3 text-xs font-mono hover:bg-gold/25 transition-colors disabled:opacity-50"
                         >
-                          <X size={13} /> Recusar
+                          <Scale size={13} /> Analisar
                         </button>
                       </div>
                     )
@@ -527,23 +537,23 @@ export default function ConfiguracoesPage() {
             </div>
           )}
 
+          {/* Canais do Discord (admin only) */}
+          {activeTab === 'canais' && <CanaisEditor />}
+
           {/* Permissões (admin only) */}
           {activeTab === 'permissoes' && <PermissoesEditor />}
 
           {/* Contas (admin only) */}
           {activeTab === 'contas' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-orbitron text-xs text-gold tracking-wider">CONTAS DE ACESSO</h3>
-                <HudButton size="sm" onClick={() => setNovaContaModal(true)}>
-                  <Plus size={14} className="inline mr-1.5" />
-                  Nova Conta
-                </HudButton>
+              <div>
+                <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">CONTAS DE ACESSO</h3>
+                <p className="text-[11px] text-txt3">Contas são criadas automaticamente no primeiro login com Discord.</p>
               </div>
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-bdr">
-                    {['Usuário', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
+                    {['Usuário', 'Discord', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
                       <th key={h} className="text-left font-mono text-xs text-txt3 px-3 py-2">{h}</th>
                     ))}
                   </tr>
@@ -554,6 +564,10 @@ export default function ConfiguracoesPage() {
                       <td className="px-3 py-2.5 font-mono text-xs text-txt">
                         {conta.username}
                         {conta.id === 1 && <span className="ml-2 px-1.5 py-0.5 rounded bg-gold/15 border border-gold/40 text-gold3 text-[9px] font-mono">DONO</span>}
+                        {conta.exonerado && <span title={conta.exoneradoMotivo} className="ml-2 px-1.5 py-0.5 rounded bg-red/15 border border-red/40 text-red text-[9px] font-mono">EXONERADO</span>}
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-xs text-txt2">
+                        {conta.discordUsername ?? (conta.discordId ? conta.discordId : <span className="text-txt3">não vinculado</span>)}
                       </td>
                       <td className="px-3 py-2.5">
                         <select
@@ -569,21 +583,31 @@ export default function ConfiguracoesPage() {
                       <td className="px-3 py-2.5">
                         <button
                           disabled={conta.id === user?.contaId}
-                          onClick={() => updateConta.mutate({ id: conta.id, ativo: !conta.ativo })}
+                          title={conta.exonerado ? 'Readmitir: libera o acesso e pede um novo cadastro' : undefined}
+                          onClick={async () => {
+                            if (conta.exonerado && !(await confirmar({
+                              titulo: 'Readmitir membro',
+                              mensagem: `Readmitir ${conta.discordUsername ?? conta.username}? A exoneração é retirada e a pessoa refaz o cadastro.`,
+                              detalhes: conta.exoneradoMotivo ? [{ label: 'Exonerado por', valor: conta.exoneradoMotivo }] : undefined,
+                              tom: 'sucesso',
+                              textoConfirmar: 'Readmitir',
+                            }))) return
+                            updateConta.mutate({ id: conta.id, ativo: !conta.ativo })
+                          }}
                           className={`font-mono text-xs px-2 py-0.5 rounded border disabled:opacity-40 ${
                             conta.ativo
                               ? 'border-green/40 text-green bg-green/10'
                               : 'border-red/40 text-red bg-red/10'
                           }`}
                         >
-                          {conta.ativo ? '● Ativo' : '○ Inativo'}
+                          {conta.ativo ? '● Ativo' : conta.exonerado ? '↺ Readmitir' : '○ Inativo'}
                         </button>
                       </td>
                       <td className="px-3 py-2.5">
                         {conta.id !== user?.contaId && (
                           <button
-                            onClick={() => {
-                              if (!confirm('Excluir esta conta?')) return
+                            onClick={async () => {
+                              if (!(await confirmar({ titulo: 'Excluir conta', mensagem: `Excluir a conta ${conta.discordUsername ?? conta.username}? Esta ação não pode ser desfeita.`, tom: 'perigo', textoConfirmar: 'Excluir' }))) return
                               deleteConta.mutate(conta.id)
                             }}
                             className="text-txt3 hover:text-red transition-colors"
@@ -601,64 +625,6 @@ export default function ConfiguracoesPage() {
 
         </div>
       </GlowCard>
-
-      {/* Modal Nova Conta */}
-      <ModalOverlay open={novaContaModal} onClose={() => setNovaContaModal(false)} title="NOVA CONTA">
-        <div className="space-y-4">
-          <div>
-            <label className="font-mono text-xs text-txt2 block mb-1">USUÁRIO</label>
-            <input
-              value={novaContaForm.username}
-              onChange={e => setNovaContaForm(p => ({ ...p, username: e.target.value }))}
-              placeholder="min. 2 chars — só letras, números, _ . -"
-              className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt placeholder:text-txt3"
-            />
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 block mb-1">SENHA</label>
-            <input
-              type="password"
-              value={novaContaForm.password}
-              onChange={e => setNovaContaForm(p => ({ ...p, password: e.target.value }))}
-              placeholder="min. 4 caracteres"
-              className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt placeholder:text-txt3"
-            />
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 block mb-1">CARGO DE PERMISSÃO</label>
-            <select
-              value={novaContaForm.cargoPermId}
-              onChange={e => setNovaContaForm(p => ({ ...p, cargoPermId: e.target.value ? Number(e.target.value) : '' }))}
-              className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt"
-            >
-              <option value="">— sem cargo (sem acesso até atribuir) —</option>
-              {cargosPerm.map(cp => <option key={cp.id} value={cp.id}>{cp.nome}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <HudButton
-              loading={createConta.isPending}
-              onClick={() => {
-                if (!novaContaForm.username || !novaContaForm.password) return
-                createConta.mutate({ username: novaContaForm.username, password: novaContaForm.password, cargoPermId: novaContaForm.cargoPermId === '' ? null : novaContaForm.cargoPermId }, {
-                  onSuccess: () => { addToast('success', 'Conta criada!'); setNovaContaModal(false); setNovaContaForm({ username: '', password: '', cargoPermId: '' }) },
-                  onError: (err: unknown) => {
-                    const data = (err as { response?: { data?: { error?: string; details?: string[] } } })?.response?.data
-                    const msg = data?.details?.length ? data.details.join(' | ') : (data?.error ?? 'Erro ao criar conta.')
-                    addToast('error', msg)
-                  },
-                })
-              }}
-              className="flex-1"
-            >
-              CRIAR CONTA
-            </HudButton>
-            <HudButton variant="ghost" onClick={() => setNovaContaModal(false)} className="flex-1">
-              CANCELAR
-            </HudButton>
-          </div>
-        </div>
-      </ModalOverlay>
     </div>
   )
 }

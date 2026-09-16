@@ -36,7 +36,10 @@ export function useAllAcoes() {
 export function useCreateAcao() {
   return useMutation({
     mutationFn: (body: Omit<Acao, 'id'>) => api.post<Acao>('/acoes', body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['acoes'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['acoes'] })
+      queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
+    },
   })
 }
 

@@ -12,6 +12,7 @@ import HudButton from '@/components/ui/HudButton'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { formatDate } from '@/lib/utils'
 import type { AvaliacaoIndividual } from '@/types'
+import { confirmar } from '@/lib/dialogo'
 
 export default function RecrutaCandidatoPage() {
   const { id } = useParams<{ id: string }>()
@@ -60,7 +61,7 @@ export default function RecrutaCandidatoPage() {
   }
 
   async function handleFechar() {
-    if (!confirm('Encerrar avaliações deste candidato? O resultado final será calculado.')) return
+    if (!(await confirmar({ titulo: 'Encerrar avaliações', mensagem: 'Encerrar as avaliações deste candidato? O resultado final será calculado.', tom: 'aviso', textoConfirmar: 'Encerrar' }))) return
     try {
       await fechar.mutateAsync(recrutaId)
       addToast('success', 'Candidato encerrado.')

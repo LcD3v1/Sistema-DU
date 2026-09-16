@@ -10,7 +10,11 @@ import { securityHeaders, permissionsPolicy } from './middleware/securityHeaders
 import { globalLimiter, apiLimiter } from './middleware/rateLimiter'
 import { sanitizeBody } from './middleware/sanitize'
 import { audit } from './security/audit'
-import { ensureDefaultAdmin, ensureNivelMigration } from './data'
+import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration } from './data'
+import { iniciarGateway } from './discord/gateway'
+import { verificarAusencias } from './efetivo'
+import { limparNotificacoesAntigas } from './notificacoes'
+import { readData as lerDados, writeData as gravarDados } from './data'
 import authRoutes from './routes/auth'
 import publicRoutes from './routes/public'
 import membrosRoutes from './routes/membros'
@@ -20,6 +24,7 @@ import recrutasRoutes from './routes/recrutas'
 import ausenciasRoutes from './routes/ausencias'
 import avisosRoutes from './routes/avisos'
 import fardamentosRoutes from './routes/fardamentos'
+import notificacoesRoutes from './routes/notificacoes'
 
 const app = express()
 const PROD = env.PROD
@@ -58,6 +63,7 @@ app.use('/api/recrutas', recrutasRoutes)
 app.use('/api/ausencias', ausenciasRoutes)
 app.use('/api/avisos', avisosRoutes)
 app.use('/api/fardamentos', fardamentosRoutes)
+app.use('/api/notificacoes', notificacoesRoutes)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
 
@@ -104,13 +110,32 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 
 const PORT = parseInt(process.env.PORT || '3001', 10)
 
-ensureDefaultAdmin().then(() => {
+async function iniciar(): Promise<void> {
+  await initData()
+  ensureDefaultAdmin()
   ensureNivelMigration()
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[FAST] Sistema rodando em http://0.0.0.0:${PORT}`)
     console.log(`[FAST] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
-}).catch(err => {
-  console.error('[FAST] Erro ao inicializar:', err)
+  iniciarGateway()
+
+  // Rotina (1 min): ausências (início/fim do período) e limpeza de notificações
+  const rotina = () => {
+    try { verificarAusencias() } catch (err) { console.error('[FAST] rotina de ausências:', err) }
+    // Notificações com mais de 7 dias são apagadas
+    try { const d = lerDados(); if (limparNotificacoesAntigas(d)) gravarDados(d) } catch (err) { console.error('[FAST] limpeza de notificações:', err) }
+  }
+  rotina()
+  setInterval(rotina, 60_000)
+}
+
+// Desligamento limpo: espera as gravações pendentes no MongoDB.
+for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(sinal, () => { closeData().finally(() => process.exit(0)) })
+}
+
+iniciar().catch(err => {
+  console.error('[FAST] Erro ao inicializar:', err instanceof Error ? err.message : err)
   process.exit(1)
 })

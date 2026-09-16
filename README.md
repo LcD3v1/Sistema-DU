@@ -7,7 +7,7 @@ protocolo e um sistema de cargos de permissão granular.
 ## Stack
 
 - **Frontend:** React 19 + Vite + TypeScript + Tailwind v4 + React Query + Zustand + framer-motion
-- **Backend:** Express 5 + TypeScript, JWT + bcrypt, persistência em arquivo JSON, Zod
+- **Backend:** Express 5 + TypeScript, JWT + bcrypt, persistência em MongoDB, Zod
 
 ## Como rodar (desenvolvimento)
 
@@ -26,20 +26,24 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-Acesso padrão: **admin / admin123** — troque a senha no primeiro acesso.
+O login é **somente via Discord (OAuth2)**. No `backend/.env`, preencha
+`DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` e o seu ID em
+`DISCORD_OWNER_ID` — no primeiro login esse Discord vira a conta dona (acesso total).
+Novos usuários entram pelo Discord, completam o cadastro e aguardam aprovação em
+**Configurações → Solicitações**.
 
 ## Build de produção
 
 ```bash
 npm run build          # instala tudo + builda frontend e backend
-NODE_ENV=production node backend/dist/index.js
+npm start          # builda e sobe em produção (funciona no Windows)
 ```
 Em produção o backend serve o frontend buildado e ativa CSP/HSTS.
 
 ## Segurança
 
 Este projeto segue práticas do OWASP Top 10 (headers/CSP, rate limiting, bcrypt,
-lockout de força bruta, JWT revogável, RBAC + permissões por área, auditoria).
+login exclusivo via Discord OAuth2, JWT revogável, RBAC + permissões por área, auditoria).
 
 ```bash
 npm run security       # security-check + npm audit + typecheck

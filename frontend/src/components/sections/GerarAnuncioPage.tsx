@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Copy, ClipboardCheck, Eraser, Clipboard, Download, Info, Settings } from 'lucide-react'
+import { ChevronLeft, Copy, ClipboardCheck, Eraser, Clipboard, Info, Settings } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
 import { useAnuncioSituacoes } from '@/hooks/useConfig'
 import Brand from '@/components/ui/Brand'
@@ -17,6 +17,92 @@ function resolve(template: string, local: string, assinatura: string) {
   return template
     .replace(/\[LOCAL\]/g, local.trim() || '[LOCAL]')
     .replace(/\[ASSINATURA\]/g, assinatura.trim() || '[ASSINATURA]')
+}
+
+type CampoAutoPaste = 'situacao' | 'local' | 'assinatura' | 'titulo' | 'texto' | 'duracao' | 'imagem'
+
+type AutoPasteValue = {
+  field?: CampoAutoPaste
+  value: string
+}
+
+type LabeledAutoPasteValue = {
+  field: CampoAutoPaste
+  value: string
+}
+
+const AUTO_PASTE_FIELDS: CampoAutoPaste[] = ['situacao', 'local', 'assinatura', 'titulo', 'texto', 'duracao', 'imagem']
+
+const AUTO_PASTE_ALIASES: Record<string, CampoAutoPaste> = {
+  situacao: 'situacao',
+  situacao_do_anuncio: 'situacao',
+  tipo: 'situacao',
+  categoria: 'situacao',
+  local: 'local',
+  assinatura: 'assinatura',
+  assinatura_do_perfil: 'assinatura',
+  titulo: 'titulo',
+  titulo_do_anuncio: 'titulo',
+  texto: 'texto',
+  mensagem: 'texto',
+  conteudo: 'texto',
+  duracao: 'duracao',
+  duracao_em_segundos: 'duracao',
+  segundos: 'duracao',
+  imagem: 'imagem',
+  imagem_url: 'imagem',
+  url: 'imagem',
+}
+
+function normalizePasteKey(key: string) {
+  return key
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function isEditableElement(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  return Boolean(target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
+}
+
+function parseAutoPastePayload(raw: string): AutoPasteValue[] {
+  const text = raw.trim()
+  if (!text) return []
+
+  try {
+    const parsed = JSON.parse(text) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return Object.entries(parsed as Record<string, unknown>)
+        .map(([key, value]) => ({
+          field: AUTO_PASTE_ALIASES[normalizePasteKey(key)],
+          value: typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '',
+        }))
+        .filter((item): item is LabeledAutoPasteValue => Boolean(item.field && item.value))
+    }
+  } catch {
+    // Conteudo comum copiado nao precisa ser JSON.
+  }
+
+  const labeled = text
+    .split(/\r?\n/)
+    .map(line => {
+      const match = line.match(/^\s*([^:=]+)\s*[:=]\s*(.+?)\s*$/)
+      if (!match) return null
+      const field = AUTO_PASTE_ALIASES[normalizePasteKey(match[1])]
+      return field ? { field, value: match[2].trim() } : null
+    })
+    .filter((item): item is LabeledAutoPasteValue => item !== null && Boolean(item.value))
+
+  if (labeled.length > 0) return labeled
+
+  return text
+    .split(/\t|,|\r?\n/)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .map(value => ({ value }))
 }
 
 export default function GerarAnuncioPage() {
@@ -72,6 +158,95 @@ export default function GerarAnuncioPage() {
     try { await navigator.clipboard.writeText(payload); addToast('success', msg) }
     catch { addToast('error', 'Não foi possível copiar. Copie manualmente.') }
   }
+
+  useEffect(() => {
+    function preencherCampoVazio(field: CampoAutoPaste, value: string) {
+      if (!value.trim()) return false
+
+      if (field === 'situacao') {
+        if (situacaoId !== null) return false
+        const match = (situacoes ?? []).find(s => normalizePasteKey(s.label) === normalizePasteKey(value) || String(s.id) === value.trim())
+        if (!match) return false
+        setSituacaoId(match.id)
+        return true
+      }
+
+      if (field === 'local') {
+        if (local.trim()) return false
+        setLocal(value)
+        return true
+      }
+
+      if (field === 'assinatura') {
+        if (assinatura.trim()) return false
+        setAssinatura(value)
+        return true
+      }
+
+      if (field === 'titulo') {
+        if (titulo.trim()) return false
+        setTitulo(value)
+        return true
+      }
+
+      if (field === 'texto') {
+        if (texto.trim()) return false
+        manual.current = true
+        setTexto(value)
+        return true
+      }
+
+      if (field === 'duracao') {
+        if (duracao !== 60) return false
+        const seconds = Number(value.replace(/[^\d]/g, ''))
+        if (!Number.isFinite(seconds) || seconds <= 0) return false
+        setDuracao(Math.min(600, seconds))
+        return true
+      }
+
+      if (field === 'imagem') {
+        if (imagem.trim()) return false
+        setImagem(value)
+        return true
+      }
+
+      return false
+    }
+
+    function handlePaste(event: ClipboardEvent) {
+      if (isEditableElement(event.target)) return
+
+      const items = parseAutoPastePayload(event.clipboardData?.getData('text') ?? '')
+      if (items.length === 0) return
+
+      let cursor = 0
+      let preenchidos = 0
+
+      for (const item of items) {
+        if (item.field) {
+          if (preencherCampoVazio(item.field, item.value)) preenchidos += 1
+          continue
+        }
+
+        while (cursor < AUTO_PASTE_FIELDS.length) {
+          const field = AUTO_PASTE_FIELDS[cursor]
+          cursor += 1
+          if (preencherCampoVazio(field, item.value)) {
+            preenchidos += 1
+            break
+          }
+        }
+      }
+
+      if (preenchidos > 0) {
+        event.preventDefault()
+        addToast('success', `${preenchidos} campo${preenchidos > 1 ? 's' : ''} preenchido${preenchidos > 1 ? 's' : ''} pelo Ctrl+V.`)
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [addToast, assinatura, duracao, imagem, local, situacaoId, situacoes, texto, titulo])
 
   const inputCls = 'input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt placeholder-txt3'
   const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
@@ -164,13 +339,13 @@ export default function GerarAnuncioPage() {
             <div className="flex items-center justify-between gap-3 rounded-lg border border-bdr2 bg-card2/60 px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-txt flex items-center gap-1.5"><Clipboard size={14} className="text-gold3" /> Auxiliar de Ctrl+V para Windows</p>
-                <p className="text-[11px] text-txt3 mt-0.5">Baixe e execute uma vez. Não interfere no Ctrl+V comum.</p>
+                <p className="text-[11px] text-txt3 mt-0.5">Cole na página sem selecionar campo: os campos vazios são preenchidos e os já preenchidos são ignorados.</p>
               </div>
               <button
-                onClick={() => addToast('info', 'Auxiliar opcional — em breve. Por ora use "Copiar como texto".')}
+                onClick={() => addToast('info', 'Copie dados por linha, planilha, JSON ou "Local: valor" e pressione Ctrl+V fora dos campos.')}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-bdrg transition-colors"
               >
-                <Download size={13} /> Baixar auxiliar
+                <Info size={13} /> Como usar
               </button>
             </div>
 

@@ -1,11 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowUpNarrowWide, ChevronsUp, Calendar } from 'lucide-react'
-import { useMembros, useUpdateMembro } from '@/hooks/useMembros'
+import { useMembros } from '@/hooks/useMembros'
 import { useAllAcoes } from '@/hooks/useAcoes'
-import { usePatentes } from '@/hooks/useConfig'
 import { usePerms } from '@/hooks/usePerms'
-import { useUIStore } from '@/store/uiStore'
+import { PromocaoModal } from '@/components/sections/MembroGestao'
 import LoadingHud from '@/components/ui/LoadingHud'
 import type { Membro, Acao } from '@/types'
 
@@ -33,13 +32,10 @@ function avaliar(winRate: number, total: number) {
 export default function PromocoesPage() {
   const { data: membros, isLoading: lm } = useMembros()
   const { data: acoesData, isLoading: la } = useAllAcoes()
-  const { data: patentes = [] } = usePatentes()
-  const updateMembro = useUpdateMembro()
   const { canEdit } = usePerms()
-  const { addToast } = useUIStore()
+  const [alvo, setAlvo] = useState<Membro | null>(null)
 
-  // Promover altera o membro → depende da permissão de editar Membros
-  const isMod = canEdit('membros')
+  const isMod = canEdit('promocoes')
 
   const rows = useMemo(() => {
     const acoes: Acao[] = (acoesData?.acoes ?? []).filter(a => (a.status ?? 'aprovada') === 'aprovada')
@@ -52,17 +48,6 @@ export default function PromocoesPage() {
       return { m, vitorias, derrotas, winRate, aval: avaliar(winRate, fechadas), dias: diasDesde(m.promocao) }
     }).sort((a, b) => b.winRate - a.winRate || b.vitorias - a.vitorias)
   }, [membros, acoesData])
-
-  function promover(m: Membro) {
-    const idx = patentes.indexOf(m.patenteInterna)
-    const proxima = idx >= 0 && idx < patentes.length - 1 ? patentes[idx + 1] : null
-    if (!proxima) { addToast('error', `${m.policial} já está na patente máxima.`); return }
-    if (!confirm(`Promover ${m.policial} de "${m.patenteInterna || '—'}" para "${proxima}"?`)) return
-    updateMembro.mutate(
-      { id: m.id, patenteInterna: proxima, promocao: new Date().toISOString().slice(0, 10) },
-      { onSuccess: () => addToast('success', `${m.policial} promovido a ${proxima}!`) },
-    )
-  }
 
   if (lm || la) return <LoadingHud />
 
@@ -105,7 +90,7 @@ export default function PromocoesPage() {
                 <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-[11px] font-semibold text-white/80 shrink-0">{initials(m.policial)}</div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-txt truncate">{m.policial}</p>
-                  <p className="text-[11px] text-txt2 truncate">{m.patenteInterna || m.patenteNPD || '—'}</p>
+                  <p className="text-[11px] text-txt2 truncate">{m.cargoNome || m.patenteInterna || m.patenteNPD || '—'}</p>
                 </div>
               </div>
 
@@ -125,15 +110,23 @@ export default function PromocoesPage() {
               <div className="text-right">
                 {isMod ? (
                   <button
-                    onClick={() => promover(m)}
+                    onClick={() => setAlvo(m)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/40 text-gold3 text-xs font-medium hover:bg-gold/25 transition-colors">
-                    <ChevronsUp size={14} /> Promover
+                    <ChevronsUp size={14} /> Promover / rebaixar
                   </button>
                 ) : <span className="text-txt3 text-xs font-mono">—</span>}
               </div>
             </motion.div>
           ))}
         </div>
+      )}
+
+      {alvo && (
+        <PromocaoModal
+          membro={(membros ?? []).find(m => m.id === alvo.id) ?? alvo}
+          open={!!alvo}
+          onClose={() => setAlvo(null)}
+        />
       )}
     </div>
   )

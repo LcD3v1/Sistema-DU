@@ -27,26 +27,9 @@ const safeStr = (min: number, max: number) =>
 const safeStrOpt = (max: number) =>
   z.string().max(max).transform((s: string) => s.trim())
 
-export const loginSchema = z.object({
-  username: z.string().min(1).max(64).regex(/^[\w.\-@]+$/, 'Usuário contém caracteres inválidos'),
-  password: z.string().min(1).max(128),
-})
-
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1).max(128),
-  newPassword: z.string().min(4).max(128),
-})
-
-export const createContaSchema = z.object({
-  username: z.string().min(2).max(64).regex(/^[\w.\-]+$/, 'Usuário contém caracteres inválidos'),
-  password: z.string().min(4).max(128),
-  cargoPermId: z.number().int().positive().nullable().optional(),
-})
-
 export const updateContaSchema = z.object({
   nivel: z.enum(['admin', 'moderador', 'membro', 'view_only']).optional(),
   ativo: z.boolean().optional(),
-  password: z.string().min(4).max(128).optional(),
   cargoPermId: z.number().int().positive().nullable().optional(),
 }).refine(body => Object.keys(body).length > 0, { message: 'Nenhum campo fornecido' })
 
@@ -127,7 +110,7 @@ export const avaliacaoRecrutaSchema = z.object({
 })
 
 export const ausenciaSchema = z.object({
-  memberId:   z.number().int().positive().optional(),
+  memberId:   z.number().int().positive(),
   nome:       safeStr(1, 100),
   dataInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inicial inválida'),
   dataFim:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data final inválida'),
@@ -151,12 +134,6 @@ export const situacaoAnuncioUpdateSchema = z.object({
   message: 'Nenhum campo fornecido',
 })
 
-export const solicitacaoSchema = z.object({
-  username: z.string().min(2).max(64).regex(/^[\w.\-]+$/, 'Usuário contém caracteres inválidos'),
-  password: z.string().min(4).max(128),
-  nome:     safeStr(1, 100),
-})
-
 export const onboardingSchema = z.object({
   policial:       safeStr(1, 100),
   badge:          safeStrOpt(20).default(''),
@@ -173,10 +150,6 @@ export const membroSelfSchema = z.object({
   patenteInterna: safeStrOpt(50).optional(),
 }).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
   message: 'Nenhum campo fornecido',
-})
-
-export const aprovarSolicitacaoSchema = z.object({
-  cargoPermId: z.number().int().positive().nullable().optional(),
 })
 
 export const avisoSchema = z.object({
@@ -244,4 +217,33 @@ export const reorderPatenteSchema = z.object({
 
 export const reorderQruSchema = z.object({
   qrus: z.array(z.string().min(1).max(50)),
+})
+
+const snowflake = z.string().regex(/^\d{17,20}$/, 'ID de canal inválido')
+
+export const canaisSchema = z.object({
+  registro:   snowflake.nullable().optional(),
+  apreensoes: snowflake.nullable().optional(),
+})
+
+export const promoverSchema = z.object({
+  cargoPermId: z.number().int().positive(),
+  motivo:      safeStrOpt(500).default(''),
+})
+
+export const advertenciaSchema = z.object({
+  nivel:  z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  motivo: safeStr(3, 500),
+})
+
+export const exonerarSchema = z.object({
+  motivo: safeStr(3, 500),
+})
+
+export const reorderCargosSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1),
+})
+
+export const recusarSchema = z.object({
+  motivo: safeStrOpt(300).optional(),
 })

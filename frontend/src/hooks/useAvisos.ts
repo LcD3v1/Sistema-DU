@@ -25,7 +25,10 @@ export function useAvisos() {
 export function useCreateAviso() {
   return useMutation({
     mutationFn: (body: { titulo: string; mensagem: string }) => api.post('/avisos', body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['avisos'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['avisos'] })
+      queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
+    },
   })
 }
 

@@ -13,6 +13,7 @@ import { formatDate } from '@/lib/utils'
 import type { Acao, Membro } from '@/types'
 import api from '@/lib/axios'
 import { downloadBlob } from '@/lib/utils'
+import { confirmar } from '@/lib/dialogo'
 
 const RESULTADO_COLORS: Record<string, string> = {
   'Vitória':      '#27ae60',
@@ -39,7 +40,7 @@ export default function HistoricoPage() {
   const membroMap = new Map((membros ?? []).map((m: Membro) => [m.id, m]))
 
   async function handleDelete(id: number) {
-    if (!confirm('Apagar esta ação? Esta operação não pode ser desfeita.')) return
+    if (!(await confirmar({ titulo: 'Apagar apreensão', mensagem: 'Apagar esta apreensão? Esta operação não pode ser desfeita.', tom: 'perigo', textoConfirmar: 'Apagar' }))) return
     try {
       await deleteAcao.mutateAsync(id)
       addToast('success', 'Ação removida.')

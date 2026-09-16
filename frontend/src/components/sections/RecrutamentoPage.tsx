@@ -11,6 +11,7 @@ import HudButton from '@/components/ui/HudButton'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { formatDate } from '@/lib/utils'
 import type { Recruta } from '@/types'
+import { confirmar } from '@/lib/dialogo'
 
 export default function RecrutamentoPage() {
   const navigate = useNavigate()
@@ -44,7 +45,7 @@ export default function RecrutamentoPage() {
 
   async function handleDelete(id: number, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm('Remover este candidato e todas as avaliações?')) return
+    if (!(await confirmar({ titulo: 'Remover candidato', mensagem: 'Remover este candidato e todas as avaliações?', tom: 'perigo', textoConfirmar: 'Remover' }))) return
     try {
       await deleteRecruta.mutateAsync(id)
       addToast('success', 'Candidato removido.')

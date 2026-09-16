@@ -23,7 +23,10 @@ import AdvBox from '@/components/ui/AdvBox'
 import DragHandle from '@/components/ui/DragHandle'
 import ModalOverlay from '@/components/ui/ModalOverlay'
 import LoadingHud from '@/components/ui/LoadingHud'
+import { MembroNomeMenu } from '@/components/sections/MembroGestao'
+import AprovacoesPerfil from '@/components/sections/AprovacoesPerfil'
 import type { Membro, StatusMembro } from '@/types'
+import { confirmar } from '@/lib/dialogo'
 
 interface NovoMembroForm {
   badge: string; passaporte: string; policial: string
@@ -108,13 +111,20 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
         <InlineCell field="passaporte" value={membro.passaporte} canEdit={canEdit} onSave={v => onUpdate(membro.id, { passaporte: v })} />
       </td>
       <td className="px-3 py-2.5">
-        <InlineCell field="policial" value={membro.policial} canEdit={canEdit} onSave={v => onUpdate(membro.id, { policial: v })} />
+        <MembroNomeMenu membro={membro}>{membro.policial}</MembroNomeMenu>
+        {membro.ausenteAte && (
+          <span className="ml-2 px-1.5 py-0.5 rounded bg-blue/15 border border-blue/40 text-blue text-[9px] font-mono" title="Em ausência aprovada">
+            AUSENTE ATÉ {membro.ausenteAte.split('-').reverse().join('/')}
+          </span>
+        )}
       </td>
       <td className="px-3 py-2.5">
         <InlineCell field="patenteNPD" value={membro.patenteNPD} canEdit={canEdit} options={canEdit ? patentes : undefined} onSave={v => onUpdate(membro.id, { patenteNPD: v })} />
       </td>
       <td className="px-3 py-2.5">
-        <InlineCell field="patenteInterna" value={membro.patenteInterna} canEdit={canEdit} options={canEdit ? cargos : undefined} onSave={v => onUpdate(membro.id, { patenteInterna: v })} />
+        {membro.contaId
+          ? <span className="font-mono text-xs text-gold3" title="Cargo de permissão — altere pelo menu Promoção">{membro.cargoNome ?? '—'}</span>
+          : <InlineCell field="patenteInterna" value={membro.patenteInterna} canEdit={canEdit} options={canEdit ? cargos : undefined} onSave={v => onUpdate(membro.id, { patenteInterna: v })} />}
       </td>
       <td className="px-3 py-2.5">
         {canEdit ? (
@@ -139,9 +149,9 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
       </td>
       <td className="px-3 py-2.5">
         <div className="flex gap-1">
-          <AdvBox active={membro.adv1} index={1} readonly={!canEdit} onClick={() => onUpdate(membro.id, { adv1: !membro.adv1 })} />
-          <AdvBox active={membro.adv2} index={2} readonly={!canEdit} onClick={() => onUpdate(membro.id, { adv2: !membro.adv2 })} />
-          <AdvBox active={membro.adv3} index={3} readonly={!canEdit} onClick={() => onUpdate(membro.id, { adv3: !membro.adv3 })} />
+          <AdvBox active={membro.adv1} index={1} readonly />
+          <AdvBox active={membro.adv2} index={2} readonly />
+          <AdvBox active={membro.adv3} index={3} readonly />
         </div>
       </td>
       {canEdit && (
@@ -219,7 +229,7 @@ export default function MembrosPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Remover este membro? Esta operação não pode ser desfeita.')) return
+    if (!(await confirmar({ titulo: 'Remover membro', mensagem: 'Remover este membro? Esta operação não pode ser desfeita.', tom: 'perigo', textoConfirmar: 'Remover' }))) return
     try {
       await deleteMembro.mutateAsync(id)
       addToast('success', 'Membro removido.')
@@ -252,6 +262,8 @@ export default function MembrosPage() {
 
   return (
     <div className="p-6 space-y-4">
+      {canEdit && <AprovacoesPerfil />}
+
       <GlowCard>
         <div className="p-4 flex items-center gap-4">
           <select
@@ -265,6 +277,7 @@ export default function MembrosPage() {
             <option value="Ausência">Ausência</option>
           </select>
 
+          <span className="text-[11px] text-txt3 hidden md:inline">Clique no nome para promover, gerenciar ou exonerar.</span>
           <span className="font-mono text-xs text-txt2 ml-auto">{orderedMembros.length} membros</span>
 
           {canEdit && (
@@ -286,7 +299,7 @@ export default function MembrosPage() {
                     {[
                       canEdit ? '⠿' : '',
                       'Badge', 'Passaporte', 'Nome', 'Patente',
-                      'Cargo Interno', 'Status', 'Entrada', 'Promoção', 'Adv.',
+                      'Cargo', 'Status', 'Entrada', 'Promoção', 'Adv.',
                       canEdit ? '' : '',
                     ].map((h, i) => (
                       <th key={i} className="text-left font-mono text-xs text-txt3 tracking-wider px-3 py-3">{h}</th>

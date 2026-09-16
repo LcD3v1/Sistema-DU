@@ -1,12 +1,35 @@
 import fs from 'fs'
 import path from 'path'
-import bcrypt from 'bcrypt'
+import { MongoClient, Db, AnyBulkWriteOperation, Document } from 'mongodb'
 import { FastData } from './types'
 import { fullPermMap } from './permAreas'
 
-const DATA_PATH = process.env.DATA_PATH
+/**
+ * Persistência em MongoDB.
+ *
+ * O painel inteiro usa readData()/writeData() de forma síncrona. Para manter
+ * isso, os dados ficam num cache em memória carregado do Mongo na inicialização
+ * (initData). writeData atualiza o cache na hora e persiste no Mongo em
+ * segundo plano, numa fila serial que grava só o que mudou.
+ *
+ * Layout no banco:
+ *  - uma coleção por lista com `id` (membros, contas, acoes...) — 1 documento por item
+ *  - coleção `config`, documento `_id: 'meta'` com o restante (patentes, qrus, logo, contadores...)
+ */
+
+// Arquivo legado: importado para o Mongo uma única vez, se o banco estiver vazio.
+const LEGACY_PATH = process.env.DATA_PATH
   ? path.resolve(process.env.DATA_PATH)
   : path.resolve(__dirname, '..', 'data.json')
+
+const COLECOES = [
+  'membros', 'acoes', 'recrutas', 'contas', 'ausencias',
+  'avisos', 'fardamentos', 'cargosPermissao', 'anuncioSituacoes',
+  'notificacoes', 'solicitacoesPerfil',
+] as const
+type Colecao = typeof COLECOES[number]
+type ItemDoc = Document & { _id: number }
+type MetaDoc = Document & { _id: string }
 
 const DEFAULT_DATA: FastData = {
   membros: [],
@@ -25,7 +48,6 @@ const DEFAULT_DATA: FastData = {
   patentes: ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Major', 'Coronel'],
   cargos: ['Operador', 'Sniper', 'Médico de Campo', 'Líder de Esquadrão', 'Comandante'],
   contas: [],
-  solicitacoes: [],
   ausencias: [],
   avisos: [],
   fardamentos: [],
@@ -45,30 +67,133 @@ const DEFAULT_DATA: FastData = {
   nextAusId: 1,
   nextSitId: 7,
   nextAvisoId: 1,
-  nextSolId: 1,
   nextFardId: 1,
   nextCargoPermId: 1,
   logo: '',
   membrosOrder: [],
+  canais: {},
+  notificacoes: [],
+  nextNotifId: 1,
+  solicitacoesPerfil: [],
+  nextSolPerfilId: 1,
+}
+
+let db: Db | undefined
+let client: MongoClient | undefined
+let cache: FastData | undefined
+
+// Último estado confirmado no banco (JSON por item) — base do diff.
+const salvo: Record<Colecao, Map<number, string>> = Object.fromEntries(
+  COLECOES.map(c => [c, new Map<number, string>()]),
+) as Record<Colecao, Map<number, string>>
+let metaSalvo = ''
+
+function clone<T>(v: T): T { return structuredClone(v) }
+
+function separar(data: FastData): { listas: Record<Colecao, { id: number }[]>; meta: Record<string, unknown> } {
+  const meta: Record<string, unknown> = { ...data }
+  const listas = {} as Record<Colecao, { id: number }[]>
+  for (const c of COLECOES) {
+    listas[c] = (data[c] ?? []) as { id: number }[]
+    delete meta[c]
+  }
+  return { listas, meta }
+}
+
+/** Conecta ao Mongo e carrega (ou importa) os dados. Chamar antes de subir o servidor. */
+export async function initData(): Promise<void> {
+  const uri = process.env.MONGODB_URI
+  if (!uri) throw new Error('MONGODB_URI não definido')
+  client = new MongoClient(uri, { serverSelectionTimeoutMS: 15_000 })
+  await client.connect()
+  db = client.db(process.env.MONGODB_DB || 'fast')
+
+  const metaDoc = await db.collection<MetaDoc>('config').findOne({ _id: 'meta' })
+  if (!metaDoc) {
+    let inicial: FastData = clone(DEFAULT_DATA)
+    if (fs.existsSync(LEGACY_PATH)) {
+      inicial = { ...inicial, ...JSON.parse(fs.readFileSync(LEGACY_PATH, 'utf-8')) }
+      console.log(`[FAST][DB] Banco vazio — importando dados de ${LEGACY_PATH}`)
+    } else {
+      console.log('[FAST][DB] Banco vazio — iniciando com dados padrão')
+    }
+    cache = inicial
+    await flush()
+  } else {
+    const { _id: _m, ...meta } = metaDoc
+    const carregado = { ...clone(DEFAULT_DATA), ...meta } as FastData
+    for (const c of COLECOES) {
+      const docs = await db.collection<ItemDoc>(c).find().sort({ _id: 1 }).toArray()
+      const itens = docs.map(({ _id, ...item }) => item)
+      ;(carregado as unknown as Record<string, unknown>)[c] = itens
+      for (const item of itens) salvo[c].set(item.id as number, JSON.stringify(item))
+    }
+    metaSalvo = JSON.stringify(separar(carregado).meta)
+    cache = carregado
+  }
+  console.log(`[FAST][DB] MongoDB conectado (banco "${db.databaseName}")`)
 }
 
 export function readData(): FastData {
-  if (!fs.existsSync(DATA_PATH)) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(DEFAULT_DATA, null, 2), 'utf-8')
-    return JSON.parse(JSON.stringify(DEFAULT_DATA))
+  if (!cache) throw new Error('Dados ainda não carregados — initData() não foi chamado')
+  return clone(cache)
+}
+
+let gravando: Promise<void> | undefined
+let pendente = false
+
+export function writeData(data: FastData): void {
+  cache = clone(data)
+  agendarFlush()
+}
+
+function agendarFlush(): void {
+  pendente = true
+  if (gravando) return
+  gravando = (async () => {
+    while (pendente) {
+      pendente = false
+      try { await flush() } catch (err) {
+        console.error('[FAST][DB] Falha ao gravar no MongoDB:', err instanceof Error ? err.message : err)
+        pendente = true
+        await new Promise(r => setTimeout(r, 3000))
+      }
+    }
+  })().finally(() => { gravando = undefined })
+}
+
+async function flush(): Promise<void> {
+  if (!db || !cache) return
+  const { listas, meta } = separar(cache)
+
+  for (const c of COLECOES) {
+    const atual = new Map(listas[c].map(item => [item.id, JSON.stringify(item)]))
+    const ops: AnyBulkWriteOperation<ItemDoc>[] = []
+    for (const [id, json] of atual) {
+      if (salvo[c].get(id) !== json) {
+        ops.push({ replaceOne: { filter: { _id: id }, replacement: JSON.parse(json), upsert: true } })
+      }
+    }
+    for (const id of salvo[c].keys()) {
+      if (!atual.has(id)) ops.push({ deleteOne: { filter: { _id: id } } })
+    }
+    if (ops.length) await db.collection<ItemDoc>(c).bulkWrite(ops, { ordered: false })
+    salvo[c] = atual
   }
-  try {
-    const raw = fs.readFileSync(DATA_PATH, 'utf-8')
-    const parsed = JSON.parse(raw) as FastData
-    // Garante que campos novos existam em dados legados
-    return { ...DEFAULT_DATA, ...parsed }
-  } catch {
-    return JSON.parse(JSON.stringify(DEFAULT_DATA))
+
+  const metaJson = JSON.stringify(meta)
+  if (metaJson !== metaSalvo) {
+    await db.collection<MetaDoc>('config').replaceOne(
+      { _id: 'meta' }, meta, { upsert: true },
+    )
+    metaSalvo = metaJson
   }
 }
 
-export function writeData(data: FastData): void {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf-8')
+/** Aguarda gravações pendentes e fecha a conexão (desligamento limpo). */
+export async function closeData(): Promise<void> {
+  while (gravando) await gravando
+  await client?.close()
 }
 
 /**
@@ -105,19 +230,29 @@ export function ensureNivelMigration(): void {
   console.log('[FAST] Migração nível→cargos concluída (cargo Administrador criado/atribuído).')
 }
 
-export async function ensureDefaultAdmin(): Promise<void> {
+/**
+ * Garante a conta dona (id 1). Sem senha: ela é assumida no primeiro login
+ * pelo Discord definido em DISCORD_OWNER_ID.
+ */
+export function ensureDefaultAdmin(): void {
   const data = readData()
+  // Remove resíduos do antigo login por senha
+  const legado = data as FastData & { solicitacoes?: unknown; nextSolId?: unknown }
+  let mudou = 'solicitacoes' in legado || 'nextSolId' in legado
+  delete legado.solicitacoes
+  delete legado.nextSolId
+  for (const c of data.contas as (FastData['contas'][number] & { password?: string })[]) {
+    if ('password' in c) { delete c.password; mudou = true }
+  }
   if (data.contas.length === 0) {
-    const hashed = await bcrypt.hash('admin123', 12)
-    data.contas.push({
-      id: 1,
-      username: 'admin',
-      password: hashed,
-      nivel: 'admin',
-      ativo: true,
-    })
+    data.contas.push({ id: 1, username: 'admin', nivel: 'admin', ativo: true })
     data.nextContaId = 2
-    writeData(data)
-    console.log('[FAST] Conta admin padrão criada: admin / admin123')
+    mudou = true
+    console.log('[FAST] Conta dona criada — será vinculada ao Discord de DISCORD_OWNER_ID no primeiro login.')
+  }
+  if (mudou) writeData(data)
+  const dono = data.contas.find(c => c.id === 1)
+  if (dono && !dono.discordId && !process.env.DISCORD_OWNER_ID) {
+    console.warn('[FAST][ATENÇÃO] A conta dona ainda não tem Discord vinculado e DISCORD_OWNER_ID não está definido — ninguém terá acesso de administrador.')
   }
 }

@@ -25,7 +25,7 @@ export const loginLimiter = rateLimit({
   },
 })
 
-// Ações críticas (restore, change-password): 5 / 15 min por IP
+// Ações críticas (restore): 5 / 15 min por IP
 export const criticalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,

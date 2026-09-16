@@ -1,57 +1,169 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
-import { validateBody, ausenciaSchema } from '../middleware/validate'
+import { validateBody, ausenciaSchema, recusarSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { Ausencia } from '../types'
+import { Ausencia, FastData } from '../types'
+import { postarAusencia, emSegundoPlano } from '../discord/forum'
+import { hoje, statusAusencia, podeGerenciar, verificarAusencias, contaDoMembro } from '../efetivo'
+import { notificar, notificarAprovadores } from '../notificacoes'
 
+const fmt = (d: string) => d.split('-').reverse().join('/')
+
+/** Avisa o membro da ausência e quem pediu (se forem pessoas diferentes). */
+function avisarEnvolvidos(data: FastData, aus: Ausencia, titulo: string, mensagem: string): void {
+  const doMembro = aus.memberId ? contaDoMembro(data, aus.memberId)?.id : undefined
+  const solicitante = data.contas.find(c => c.username === aus.solicitadoPor)?.id
+  notificar(data, doMembro, 'ausencia', titulo, mensagem, '/ausencias')
+  if (solicitante && solicitante !== doMembro) notificar(data, solicitante, 'ausencia', titulo, mensagem, '/ausencias')
+}
+
+/**
+ * Fluxo de ausência:
+ *   registrar (pendente) → aprovar (aprovada: sem acesso ao painel no período)
+ *   → fim do período (encerrada automaticamente) ou "retirar ausência" antes.
+ * Cada evento é postado no tópico pessoal do membro no fórum de Registro.
+ */
 const router = Router()
+
+function carregar(req: Request, res: Response): { data: FastData; aus: Ausencia } | undefined {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return undefined }
+  const data = readData()
+  const aus = data.ausencias.find(a => a.id === id)
+  if (!aus) { res.status(404).json({ error: 'Ausência não encontrada' }); return undefined }
+  return { data, aus }
+}
 
 // GET /api/ausencias — lista todas (mais recentes primeiro)
 router.get('/', requireAuth, (_req, res) => {
   const data = readData()
-  const sorted = [...data.ausencias].sort((a, b) => b.dataInicio.localeCompare(a.dataInicio))
+  const sorted = [...data.ausencias]
+    .map(a => ({ ...a, status: statusAusencia(a) }))
+    .sort((a, b) => b.dataInicio.localeCompare(a.dataInicio))
   res.json(sorted)
 })
 
-// POST /api/ausencias — registra uma ausência
+// POST /api/ausencias — solicita uma ausência (fica pendente de aprovação)
 router.post('/', requireAuth, validateBody(ausenciaSchema), (req: Request, res: Response): void => {
   const data = readData()
-  const body = req.body as Omit<Ausencia, 'id' | 'criadoEm'>
+  const body = req.body as Omit<Ausencia, 'id' | 'criadoEm'> & { memberId: number }
+
+  const membro = data.membros.find(m => m.id === body.memberId)
+  if (!membro) { res.status(400).json({ error: 'Selecione um membro da unidade.' }); return }
 
   const nova: Ausencia = {
     id: data.nextAusId,
-    memberId: body.memberId,
-    nome: body.nome,
+    memberId: membro.id,
+    nome: membro.policial,
     dataInicio: body.dataInicio,
     dataFim: body.dataFim,
     motivo: body.motivo ?? '',
     criadoEm: new Date().toISOString(),
+    status: 'pendente',
+    solicitadoPor: req.user!.username,
   }
 
   data.ausencias.push(nova)
   data.nextAusId++
+  const periodo = `${fmt(nova.dataInicio)} a ${fmt(nova.dataFim)}`
+  notificar(data, req.user!.contaId, 'solicitacao', 'Solicitação de ausência enviada',
+    `Sua solicitação de ausência (${periodo}) foi enviada. Você está aguardando a aprovação.`, '/ausencias')
+  const doMembro = contaDoMembro(data, membro.id)?.id
+  if (doMembro && doMembro !== req.user!.contaId) {
+    notificar(data, doMembro, 'solicitacao', 'Ausência solicitada para você',
+      `${req.user!.username} solicitou uma ausência em seu nome (${periodo}). Aguardando aprovação.`, '/ausencias')
+  }
+  notificarAprovadores(data, 'ausencias', membro.id, req.user!.contaId, 'pendente_aprovacao', 'Ausência aguardando aprovação',
+    `${membro.policial} solicitou ausência (${periodo}).`, '/ausencias')
   writeData(data)
 
-  audit('AUSENCIA_CREATED', req, `${nova.nome} | ${nova.dataInicio} → ${nova.dataFim}`)
+  audit('AUSENCIA_CREATED', req, `${nova.nome} | ${nova.dataInicio} → ${nova.dataFim} | pendente`)
   res.status(201).json(nova)
 })
 
-// DELETE /api/ausencias/:id — remove/encerra uma ausência
-router.delete('/:id', requireAuth, requireArea('ausencias', 'editar'), (req: Request, res: Response): void => {
-  const id = parseInt(String(req.params.id), 10)
-  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+// PUT /api/ausencias/:id/aprovar — aprova: membro fica sem acesso durante o período
+router.put('/:id/aprovar', requireAuth, requireArea('ausencias', 'editar'), (req: Request, res: Response): void => {
+  const ctx = carregar(req, res); if (!ctx) return
+  const { data, aus } = ctx
+  if (statusAusencia(aus) !== 'pendente') { res.status(400).json({ error: 'Esta ausência não está pendente.' }); return }
+  if (aus.dataFim < hoje()) { res.status(400).json({ error: 'O período desta ausência já terminou.' }); return }
 
-  const data = readData()
-  const idx = data.ausencias.findIndex(a => a.id === id)
-  if (idx === -1) { res.status(404).json({ error: 'Ausência não encontrada' }); return }
+  const membro = data.membros.find(m => m.id === aus.memberId)
+  if (membro) {
+    const negado = podeGerenciar(data, req.user!.contaId, membro)
+    if (negado) { res.status(403).json({ error: negado }); return }
+  }
 
-  const nome = data.ausencias[idx].nome
-  data.ausencias.splice(idx, 1)
+  aus.status = 'aprovada'
+  aus.decididoPor = req.user!.username
+  avisarEnvolvidos(data, aus, 'Ausência aprovada',
+    `Sua ausência (${fmt(aus.dataInicio)} a ${fmt(aus.dataFim)}) foi aprovada por ${aus.decididoPor}. Durante o período você fica sem acesso ao painel.`)
+  writeData(data)
+  verificarAusencias()   // já marca o status "Ausência" se começa hoje
+
+  audit('AUSENCIA_APROVADA', req, `#${aus.id} ${aus.nome} | ${aus.dataInicio} → ${aus.dataFim}`)
+  if (membro) {
+    const snap = readData()
+    const por = req.user!.username
+    const a = { ...aus }
+    emSegundoPlano('ausência aprovada', () => postarAusencia(snap, membro, 'aprovada', a.dataInicio, a.dataFim, por, a.motivo || undefined))
+  }
+  res.json(aus)
+})
+
+// PUT /api/ausencias/:id/recusar
+router.put('/:id/recusar', requireAuth, requireArea('ausencias', 'editar'), validateBody(recusarSchema), (req: Request, res: Response): void => {
+  const ctx = carregar(req, res); if (!ctx) return
+  const { data, aus } = ctx
+  if (statusAusencia(aus) !== 'pendente') { res.status(400).json({ error: 'Esta ausência não está pendente.' }); return }
+  const { motivo } = req.body as { motivo?: string }
+  aus.status = 'recusada'
+  aus.decididoPor = req.user!.username
+  if (motivo) aus.motivoRecusa = motivo
+  avisarEnvolvidos(data, aus, 'Ausência recusada',
+    `Sua solicitação de ausência (${fmt(aus.dataInicio)} a ${fmt(aus.dataFim)}) foi recusada por ${aus.decididoPor}${motivo ? `. Motivo: ${motivo}` : '.'}`)
+  writeData(data)
+  audit('AUSENCIA_RECUSADA', req, `#${aus.id} ${aus.nome}`)
+  res.json(aus)
+})
+
+// PUT /api/ausencias/:id/encerrar — retira a ausência antes do fim (acesso volta na hora)
+router.put('/:id/encerrar', requireAuth, requireArea('ausencias', 'editar'), (req: Request, res: Response): void => {
+  const ctx = carregar(req, res); if (!ctx) return
+  const { data, aus } = ctx
+  if (statusAusencia(aus) !== 'aprovada') { res.status(400).json({ error: 'Só é possível retirar uma ausência aprovada.' }); return }
+
+  aus.status = 'encerrada'
+  aus.encerradaEm = new Date().toISOString()
+  aus.encerradaPor = req.user!.username
+  const membro = data.membros.find(m => m.id === aus.memberId)
+  if (membro && membro.status === 'Ausência') membro.status = 'Ativo'
+  avisarEnvolvidos(data, aus, 'Ausência retirada',
+    `Sua ausência foi retirada por ${aus.encerradaPor}. O acesso ao painel foi liberado.`)
   writeData(data)
 
-  audit('AUSENCIA_DELETED', req, `ID: ${id} | ${nome}`)
+  audit('AUSENCIA_ENCERRADA', req, `#${aus.id} ${aus.nome} — retirada manualmente`)
+  if (membro) {
+    const snap = structuredClone(data)
+    const por = req.user!.username
+    const a = { ...aus }
+    emSegundoPlano('ausência encerrada', () => postarAusencia(snap, membro, 'encerrada', a.dataInicio, a.dataFim, por))
+  }
+  res.json(aus)
+})
+
+// DELETE /api/ausencias/:id — apaga o registro (não posta no Discord)
+router.delete('/:id', requireAuth, requireArea('ausencias', 'editar'), (req: Request, res: Response): void => {
+  const ctx = carregar(req, res); if (!ctx) return
+  const { data, aus } = ctx
+  data.ausencias = data.ausencias.filter(a => a.id !== aus.id)
+  const membro = data.membros.find(m => m.id === aus.memberId)
+  if (membro && membro.status === 'Ausência' && statusAusencia(aus) === 'aprovada') membro.status = 'Ativo'
+  writeData(data)
+
+  audit('AUSENCIA_DELETED', req, `ID: ${aus.id} | ${aus.nome}`)
   res.json({ ok: true })
 })
 

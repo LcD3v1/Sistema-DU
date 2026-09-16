@@ -48,3 +48,13 @@ export function useDeleteCargoPerm() {
     },
   })
 }
+
+export function useReorderCargosPerm() {
+  return useMutation({
+    mutationFn: (ids: number[]) => api.put('/config/cargos-permissao/reorder', { ids }),
+    onSuccess: () => {
+      invalidate()
+      queryClient.invalidateQueries({ queryKey: ['membros', 'hierarquia'] })
+    },
+  })
+}
