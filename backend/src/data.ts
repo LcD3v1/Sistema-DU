@@ -28,6 +28,7 @@ const DEFAULT_DATA: FastData = {
   solicitacoes: [],
   ausencias: [],
   avisos: [],
+  fardamentos: [],
   cargosPermissao: [],
   anuncioSituacoes: [
     { id: 1, label: 'Área Restrita', titulo: 'N.P.D INFORMA:', texto: 'A área do [LOCAL] se encontra restrita pelas próximas horas, por estar sob atividade criminosa. Mantenham-se afastados — risco iminente de bala perdida! ESTE AVISO SERÁ ÚNICO! Att. [ASSINATURA]' },
@@ -45,6 +46,7 @@ const DEFAULT_DATA: FastData = {
   nextSitId: 7,
   nextAvisoId: 1,
   nextSolId: 1,
+  nextFardId: 1,
   nextCargoPermId: 1,
   logo: '',
   membrosOrder: [],

@@ -11,6 +11,7 @@ import RegistrarAcaoPage from '@/components/sections/RegistrarAcaoPage'
 import HistoricoPage from '@/components/sections/HistoricoPage'
 import EstatisticasPage from '@/components/sections/EstatisticasPage'
 import RecrutamentoPage from '@/components/sections/RecrutamentoPage'
+import FardamentoPage from '@/components/sections/FardamentoPage'
 import RecrutaCandidatoPage from '@/components/sections/RecrutaCandidatoPage'
 import MembrosPage from '@/components/sections/MembrosPage'
 import ConfiguracoesPage from '@/components/sections/ConfiguracoesPage'
@@ -98,6 +99,9 @@ export default function App() {
             } />
             <Route path="promocoes" element={
               <ProtectedRoute area="promocoes"><PromocoesPage /></ProtectedRoute>
+            } />
+            <Route path="fardamento" element={
+              <ProtectedRoute area="fardamento"><FardamentoPage /></ProtectedRoute>
             } />
             <Route path="anuncio" element={
               <ProtectedRoute area="anuncio"><GerarAnuncioPage /></ProtectedRoute>

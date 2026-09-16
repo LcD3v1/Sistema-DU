@@ -87,6 +87,15 @@ export interface Aviso {
   criadoEm: string
 }
 
+export interface Fardamento {
+  id: number
+  patente: string
+  titulo: string
+  imagem: string        // data URL (base64) ou URL
+  observacoes: string
+  criadoEm: string
+}
+
 export interface CategoriaRecrutamento {
   id: number
   nome: string
@@ -147,6 +156,7 @@ export interface FastData {
   solicitacoes: Solicitacao[]
   ausencias: Ausencia[]
   avisos: Aviso[]
+  fardamentos: Fardamento[]
   cargosPermissao: CargoPermissao[]
   nextMemId: number
   nextAcId: number
@@ -156,6 +166,7 @@ export interface FastData {
   nextSitId: number
   nextAvisoId: number
   nextSolId: number
+  nextFardId: number
   nextCargoPermId: number
   nivelMigrado?: boolean   // flag: migração nível→cargos já executada
   logo: string

@@ -19,6 +19,7 @@ import configRoutes from './routes/config'
 import recrutasRoutes from './routes/recrutas'
 import ausenciasRoutes from './routes/ausencias'
 import avisosRoutes from './routes/avisos'
+import fardamentosRoutes from './routes/fardamentos'
 
 const app = express()
 const PROD = env.PROD
@@ -56,6 +57,7 @@ app.use('/api/config', configRoutes)
 app.use('/api/recrutas', recrutasRoutes)
 app.use('/api/ausencias', ausenciasRoutes)
 app.use('/api/avisos', avisosRoutes)
+app.use('/api/fardamentos', fardamentosRoutes)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
 

@@ -184,6 +184,25 @@ export const avisoSchema = z.object({
   mensagem: safeStr(1, 2000),
 })
 
+const imagemValida = (s: string) =>
+  /^data:image\/(png|jpe?g|webp|gif);base64,/.test(s) || /^https?:\/\//.test(s)
+
+export const fardamentoSchema = z.object({
+  patente:     safeStr(1, 50),
+  titulo:      safeStrOpt(100).default(''),
+  imagem:      z.string().min(1).max(3_500_000).refine(imagemValida, 'Imagem inválida (use upload ou URL http/https)'),
+  observacoes: safeStrOpt(500).default(''),
+})
+
+export const fardamentoUpdateSchema = z.object({
+  patente:     safeStr(1, 50).optional(),
+  titulo:      safeStrOpt(100).optional(),
+  imagem:      z.string().min(1).max(3_500_000).refine(imagemValida, 'Imagem inválida').optional(),
+  observacoes: safeStrOpt(500).optional(),
+}).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
+  message: 'Nenhum campo fornecido',
+})
+
 export const qruSchema = z.object({
   nome: z.string().min(1).max(50).regex(/^[\w\s\-]+$/, 'Nome do QRU contém caracteres inválidos').transform((s: string) => s.trim()),
 })
