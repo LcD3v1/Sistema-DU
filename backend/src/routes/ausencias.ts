@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { modOrAdmin } from '../middleware/roles'
+import { requireArea } from '../middleware/roles'
 import { validateBody, ausenciaSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -39,7 +39,7 @@ router.post('/', requireAuth, validateBody(ausenciaSchema), (req: Request, res: 
 })
 
 // DELETE /api/ausencias/:id — remove/encerra uma ausência
-router.delete('/:id', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+router.delete('/:id', requireAuth, requireArea('ausencias', 'editar'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
 

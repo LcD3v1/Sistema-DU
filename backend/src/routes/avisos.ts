@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { modOrAdmin } from '../middleware/roles'
+import { requireArea } from '../middleware/roles'
 import { validateBody, avisoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -19,7 +19,7 @@ router.get('/', requireAuth, (req: Request, res: Response): void => {
 })
 
 // POST /api/avisos — publica um aviso (comando)
-router.post('/', requireAuth, modOrAdmin, validateBody(avisoSchema), (req: Request, res: Response): void => {
+router.post('/', requireAuth, requireArea('avisos', 'editar'), validateBody(avisoSchema), (req: Request, res: Response): void => {
   const { titulo, mensagem } = req.body as { titulo: string; mensagem: string }
   const data = readData()
   const novo: Aviso = {
@@ -48,7 +48,7 @@ router.post('/marcar-lido', requireAuth, (req: Request, res: Response): void => 
 })
 
 // DELETE /api/avisos/:id
-router.delete('/:id', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+router.delete('/:id', requireAuth, requireArea('avisos', 'editar'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()

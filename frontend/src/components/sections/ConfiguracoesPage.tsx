@@ -34,7 +34,8 @@ import ModalOverlay from '@/components/ui/ModalOverlay'
 import LoadingHud from '@/components/ui/LoadingHud'
 import LogoUploader from '@/components/ui/LogoUploader'
 import DragHandle from '@/components/ui/DragHandle'
-import type { CategoriaRecrutamento, Nivel } from '@/types'
+import { usePerms } from '@/hooks/usePerms'
+import type { CategoriaRecrutamento } from '@/types'
 
 const TABS = [
   { id: 'logo',       label: 'Logo',          icon: Image,    minNivel: 'moderador' },
@@ -47,8 +48,6 @@ const TABS = [
   { id: 'permissoes', label: 'Permissões',     icon: ShieldCheck, minNivel: 'admin' },
   { id: 'contas',     label: 'Contas',         icon: Users,    minNivel: 'admin' },
 ] as const
-
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
 
 function SortableListItem({
   item, canEdit, onDelete, canReorder,
@@ -261,11 +260,12 @@ function SituacoesEditor({
 
 export default function ConfiguracoesPage() {
   const { user } = useAuthStore()
+  const { admin: isAdmin } = usePerms()
   const { addToast } = useUIStore()
   const [activeTab, setActiveTab] = useState('logo')
 
-  const userNivel = user?.nivel ?? 'membro'
-  const visibleTabs = TABS.filter(t => RANK[userNivel] >= RANK[t.minNivel as Nivel])
+  // A página inteira é admin-only (protegida na rota) — todas as abas ficam visíveis.
+  const visibleTabs = TABS
 
   const { data: qrus = [] } = useQrus()
   const addQru = useAddQru()
@@ -295,15 +295,14 @@ export default function ConfiguracoesPage() {
   const updateConta = useUpdateConta()
   const deleteConta = useDeleteConta()
 
-  const isAdmin = RANK[userNivel] >= RANK['admin']
   const { data: solicitacoes = [] } = useSolicitacoes(isAdmin)
   const { data: cargosPerm = [] } = useCargosPermissao(isAdmin)
   const aprovarSol = useAprovarSolicitacao()
   const rejeitarSol = useRejeitarSolicitacao()
-  const [nivelPorSol, setNivelPorSol] = useState<Record<number, Nivel>>({})
+  const [cargoPorSol, setCargoPorSol] = useState<Record<number, number | ''>>({})
 
   const [novaContaModal, setNovaContaModal] = useState(false)
-  const [novaContaForm, setNovaContaForm] = useState({ username: '', password: '', nivel: 'membro' })
+  const [novaContaForm, setNovaContaForm] = useState<{ username: string; password: string; cargoPermId: number | '' }>({ username: '', password: '', cargoPermId: '' })
 
   // Recrutamento
   const [newCatNome, setNewCatNome] = useState('')
@@ -482,7 +481,7 @@ export default function ConfiguracoesPage() {
               ) : (
                 <div className="space-y-2">
                   {solicitacoes.map(sol => {
-                    const nivelSel = nivelPorSol[sol.id] ?? 'membro'
+                    const cargoSel = cargoPorSol[sol.id] ?? ''
                     return (
                       <div key={sol.id} className="flex flex-wrap items-center gap-3 px-4 py-3 bg-card2 border border-bdr rounded-lg">
                         <div className="flex-1 min-w-[180px]">
@@ -493,19 +492,17 @@ export default function ConfiguracoesPage() {
                           </p>
                         </div>
                         <select
-                          value={nivelSel}
-                          onChange={e => setNivelPorSol(p => ({ ...p, [sol.id]: e.target.value as Nivel }))}
+                          value={cargoSel}
+                          onChange={e => setCargoPorSol(p => ({ ...p, [sol.id]: e.target.value ? Number(e.target.value) : '' }))}
                           className="bg-card border border-bdr2 rounded px-2 py-1.5 text-xs font-mono text-txt"
                         >
-                          <option value="membro">👤 Membro</option>
-                          <option value="moderador">🔷 Moderador</option>
-                          <option value="admin">👑 Admin</option>
-                          <option value="view_only">👁 View Only</option>
+                          <option value="">Cargo: padrão</option>
+                          {cargosPerm.map(cp => <option key={cp.id} value={cp.id}>{cp.nome}</option>)}
                         </select>
                         <button
                           disabled={aprovarSol.isPending}
-                          onClick={() => aprovarSol.mutate({ id: sol.id, nivel: nivelSel }, {
-                            onSuccess: () => addToast('success', `${sol.nome} aprovado como ${nivelSel}.`),
+                          onClick={() => aprovarSol.mutate({ id: sol.id, cargoPermId: cargoSel === '' ? null : cargoSel }, {
+                            onSuccess: () => addToast('success', `${sol.nome} aprovado.`),
                             onError: (err: unknown) => addToast('error', (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao aprovar.'),
                           })}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-green/15 border border-green/40 text-green text-xs font-mono hover:bg-green/25 transition-colors disabled:opacity-50"
@@ -546,7 +543,7 @@ export default function ConfiguracoesPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-bdr">
-                    {['Usuário', 'Nível', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
+                    {['Usuário', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
                       <th key={h} className="text-left font-mono text-xs text-txt3 px-3 py-2">{h}</th>
                     ))}
                   </tr>
@@ -554,27 +551,18 @@ export default function ConfiguracoesPage() {
                 <tbody>
                   {contas.map(conta => (
                     <tr key={conta.id} className="border-b border-bdr/50 hover:bg-bdr/30 transition-colors">
-                      <td className="px-3 py-2.5 font-mono text-xs text-txt">{conta.username}</td>
-                      <td className="px-3 py-2.5">
-                        <select
-                          value={conta.nivel}
-                          disabled={conta.id === user?.contaId}
-                          onChange={e => updateConta.mutate({ id: conta.id, nivel: e.target.value })}
-                          className="bg-card2 border border-bdr2 rounded px-2 py-0.5 text-xs font-mono text-txt disabled:opacity-50"
-                        >
-                          <option value="admin">👑 Admin</option>
-                          <option value="moderador">🔷 Moderador</option>
-                          <option value="membro">👤 Membro</option>
-                          <option value="view_only">👁 View Only</option>
-                        </select>
+                      <td className="px-3 py-2.5 font-mono text-xs text-txt">
+                        {conta.username}
+                        {conta.id === 1 && <span className="ml-2 px-1.5 py-0.5 rounded bg-gold/15 border border-gold/40 text-gold3 text-[9px] font-mono">DONO</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         <select
                           value={conta.cargoPermId ?? ''}
+                          disabled={conta.id === 1}
                           onChange={e => updateConta.mutate({ id: conta.id, cargoPermId: e.target.value ? Number(e.target.value) : null })}
-                          className="bg-card2 border border-bdr2 rounded px-2 py-0.5 text-xs font-mono text-txt"
+                          className="bg-card2 border border-bdr2 rounded px-2 py-0.5 text-xs font-mono text-txt disabled:opacity-50"
                         >
-                          <option value="">— nível padrão —</option>
+                          <option value="">{conta.id === 1 ? 'Acesso total (dono)' : '— sem cargo —'}</option>
                           {cargosPerm.map(cp => <option key={cp.id} value={cp.id}>{cp.nome}</option>)}
                         </select>
                       </td>
@@ -637,16 +625,14 @@ export default function ConfiguracoesPage() {
             />
           </div>
           <div>
-            <label className="font-mono text-xs text-txt2 block mb-1">NÍVEL</label>
+            <label className="font-mono text-xs text-txt2 block mb-1">CARGO DE PERMISSÃO</label>
             <select
-              value={novaContaForm.nivel}
-              onChange={e => setNovaContaForm(p => ({ ...p, nivel: e.target.value }))}
+              value={novaContaForm.cargoPermId}
+              onChange={e => setNovaContaForm(p => ({ ...p, cargoPermId: e.target.value ? Number(e.target.value) : '' }))}
               className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt"
             >
-              <option value="membro">👤 Membro</option>
-              <option value="moderador">🔷 Moderador</option>
-              <option value="admin">👑 Admin</option>
-              <option value="view_only">👁 View Only</option>
+              <option value="">— sem cargo (sem acesso até atribuir) —</option>
+              {cargosPerm.map(cp => <option key={cp.id} value={cp.id}>{cp.nome}</option>)}
             </select>
           </div>
           <div className="flex gap-3 pt-2">
@@ -654,8 +640,8 @@ export default function ConfiguracoesPage() {
               loading={createConta.isPending}
               onClick={() => {
                 if (!novaContaForm.username || !novaContaForm.password) return
-                createConta.mutate(novaContaForm, {
-                  onSuccess: () => { addToast('success', 'Conta criada!'); setNovaContaModal(false); setNovaContaForm({ username: '', password: '', nivel: 'membro' }) },
+                createConta.mutate({ username: novaContaForm.username, password: novaContaForm.password, cargoPermId: novaContaForm.cargoPermId === '' ? null : novaContaForm.cargoPermId }, {
+                  onSuccess: () => { addToast('success', 'Conta criada!'); setNovaContaModal(false); setNovaContaForm({ username: '', password: '', cargoPermId: '' }) },
                   onError: (err: unknown) => {
                     const data = (err as { response?: { data?: { error?: string; details?: string[] } } })?.response?.data
                     const msg = data?.details?.length ? data.details.join(' | ') : (data?.error ?? 'Erro ao criar conta.')

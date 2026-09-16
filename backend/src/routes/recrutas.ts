@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { modOrAdmin, noViewOnly } from '../middleware/roles'
+import { requireArea } from '../middleware/roles'
 import { validateBody, recrutaCreateSchema, avaliacaoRecrutaSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -21,12 +21,12 @@ function normalize(r: any): Recruta {
   }
 }
 
-router.get('/', requireAuth, noViewOnly, (_req: Request, res: Response): void => {
+router.get('/', requireAuth, requireArea('recrutamento', 'ver'), (_req: Request, res: Response): void => {
   const data = readData()
   res.json(data.recrutas.map(normalize).sort((a, b) => b.id - a.id))
 })
 
-router.post('/', requireAuth, modOrAdmin, validateBody(recrutaCreateSchema), (req: Request, res: Response): void => {
+router.post('/', requireAuth, requireArea('recrutamento', 'editar'), validateBody(recrutaCreateSchema), (req: Request, res: Response): void => {
   const body = req.body
   const data = readData()
   const novo: Recruta = {
@@ -45,7 +45,7 @@ router.post('/', requireAuth, modOrAdmin, validateBody(recrutaCreateSchema), (re
   res.status(201).json(novo)
 })
 
-router.get('/:id', requireAuth, noViewOnly, (req: Request, res: Response): void => {
+router.get('/:id', requireAuth, requireArea('recrutamento', 'ver'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()
@@ -54,7 +54,7 @@ router.get('/:id', requireAuth, noViewOnly, (req: Request, res: Response): void 
   res.json(normalize(r))
 })
 
-router.post('/:id/avaliar', requireAuth, noViewOnly, validateBody(avaliacaoRecrutaSchema), (req: Request, res: Response): void => {
+router.post('/:id/avaliar', requireAuth, requireArea('recrutamento', 'editar'), validateBody(avaliacaoRecrutaSchema), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()
@@ -86,7 +86,7 @@ router.post('/:id/avaliar', requireAuth, noViewOnly, validateBody(avaliacaoRecru
   res.status(201).json(avaliacao)
 })
 
-router.put('/:id/fechar', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+router.put('/:id/fechar', requireAuth, requireArea('recrutamento', 'editar'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()
@@ -105,7 +105,7 @@ router.put('/:id/fechar', requireAuth, modOrAdmin, (req: Request, res: Response)
   res.json(normalize(r))
 })
 
-router.delete('/:id', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+router.delete('/:id', requireAuth, requireArea('recrutamento', 'editar'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()

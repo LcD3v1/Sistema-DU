@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Star, ShieldCheck, Pencil, Check } from 'lucide-react'
+import { Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown } from 'lucide-react'
 import { PERM_AREAS, emptyPermMap, type PermMap } from '@/lib/permAreas'
 import {
   useCargosPermissao, useCreateCargoPerm, useUpdateCargoPerm, useDeleteCargoPerm,
@@ -87,9 +87,15 @@ function CargoCard({ cargo }: { cargo: CargoPermissao }) {
         ) : (
           <h3 className="flex-1 text-sm font-semibold text-txt flex items-center gap-2">
             {cargo.nome}
+            {cargo.admin && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red/15 border border-red/40 text-red text-[10px] font-mono"><Crown size={10} /> acesso total</span>}
             {cargo.padrao && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gold/15 border border-gold/40 text-gold3 text-[10px] font-mono"><Star size={10} /> padrão</span>}
           </h3>
         )}
+        <button onClick={() => update.mutate({ id: cargo.id, admin: !cargo.admin }, { onSuccess: () => addToast('success', cargo.admin ? 'Acesso total removido.' : 'Cargo com acesso total (administrador).') })}
+          title="Acesso total (administrador do sistema)"
+          className={`p-1.5 rounded transition-colors ${cargo.admin ? 'text-red' : 'text-txt3 hover:text-red'}`}>
+          <Crown size={15} fill={cargo.admin ? 'currentColor' : 'none'} />
+        </button>
         <button onClick={() => update.mutate({ id: cargo.id, padrao: !cargo.padrao }, { onSuccess: () => addToast('success', cargo.padrao ? 'Removido dos padrões.' : 'Definido como cargo padrão.') })}
           title="Definir como cargo padrão (atribuído a novos membros)"
           className={`p-1.5 rounded transition-colors ${cargo.padrao ? 'text-gold3' : 'text-txt3 hover:text-gold3'}`}>
@@ -104,7 +110,13 @@ function CargoCard({ cargo }: { cargo: CargoPermissao }) {
         </button>
       </div>
       <div className="p-3">
-        <PermGrid value={cargo.permissoes} onToggle={toggle} />
+        {cargo.admin ? (
+          <div className="px-3 py-4 text-center text-[11px] text-txt3 border border-red/20 rounded-lg bg-red/[0.03]">
+            Este cargo tem <span className="text-red font-medium">acesso total</span> — todas as áreas liberadas, incluindo a administração do sistema (contas, cargos e aprovações).
+          </div>
+        ) : (
+          <PermGrid value={cargo.permissoes} onToggle={toggle} />
+        )}
       </div>
     </div>
   )
@@ -115,6 +127,7 @@ export default function PermissoesEditor() {
   const create = useCreateCargoPerm()
   const { addToast } = useUIStore()
   const [nome, setNome] = useState('')
+  const [novaAdmin, setNovaAdmin] = useState(false)
   const [novaPerm, setNovaPerm] = useState<PermMap>(emptyPermMap())
 
   function toggleNova(area: string, campo: 'ver' | 'editar', v: boolean) {
@@ -122,8 +135,8 @@ export default function PermissoesEditor() {
   }
   function criar() {
     if (!nome.trim()) { addToast('error', 'Informe um nome para o cargo.'); return }
-    create.mutate({ nome: nome.trim(), permissoes: novaPerm }, {
-      onSuccess: () => { addToast('success', 'Cargo criado!'); setNome(''); setNovaPerm(emptyPermMap()) },
+    create.mutate({ nome: nome.trim(), admin: novaAdmin, permissoes: novaPerm }, {
+      onSuccess: () => { addToast('success', 'Cargo criado!'); setNome(''); setNovaAdmin(false); setNovaPerm(emptyPermMap()) },
       onError: (e: unknown) => addToast('error', (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao criar cargo.'),
     })
   }
@@ -150,7 +163,15 @@ export default function PermissoesEditor() {
           </HudButton>
         </div>
 
-        <PermGrid value={novaPerm} onToggle={toggleNova} />
+        <button type="button" onClick={() => setNovaAdmin(v => !v)}
+          className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg border text-xs transition-colors ${novaAdmin ? 'border-red/40 bg-red/10 text-red' : 'border-bdr2 text-txt2 hover:text-txt'}`}>
+          <PermCheck checked={novaAdmin} onChange={setNovaAdmin} />
+          <Crown size={13} /> Administrador (acesso total ao sistema)
+        </button>
+
+        {novaAdmin
+          ? <p className="text-[11px] text-txt3 px-1">Com acesso total, todas as áreas ficam liberadas — não é preciso marcar nada abaixo.</p>
+          : <PermGrid value={novaPerm} onToggle={toggleNova} />}
       </div>
 
       {/* ── Cargos existentes ────────────────────────────── */}

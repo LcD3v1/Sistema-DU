@@ -1,34 +1,29 @@
 import { Request, Response, NextFunction } from 'express'
-import { Nivel } from '../types'
+import { readData } from '../data'
+import { isAdmin, canArea } from '../access'
+import { AreaId } from '../permAreas'
 
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
+/** Exige acesso total (conta dona ou cargo com admin=true). */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const user = req.user
+  if (!user) { res.status(401).json({ error: 'Não autenticado' }); return }
+  const data = readData()
+  const conta = data.contas.find(c => c.id === user.contaId)
+  if (conta && isAdmin(conta, data)) { next(); return }
+  res.status(403).json({ error: 'Acesso negado — requer cargo de administrador' })
+}
 
-export function requireRole(...minRoles: Nivel[]) {
+/** Exige permissão em uma área específica (ver/editar) conforme o cargo. */
+export function requireArea(area: AreaId, mode: 'ver' | 'editar' = 'ver') {
   return (req: Request, res: Response, next: NextFunction): void => {
     const user = req.user
-    if (!user) {
-      res.status(401).json({ error: 'Não autenticado' })
-      return
-    }
-    const userRank = RANK[user.nivel] ?? -1
-    const minRank = Math.min(...minRoles.map(r => RANK[r]))
-    if (userRank >= minRank) {
-      next()
-      return
-    }
-    res.status(403).json({ error: 'Acesso negado — nível insuficiente' })
+    if (!user) { res.status(401).json({ error: 'Não autenticado' }); return }
+    const data = readData()
+    const conta = data.contas.find(c => c.id === user.contaId)
+    if (conta && canArea(conta, data, area, mode)) { next(); return }
+    res.status(403).json({ error: `Acesso negado — sem permissão de ${mode} em "${area}"` })
   }
 }
 
-// Bloqueia view_only explicitamente em qualquer rota de escrita
-export function noViewOnly(req: Request, res: Response, next: NextFunction): void {
-  if (req.user?.nivel === 'view_only') {
-    res.status(403).json({ error: 'Acesso negado — conta somente leitura' })
-    return
-  }
-  next()
-}
-
-export const modOrAdmin = requireRole('moderador')
-export const adminOnly  = requireRole('admin')
-export const anyAuth    = requireRole('membro')
+// Compatibilidade: adminOnly continua existindo, agora significando "acesso total".
+export const adminOnly = requireAdmin

@@ -41,3 +41,10 @@ export function fullPermMap(): PermMap {
   for (const { id } of PERM_AREAS) out[id] = { ver: true, editar: true }
   return out
 }
+
+/** Mapa sem nenhum acesso (conta sem cargo). */
+export function emptyPermMap(): PermMap {
+  const out: PermMap = {}
+  for (const { id } of PERM_AREAS) out[id] = { ver: false, editar: false }
+  return out
+}

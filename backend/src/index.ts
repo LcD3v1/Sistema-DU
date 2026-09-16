@@ -10,7 +10,7 @@ import { securityHeaders, permissionsPolicy } from './middleware/securityHeaders
 import { globalLimiter, apiLimiter } from './middleware/rateLimiter'
 import { sanitizeBody } from './middleware/sanitize'
 import { audit } from './security/audit'
-import { ensureDefaultAdmin } from './data'
+import { ensureDefaultAdmin, ensureNivelMigration } from './data'
 import authRoutes from './routes/auth'
 import publicRoutes from './routes/public'
 import membrosRoutes from './routes/membros'
@@ -103,6 +103,7 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 const PORT = parseInt(process.env.PORT || '3001', 10)
 
 ensureDefaultAdmin().then(() => {
+  ensureNivelMigration()
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[FAST] Sistema rodando em http://0.0.0.0:${PORT}`)
     console.log(`[FAST] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)

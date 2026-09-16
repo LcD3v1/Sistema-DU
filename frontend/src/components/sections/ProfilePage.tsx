@@ -9,15 +9,7 @@ import { useAllAcoes } from '@/hooks/useAcoes'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { resolveBanner, unlockedTiers, PRESET_BANNERS, TIER_BANNERS } from '@/lib/banners'
-import type { Membro, Acao, Nivel } from '@/types'
-
-const NIVEL_LABEL: Record<Nivel, string> = { admin: 'Comando', moderador: 'Supervisor', membro: 'Officer', view_only: 'Observador' }
-const NIVEL_CLS: Record<Nivel, string> = {
-  admin: 'text-red border-red/40 bg-red/10',
-  moderador: 'text-gold3 border-gold/40 bg-gold/10',
-  membro: 'text-blue border-blue/40 bg-blue/10',
-  view_only: 'text-txt2 border-bdr2 bg-white/5',
-}
+import type { Membro, Acao } from '@/types'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
@@ -140,7 +132,7 @@ export default function ProfilePage() {
           <div className="min-w-0">
             <h1 className="text-3xl font-bold text-white truncate">{nome}</h1>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${NIVEL_CLS[me.nivel]}`}>{NIVEL_LABEL[me.nivel]}</span>
+              <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-blue border-blue/40 bg-blue/10'}`}>{me.admin ? 'Administrador' : 'Membro'}</span>
               {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}
               {rankPos && <span className="px-2.5 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold3 text-[11px] font-mono flex items-center gap-1"><Trophy size={11} /> {rankPos}º no ranking</span>}
             </div>
@@ -212,7 +204,7 @@ export default function ProfilePage() {
             <h2 className="text-sm font-semibold text-txt flex items-center gap-2 mb-4"><UserCog size={16} className="text-gold" /> Conta</h2>
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between"><dt className="text-txt2">Usuário</dt><dd className="text-txt font-medium">{me.username}</dd></div>
-              <div className="flex justify-between"><dt className="text-txt2">Nível</dt><dd className="text-txt font-medium">{NIVEL_LABEL[me.nivel]}</dd></div>
+              <div className="flex justify-between"><dt className="text-txt2">Acesso</dt><dd className="text-txt font-medium">{me.admin ? 'Administrador' : 'Membro'}</dd></div>
               <div className="flex justify-between"><dt className="text-txt2">Discord</dt><dd className="text-txt font-medium">{me.discordUsername ? `@${me.discordUsername}` : 'não vinculado'}</dd></div>
             </dl>
           </div>

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Trash2, ChevronRight, Users, Lock, Unlock } from 'lucide-react'
 import { useRecrutos, useCreateRecruta, useDeleteRecruta } from '@/hooks/useRecrutos'
 import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
@@ -14,6 +15,7 @@ import type { Recruta } from '@/types'
 export default function RecrutamentoPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { canEdit: can } = usePerms()
   const { addToast } = useUIStore()
   const { data: recrutas, isLoading } = useRecrutos()
   const createRecruta = useCreateRecruta()
@@ -24,7 +26,7 @@ export default function RecrutamentoPage() {
   const [data, setData] = useState(new Date().toISOString().slice(0, 10))
   const [observacoes, setObservacoes] = useState('')
 
-  const canEdit = user?.nivel === 'admin' || user?.nivel === 'moderador'
+  const canEdit = can('recrutamento')
 
   async function handleCreate() {
     if (!nome.trim()) return

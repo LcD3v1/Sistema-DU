@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import bcrypt from 'bcrypt'
 import { FastData } from './types'
+import { fullPermMap } from './permAreas'
 
 const DATA_PATH = process.env.DATA_PATH
   ? path.resolve(process.env.DATA_PATH)
@@ -66,6 +67,40 @@ export function readData(): FastData {
 
 export function writeData(data: FastData): void {
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf-8')
+}
+
+/**
+ * Migração única: o antigo "nível" deixa de controlar acesso — agora são os
+ * cargos de permissão. Cria um cargo "Administrador" (acesso total) e o atribui
+ * às contas que hoje têm nível admin, para que não percam acesso.
+ * A conta dona (id 1) é sempre admin, independentemente de cargo.
+ */
+export function ensureNivelMigration(): void {
+  const data = readData()
+  if (data.nivelMigrado) return
+
+  let admCargo = data.cargosPermissao.find(c => c.admin)
+  if (!admCargo) {
+    admCargo = {
+      id: data.nextCargoPermId,
+      nome: 'Administrador',
+      admin: true,
+      padrao: false,
+      permissoes: fullPermMap(),
+    }
+    data.cargosPermissao.push(admCargo)
+    data.nextCargoPermId++
+  }
+
+  for (const conta of data.contas) {
+    if (!conta.cargoPermId && conta.nivel === 'admin') {
+      conta.cargoPermId = admCargo.id
+    }
+  }
+
+  data.nivelMigrado = true
+  writeData(data)
+  console.log('[FAST] Migração nível→cargos concluída (cargo Administrador criado/atribuído).')
 }
 
 export async function ensureDefaultAdmin(): Promise<void> {

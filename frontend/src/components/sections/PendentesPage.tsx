@@ -2,12 +2,10 @@ import { motion } from 'framer-motion'
 import { ClipboardCheck, Check, X, Calendar, MapPin, Users, Trophy, Image as ImageIcon, ShieldAlert } from 'lucide-react'
 import { useAcoes, useApproveAcao, useDeleteAcao } from '@/hooks/useAcoes'
 import { useMembros } from '@/hooks/useMembros'
-import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
-import type { Membro, Nivel } from '@/types'
-
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
+import type { Membro } from '@/types'
 
 const RESULTADO_CLS: Record<string, string> = {
   'Vitória': 'text-green border-green/40 bg-green/10',
@@ -26,10 +24,10 @@ export default function PendentesPage() {
   const { data: membros } = useMembros()
   const aprovar = useApproveAcao()
   const recusar = useDeleteAcao()
-  const { user } = useAuthStore()
+  const { canEdit } = usePerms()
   const { addToast } = useUIStore()
 
-  const isMod = user ? RANK[user.nivel] >= RANK.moderador : false
+  const isMod = canEdit('pendentes')
   const membrosMap = new Map((membros ?? []).map((m: Membro) => [m.id, m]))
   const acoes = data?.acoes ?? []
 

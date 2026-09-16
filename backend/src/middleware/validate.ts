@@ -40,7 +40,7 @@ export const changePasswordSchema = z.object({
 export const createContaSchema = z.object({
   username: z.string().min(2).max(64).regex(/^[\w.\-]+$/, 'Usuário contém caracteres inválidos'),
   password: z.string().min(4).max(128),
-  nivel: z.enum(['admin', 'moderador', 'membro', 'view_only']),
+  cargoPermId: z.number().int().positive().nullable().optional(),
 })
 
 export const updateContaSchema = z.object({
@@ -54,12 +54,14 @@ const permAreaSchema = z.object({ ver: z.boolean(), editar: z.boolean() })
 
 export const cargoPermCreateSchema = z.object({
   nome:       safeStr(1, 50),
+  admin:      z.boolean().optional(),
   permissoes: z.record(z.string(), permAreaSchema).default({}),
 })
 
 export const cargoPermUpdateSchema = z.object({
   nome:       safeStr(1, 50).optional(),
   padrao:     z.boolean().optional(),
+  admin:      z.boolean().optional(),
   permissoes: z.record(z.string(), permAreaSchema).optional(),
 }).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
   message: 'Nenhum campo fornecido',
@@ -174,7 +176,7 @@ export const membroSelfSchema = z.object({
 })
 
 export const aprovarSolicitacaoSchema = z.object({
-  nivel: z.enum(['admin', 'moderador', 'membro', 'view_only']).default('membro'),
+  cargoPermId: z.number().int().positive().nullable().optional(),
 })
 
 export const avisoSchema = z.object({

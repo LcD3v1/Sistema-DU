@@ -3,10 +3,9 @@ import {
   LayoutGrid, FilePlus2, ClipboardCheck, History,
   Users, Trophy, CalendarPlus, CalendarDays, ArrowUpNarrowWide, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard,
-  Settings, ArrowUpRight, Eye, Code2, Bell,
+  Settings, ArrowUpRight, Code2, Bell,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
 import { useAcoes } from '@/hooks/useAcoes'
 import { useAvisos } from '@/hooks/useAvisos'
 import { usePerms } from '@/hooks/usePerms'
@@ -74,29 +73,22 @@ const GROUPS: NavGroup[] = [
   },
 ]
 
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
-
 export default function Sidebar() {
-  const { user } = useAuthStore()
   const { data: pend } = useAcoes({ status: 'pendente', limit: 1 })
   const pendingCount = pend?.total ?? 0
   const { data: avisosData } = useAvisos()
   const avisosNaoVistos = avisosData?.naoVistos ?? 0
 
-  const { canView, hasCargo } = usePerms()
-
-  const isViewOnly = user?.nivel === 'view_only'
-  const userRank = user ? (RANK[user.nivel] ?? -1) : 0
+  const { canView, admin } = usePerms()
 
   const groups = GROUPS
     .map(g => ({
       ...g,
       items: g.items.filter(item => {
-        // Filtro por nível (comportamento antigo)
-        const nivelOk = isViewOnly ? item.viewOnly : userRank >= RANK[item.minNivel]
-        if (!nivelOk) return false
-        // Filtro por cargo de permissão (quando a conta tem um cargo definido)
-        if (hasCargo && item.area && !canView(item.area)) return false
+        // Configurações é administração do sistema → só admin
+        if (item.area === 'configuracoes') return admin
+        // Demais áreas: conforme a permissão de "ver" do cargo
+        if (item.area && !canView(item.area)) return false
         return true
       }),
     }))
@@ -121,11 +113,6 @@ export default function Sidebar() {
           </div>
         </div>
         <p className="wordmark text-[15px] text-txt tracking-[0.18em] mt-1">Fast Division</p>
-        {isViewOnly && (
-          <span className="flex items-center gap-1 text-txt3 font-mono text-[9px] tracking-widest">
-            <Eye size={10} /> SOMENTE LEITURA
-          </span>
-        )}
       </div>
 
       {/* Navegação */}

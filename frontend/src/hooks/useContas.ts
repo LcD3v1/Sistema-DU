@@ -12,7 +12,7 @@ export function useContas() {
 
 export function useCreateConta() {
   return useMutation({
-    mutationFn: (body: { username: string; password: string; nivel: string }) =>
+    mutationFn: (body: { username: string; password: string; cargoPermId?: number | null }) =>
       api.post('/config/contas', body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'contas'] }),
   })

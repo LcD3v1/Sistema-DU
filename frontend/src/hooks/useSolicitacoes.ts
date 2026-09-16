@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
-import type { Nivel } from '@/types'
 
 export interface Solicitacao {
   id: number
@@ -20,8 +19,8 @@ export function useSolicitacoes(enabled = true) {
 
 export function useAprovarSolicitacao() {
   return useMutation({
-    mutationFn: ({ id, nivel }: { id: number; nivel: Nivel }) =>
-      api.post(`/config/solicitacoes/${id}/aprovar`, { nivel }),
+    mutationFn: ({ id, cargoPermId }: { id: number; cargoPermId: number | null }) =>
+      api.post(`/config/solicitacoes/${id}/aprovar`, { cargoPermId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['config', 'solicitacoes'] })
       queryClient.invalidateQueries({ queryKey: ['config', 'contas'] })

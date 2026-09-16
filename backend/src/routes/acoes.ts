@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { modOrAdmin, noViewOnly } from '../middleware/roles'
+import { requireArea } from '../middleware/roles'
 import { validateBody, acaoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -8,7 +8,7 @@ import { Acao } from '../types'
 
 const router = Router()
 
-router.get('/export/csv', requireAuth, modOrAdmin, (_req: Request, res: Response): void => {
+router.get('/export/csv', requireAuth, requireArea('historico', 'ver'), (_req: Request, res: Response): void => {
   const data = readData()
   const membroMap = new Map(data.membros.map(m => [m.id, m]))
 
@@ -58,7 +58,7 @@ router.get('/', requireAuth, (req: Request, res: Response): void => {
   res.json({ acoes: paginated, total, page: pageNum, limit: limitNum })
 })
 
-router.post('/', requireAuth, noViewOnly, validateBody(acaoSchema), (req: Request, res: Response): void => {
+router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateBody(acaoSchema), (req: Request, res: Response): void => {
   const body = req.body as Omit<Acao, 'id'>
   const data = readData()
 
@@ -91,7 +91,7 @@ router.post('/', requireAuth, noViewOnly, validateBody(acaoSchema), (req: Reques
   res.status(201).json(novaAcao)
 })
 
-router.put('/:id/aprovar', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
 
@@ -106,7 +106,7 @@ router.put('/:id/aprovar', requireAuth, modOrAdmin, (req: Request, res: Response
   res.json(acao)
 })
 
-router.delete('/:id', requireAuth, modOrAdmin, (req: Request, res: Response): void => {
+router.delete('/:id', requireAuth, requireArea('pendentes', 'editar'), (req: Request, res: Response): void => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
 

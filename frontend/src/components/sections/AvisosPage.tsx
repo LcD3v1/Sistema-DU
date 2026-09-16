@@ -2,12 +2,9 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Megaphone, Trash2, Send, Pin } from 'lucide-react'
 import { useAvisos, useCreateAviso, useDeleteAviso, useMarcarAvisosLidos } from '@/hooks/useAvisos'
-import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
-import type { Nivel } from '@/types'
-
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
 
 function initials(n: string) {
   return n.split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('')
@@ -22,10 +19,10 @@ export default function AvisosPage() {
   const criar = useCreateAviso()
   const remover = useDeleteAviso()
   const marcarLidos = useMarcarAvisosLidos()
-  const { user } = useAuthStore()
+  const { canEdit } = usePerms()
   const { addToast } = useUIStore()
 
-  const isMod = user ? RANK[user.nivel] >= RANK.moderador : false
+  const isMod = canEdit('avisos')
   const [titulo, setTitulo] = useState('')
   const [mensagem, setMensagem] = useState('')
 

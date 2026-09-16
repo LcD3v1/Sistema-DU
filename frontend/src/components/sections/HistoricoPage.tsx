@@ -4,7 +4,7 @@ import { Trash2, Download, Filter } from 'lucide-react'
 import { useAcoes, useDeleteAcao } from '@/hooks/useAcoes'
 import { useQrus } from '@/hooks/useConfig'
 import { useMembros } from '@/hooks/useMembros'
-import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
@@ -23,7 +23,7 @@ const RESULTADO_COLORS: Record<string, string> = {
 const PAGE_SIZE = 20
 
 export default function HistoricoPage() {
-  const { user } = useAuthStore()
+  const { canEdit: can } = usePerms()
   const { addToast } = useUIStore()
   const [page, setPage] = useState(1)
   const [qruFilter, setQruFilter] = useState('')
@@ -34,7 +34,7 @@ export default function HistoricoPage() {
   const { data: membros } = useMembros()
   const deleteAcao = useDeleteAcao()
 
-  const canEdit = user?.nivel === 'admin' || user?.nivel === 'moderador'
+  const canEdit = can('pendentes')
 
   const membroMap = new Map((membros ?? []).map((m: Membro) => [m.id, m]))
 

@@ -4,11 +4,8 @@ import { motion } from 'framer-motion'
 import { CalendarPlus, CalendarDays, Trash2, Clock, CheckCircle2, PlayCircle } from 'lucide-react'
 import { useAusencias, useDeleteAusencia, statusAusencia } from '@/hooks/useAusencias'
 import type { Ausencia, AusenciaStatus } from '@/hooks/useAusencias'
-import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import LoadingHud from '@/components/ui/LoadingHud'
-import type { Nivel } from '@/types'
-
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
 
 const STATUS_META: Record<AusenciaStatus, { label: string; cls: string; dot: string; icon: typeof Clock }> = {
   ativa:      { label: 'Ativa',      cls: 'text-green border-green/40 bg-green/10', dot: '#2ecc71', icon: PlayCircle },
@@ -40,8 +37,8 @@ export default function AusenciasPage() {
   const navigate = useNavigate()
   const { data: ausencias, isLoading } = useAusencias()
   const del = useDeleteAusencia()
-  const { user } = useAuthStore()
-  const isMod = user ? RANK[user.nivel] >= RANK.moderador : false
+  const { canEdit } = usePerms()
+  const isMod = canEdit('ausencias')
 
   const [filter, setFilter] = useState<'todas' | AusenciaStatus>('todas')
 

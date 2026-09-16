@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, ChevronDown, User as UserIcon, Eye } from 'lucide-react'
+import { LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
@@ -32,13 +32,6 @@ function resolveTitle(pathname: string): string {
   return 'FAST NPD'
 }
 
-const NIVEL_LABEL: Record<string, string> = {
-  admin: 'Comando',
-  moderador: 'Supervisor',
-  membro: 'Officer',
-  view_only: 'Observador',
-}
-
 export default function Topbar() {
   const { user, logout } = useAuthStore()
   const { data: me } = useMe()
@@ -62,20 +55,13 @@ export default function Topbar() {
   }
 
   const initials = (user?.username ?? '?').slice(0, 2).toUpperCase()
-  const isViewOnly = user?.nivel === 'view_only'
+  const roleLabel = me?.admin ? 'Administrador' : 'Membro'
 
   return (
     <header className="h-16 bg-bg border-b border-bdr flex items-center px-6 gap-4 shrink-0">
       <p className="font-mono text-[11px] text-txt2 tracking-[0.25em] uppercase flex-1">
         {title}
       </p>
-
-      {isViewOnly && (
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded border border-bdr2 bg-card font-mono text-[10px] text-txt2 tracking-widest">
-          <Eye size={11} className="text-txt3" />
-          SOMENTE LEITURA
-        </div>
-      )}
 
       {user && (
         <div className="relative" ref={ref}>
@@ -86,7 +72,7 @@ export default function Topbar() {
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-txt">{user.username}</p>
               <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase">
-                {NIVEL_LABEL[user.nivel] ?? user.nivel}
+                {roleLabel}
               </p>
             </div>
             <div className="w-9 h-9 rounded-full bg-card2 border border-bdr2 flex items-center justify-center text-gold3 text-xs font-semibold overflow-hidden">

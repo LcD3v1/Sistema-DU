@@ -5,6 +5,7 @@ import { ArrowLeft, Lock, CheckCircle } from 'lucide-react'
 import { useRecruta, useAvaliarRecruta, useFecharRecruta } from '@/hooks/useRecrutos'
 import { useRecCfg } from '@/hooks/useConfig'
 import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
@@ -16,6 +17,7 @@ export default function RecrutaCandidatoPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { canEdit: can } = usePerms()
   const { addToast } = useUIStore()
 
   const recrutaId = parseInt(id ?? '0', 10)
@@ -26,7 +28,7 @@ export default function RecrutaCandidatoPage() {
 
   const [scores, setScores] = useState<Record<number, number>>({})
 
-  const canEdit = user?.nivel === 'admin' || user?.nivel === 'moderador'
+  const canEdit = can('recrutamento')
   const categorias = recCfg?.categorias ?? []
   const notaMinima = recCfg?.notaMinima ?? 7
 

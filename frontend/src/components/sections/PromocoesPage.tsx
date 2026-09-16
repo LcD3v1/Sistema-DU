@@ -4,12 +4,10 @@ import { ArrowUpNarrowWide, ChevronsUp, Calendar } from 'lucide-react'
 import { useMembros, useUpdateMembro } from '@/hooks/useMembros'
 import { useAllAcoes } from '@/hooks/useAcoes'
 import { usePatentes } from '@/hooks/useConfig'
-import { useAuthStore } from '@/store/authStore'
+import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
-import type { Membro, Acao, Nivel } from '@/types'
-
-const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
+import type { Membro, Acao } from '@/types'
 
 function fmt(d: string) {
   if (!d) return '—'
@@ -37,10 +35,11 @@ export default function PromocoesPage() {
   const { data: acoesData, isLoading: la } = useAllAcoes()
   const { data: patentes = [] } = usePatentes()
   const updateMembro = useUpdateMembro()
-  const { user } = useAuthStore()
+  const { canEdit } = usePerms()
   const { addToast } = useUIStore()
 
-  const isMod = user ? RANK[user.nivel] >= RANK.moderador : false
+  // Promover altera o membro → depende da permissão de editar Membros
+  const isMod = canEdit('membros')
 
   const rows = useMemo(() => {
     const acoes: Acao[] = (acoesData?.acoes ?? []).filter(a => (a.status ?? 'aprovada') === 'aprovada')

@@ -3,7 +3,6 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/queryClient'
 import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
-import type { Nivel } from '@/types'
 import type { AreaId } from '@/lib/permAreas'
 import AppShell from '@/components/layout/AppShell'
 import LoginPage from '@/components/sections/LoginPage'
@@ -29,42 +28,33 @@ import AvisosPage from '@/components/sections/AvisosPage'
 import GerarCarteiraPage from '@/components/sections/GerarCarteiraPage'
 import ProfilePage from '@/components/sections/ProfilePage'
 
-export const RANK: Record<Nivel, number> = { view_only: -1, membro: 0, moderador: 1, admin: 2 }
-
 interface ProtectedRouteProps {
   children: React.ReactNode
-  minNivel?: Nivel
-  allowViewOnly?: boolean
   area?: AreaId
+  adminOnly?: boolean
 }
 
-function ProtectedRoute({ children, minNivel = 'membro', allowViewOnly = false, area }: ProtectedRouteProps) {
+function ProtectedRoute({ children, area, adminOnly = false }: ProtectedRouteProps) {
   const { token, user } = useAuthStore()
   const { data: me } = useMe()
   if (!token || !user) return <Navigate to="/login" replace />
 
-  if (user.nivel === 'view_only') {
-    return allowViewOnly ? <>{children}</> : <Navigate to="/estatisticas" replace />
-  }
-
-  if (RANK[user.nivel] < RANK[minNivel]) return <Navigate to="/dashboard" replace />
-
-  // Cargo de permissão: se a conta tem um cargo definido, exige "ver" na área
-  if (area && me?.permissoes && !me.permissoes[area]?.ver) {
-    return <Navigate to="/perfil" replace />
+  // Enquanto o /me carrega, renderiza (evita piscar). Quando carregado, aplica o cargo.
+  if (me) {
+    if (adminOnly && !me.admin) return <Navigate to="/perfil" replace />
+    if (area && !me.admin && !me.permissoes?.[area]?.ver) return <Navigate to="/perfil" replace />
   }
   return <>{children}</>
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { token, user } = useAuthStore()
-  if (token) return <Navigate to={user?.nivel === 'view_only' ? '/estatisticas' : '/dashboard'} replace />
+  const { token } = useAuthStore()
+  if (token) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
 function RootRedirect() {
-  const { user } = useAuthStore()
-  return <Navigate to={user?.nivel === 'view_only' ? '/estatisticas' : '/dashboard'} replace />
+  return <Navigate to="/dashboard" replace />
 }
 
 export default function App() {
@@ -77,64 +67,64 @@ export default function App() {
           } />
           <Route path="/auth/discord" element={<DiscordCallback />} />
           <Route path="/" element={
-            <ProtectedRoute allowViewOnly={true}><AppShell /></ProtectedRoute>
+            <ProtectedRoute><AppShell /></ProtectedRoute>
           }>
             <Route index element={<RootRedirect />} />
             <Route path="dashboard" element={
-              <ProtectedRoute allowViewOnly={false} area="dashboard"><DashboardPage /></ProtectedRoute>
+              <ProtectedRoute area="dashboard"><DashboardPage /></ProtectedRoute>
             } />
             <Route path="avisos" element={
-              <ProtectedRoute minNivel="membro" allowViewOnly={true} area="avisos"><AvisosPage /></ProtectedRoute>
+              <ProtectedRoute area="avisos"><AvisosPage /></ProtectedRoute>
             } />
             <Route path="perfil" element={
-              <ProtectedRoute minNivel="membro" allowViewOnly={true}><ProfilePage /></ProtectedRoute>
+              <ProtectedRoute><ProfilePage /></ProtectedRoute>
             } />
             <Route path="acoes/nova" element={
-              <ProtectedRoute minNivel="membro" area="registrar_acao"><RegistrarAcaoPage /></ProtectedRoute>
+              <ProtectedRoute area="registrar_acao"><RegistrarAcaoPage /></ProtectedRoute>
             } />
             <Route path="acoes/historico" element={
-              <ProtectedRoute allowViewOnly={false} area="historico"><HistoricoPage /></ProtectedRoute>
+              <ProtectedRoute area="historico"><HistoricoPage /></ProtectedRoute>
             } />
             <Route path="acoes/pendentes" element={
-              <ProtectedRoute minNivel="membro" area="pendentes"><PendentesPage /></ProtectedRoute>
+              <ProtectedRoute area="pendentes"><PendentesPage /></ProtectedRoute>
             } />
             <Route path="estatisticas" element={<EstatisticasPage />} />
             <Route path="ranking" element={<RankingPage />} />
             <Route path="ausencias/nova" element={
-              <ProtectedRoute minNivel="membro" area="ausencias"><RegistrarAusenciaPage /></ProtectedRoute>
+              <ProtectedRoute area="ausencias"><RegistrarAusenciaPage /></ProtectedRoute>
             } />
             <Route path="ausencias" element={
-              <ProtectedRoute minNivel="membro" area="ausencias"><AusenciasPage /></ProtectedRoute>
+              <ProtectedRoute area="ausencias"><AusenciasPage /></ProtectedRoute>
             } />
             <Route path="promocoes" element={
-              <ProtectedRoute minNivel="moderador" area="promocoes"><PromocoesPage /></ProtectedRoute>
+              <ProtectedRoute area="promocoes"><PromocoesPage /></ProtectedRoute>
             } />
             <Route path="anuncio" element={
-              <ProtectedRoute minNivel="moderador" area="anuncio"><GerarAnuncioPage /></ProtectedRoute>
+              <ProtectedRoute area="anuncio"><GerarAnuncioPage /></ProtectedRoute>
             } />
             <Route path="boletim" element={
-              <ProtectedRoute minNivel="membro" area="boletim"><GerarBoletimPage /></ProtectedRoute>
+              <ProtectedRoute area="boletim"><GerarBoletimPage /></ProtectedRoute>
             } />
             <Route path="protocolo" element={
-              <ProtectedRoute minNivel="membro" allowViewOnly={true} area="protocolo"><ProtocoloPage /></ProtectedRoute>
+              <ProtectedRoute area="protocolo"><ProtocoloPage /></ProtectedRoute>
             } />
             <Route path="carteira" element={
-              <ProtectedRoute minNivel="membro" area="carteira"><GerarCarteiraPage /></ProtectedRoute>
+              <ProtectedRoute area="carteira"><GerarCarteiraPage /></ProtectedRoute>
             } />
             <Route path="cursos" element={
-              <ProtectedRoute minNivel="membro"><EmBreve /></ProtectedRoute>
+              <ProtectedRoute><EmBreve /></ProtectedRoute>
             } />
             <Route path="recrutamento" element={
-              <ProtectedRoute minNivel="membro" area="recrutamento"><RecrutamentoPage /></ProtectedRoute>
+              <ProtectedRoute area="recrutamento"><RecrutamentoPage /></ProtectedRoute>
             } />
             <Route path="recrutamento/:id" element={
-              <ProtectedRoute minNivel="membro" area="recrutamento"><RecrutaCandidatoPage /></ProtectedRoute>
+              <ProtectedRoute area="recrutamento"><RecrutaCandidatoPage /></ProtectedRoute>
             } />
             <Route path="membros" element={
-              <ProtectedRoute minNivel="membro" allowViewOnly={true} area="membros"><MembrosPage /></ProtectedRoute>
+              <ProtectedRoute area="membros"><MembrosPage /></ProtectedRoute>
             } />
             <Route path="configuracoes" element={
-              <ProtectedRoute minNivel="moderador" area="configuracoes"><ConfiguracoesPage /></ProtectedRoute>
+              <ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>
             } />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -14,6 +14,7 @@ export interface Me {
   banner: string | null
   onboarded: boolean
   cargoPermId: number | null
+  admin: boolean
   permissoes: PermMap | null
 }
 

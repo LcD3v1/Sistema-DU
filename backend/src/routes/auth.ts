@@ -10,17 +10,7 @@ import { checkLockout, recordFailed, clearAttempts } from '../security/bruteForc
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { fullPermMap, normalizePermMap, PermMap } from '../permAreas'
-
-/** Resolve o mapa de permissões efetivo da conta. Admin = tudo; senão o cargo; senão null (usa nível). */
-function resolvePermissoes(conta: Conta, data: FastData): PermMap | null {
-  if (conta.nivel === 'admin') return fullPermMap()
-  if (conta.cargoPermId) {
-    const cargo = data.cargosPermissao.find(c => c.id === conta.cargoPermId)
-    if (cargo) return normalizePermMap(cargo.permissoes)
-  }
-  return null
-}
+import { isAdmin, resolvePerms } from '../access'
 
 const router = Router()
 
@@ -230,7 +220,8 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     banner: conta.banner ?? null,
     onboarded: conta.onboarded !== false,
     cargoPermId: conta.cargoPermId ?? null,
-    permissoes: resolvePermissoes(conta, data),
+    admin: isAdmin(conta, data),
+    permissoes: resolvePerms(conta, data),
   })
 })
 

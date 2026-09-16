@@ -67,6 +67,7 @@ export interface CargoPermissao {
   id: number
   nome: string
   padrao?: boolean
+  admin?: boolean   // "acesso total" — administra o sistema (contas, cargos, aprovações)
   permissoes: Record<string, PermArea>
 }
 
@@ -156,6 +157,7 @@ export interface FastData {
   nextAvisoId: number
   nextSolId: number
   nextCargoPermId: number
+  nivelMigrado?: boolean   // flag: migração nível→cargos já executada
   logo: string
   membrosOrder: number[]
 }
