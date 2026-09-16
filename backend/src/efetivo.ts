@@ -1,6 +1,6 @@
 import { Ausencia, Conta, FastData, Membro } from './types'
 import { readData, writeData } from './data'
-import { isAdmin, getCargo, PROTECTED_OWNER_ID } from './access'
+import { isAdmin, getCargo, PROTECTED_OWNER_ID, discordIdsDonos } from './access'
 import { audit } from './security/audit'
 import { postarAusencia, postarExoneracao, emSegundoPlano } from './discord/forum'
 import { notificar } from './notificacoes'
@@ -19,6 +19,12 @@ export function hoje(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: TZ })
 }
 
+/** Conta dona: id 1 ou Discord listado em DISCORD_OWNER_ID. */
+export function ehContaDona(conta: Conta | undefined): boolean {
+  if (!conta) return false
+  return conta.id === PROTECTED_OWNER_ID || (!!conta.discordId && discordIdsDonos().includes(conta.discordId))
+}
+
 export const statusAusencia = (a: Ausencia) => a.status ?? 'aprovada'
 
 /** Ausência aprovada em andamento hoje para o membro, se houver. */
@@ -31,7 +37,7 @@ export function ausenciaAtivaDoMembro(data: FastData, membroId: number | undefin
 
 /** Motivo pelo qual a conta não pode acessar o painel agora (ou undefined). */
 export function bloqueioDeAcesso(conta: Conta, data: FastData): { codigo: 'EXONERADO' } | { codigo: 'AUSENTE'; ate: string } | undefined {
-  if (conta.id === PROTECTED_OWNER_ID) return undefined
+  if (ehContaDona(conta)) return undefined
   if (conta.exonerado) return { codigo: 'EXONERADO' }
   const aus = ausenciaAtivaDoMembro(data, conta.membroId)
   if (aus) return { codigo: 'AUSENTE', ate: aus.dataFim }
@@ -57,6 +63,7 @@ export function podeGerenciar(data: FastData, atorId: number, membro: Membro, ca
   if (isAdmin(ator, data)) return undefined
   const alvo = contaDoMembro(data, membro.id)
   if (alvo?.id === ator.id) return 'Você não pode gerenciar a si mesmo.'
+  if (ehContaDona(alvo)) return 'Não é possível gerenciar um dono do sistema.'
   const meu = nivelHierarquia(data, ator.cargoPermId)
   if (alvo && nivelHierarquia(data, alvo.cargoPermId) <= meu) {
     return 'Você só pode gerenciar membros abaixo do seu cargo.'
@@ -76,7 +83,7 @@ export function podeGerenciar(data: FastData, atorId: number, membro: Membro, ca
  */
 export function exonerarMembro(data: FastData, membro: Membro, por: string, motivo: string): Conta | undefined {
   const conta = contaDoMembro(data, membro.id)
-  if (conta?.id === PROTECTED_OWNER_ID) throw new Error('A conta dona não pode ser exonerada.')
+  if (ehContaDona(conta)) throw new Error('Um dono do sistema não pode ser exonerado.')
 
   data.membros = data.membros.filter(m => m.id !== membro.id)
   data.membrosOrder = data.membrosOrder.filter(id => id !== membro.id)

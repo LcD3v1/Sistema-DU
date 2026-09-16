@@ -232,7 +232,7 @@ export function ensureNivelMigration(): void {
 
 /**
  * Garante a conta dona (id 1). Sem senha: ela é assumida no primeiro login
- * pelo Discord definido em DISCORD_OWNER_ID.
+ * pelo primeiro Discord listado em DISCORD_OWNER_ID (aceita vários, separados por vírgula).
  */
 export function ensureDefaultAdmin(): void {
   const data = readData()

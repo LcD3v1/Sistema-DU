@@ -3,7 +3,7 @@ import { readData, writeData } from '../data'
 import { audit } from '../security/audit'
 import { PROTECTED_OWNER_ID } from '../access'
 import { botConfigurado } from './forum'
-import { exonerarMembro } from '../efetivo'
+import { exonerarMembro, ehContaDona } from '../efetivo'
 import { notificarArea } from '../notificacoes'
 
 /**
@@ -24,7 +24,7 @@ const MOTIVO_SAIDA = 'Saiu do servidor do Discord'
 export function processarSaida(discordId: string, origem: string): void {
   const data = readData()
   const conta = data.contas.find(c => c.discordId === discordId)
-  if (!conta || conta.id === PROTECTED_OWNER_ID || conta.exonerado) return
+  if (!conta || ehContaDona(conta) || conta.exonerado) return
 
   const membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
   if (membro) {

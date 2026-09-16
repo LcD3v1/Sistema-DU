@@ -12,7 +12,7 @@ import { tentarPostarRegistro } from '../discord/forum'
 import { bloqueioDeAcesso } from '../efetivo'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
-import { isAdmin, resolvePerms, PROTECTED_OWNER_ID } from '../access'
+import { isAdmin, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
 
 const router = Router()
 
@@ -94,9 +94,10 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
     const data = readData()
     let conta = data.contas.find(c => c.discordId === me.id)
 
-    // Conta dona: o Discord definido em DISCORD_OWNER_ID assume a conta id 1
-    // no primeiro login (enquanto ela ainda não tiver Discord vinculado).
-    if (!conta && process.env.DISCORD_OWNER_ID && me.id === process.env.DISCORD_OWNER_ID) {
+    // Donos (DISCORD_OWNER_ID, aceita vários IDs separados por vírgula) têm
+    // acesso total. O primeiro dono a entrar assume a conta id 1.
+    const ehDono = discordIdsDonos().includes(me.id)
+    if (!conta && ehDono) {
       const dono = data.contas.find(c => c.id === PROTECTED_OWNER_ID)
       if (dono && !dono.discordId) {
         dono.discordId = me.id
@@ -104,6 +105,11 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
         conta = dono
         audit('DISCORD_ACCOUNT_CREATED', req, `Conta dona vinculada ao Discord ${me.username} (${me.id})`)
       }
+    }
+
+    // Dono já com conta: garante acesso total (inclusive se foi exonerado/desativado)
+    if (conta && ehDono && garantirAcessoDono(conta, data)) {
+      audit('ACCOUNT_UPDATED', req, `Acesso total garantido ao dono ${me.username} (${me.id})`)
     }
 
     // Exonerado → aviso específico
@@ -145,9 +151,13 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
       }
       data.contas.push(conta)
       data.nextContaId++
-      notificar(data, conta.id, 'cadastro', 'Bem-vindo à FAST!',
+      if (ehDono) {
+        garantirAcessoDono(conta, data)
+        audit('DISCORD_ACCOUNT_CREATED', req, `Dono ${username} criado com acesso total`)
+      }
+      if (!ehDono) notificar(data, conta.id, 'cadastro', 'Bem-vindo à FAST!',
         'Preencha seu cadastro para enviá-lo ao comando. Após a aprovação, você recebe seu cargo e o acesso ao painel.', '/perfil')
-      notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Novo acesso pelo Discord',
+      if (!ehDono) notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Novo acesso pelo Discord',
         `${displayName} entrou pelo Discord e está preenchendo o cadastro.`, '/configuracoes')
       audit('DISCORD_ACCOUNT_CREATED', req, `Nova conta via Discord: ${username} | aguardando aprovação`)
     } else {
