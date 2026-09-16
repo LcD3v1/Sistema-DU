@@ -51,13 +51,13 @@ function VideoBackdrop() {
     <div className="absolute inset-0 overflow-hidden bg-black">
       {/* scale 1.35 recorta o letterbox gravado no arquivo (barras de 12,5% em cima/baixo) */}
       <video ref={ref} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.35)', transformOrigin: 'center' }} src="/media/login-bg.mp4" autoPlay muted loop playsInline preload="auto" />
-      {/* scrim da esquerda para legibilidade do hero */}
+      {/* scrim central para legibilidade do conteúdo */}
       <div className="absolute inset-0 pointer-events-none"
-           style={{ background: 'linear-gradient(90deg, rgba(4,6,11,0.9) 0%, rgba(4,6,11,0.6) 42%, rgba(4,6,11,0.15) 78%, rgba(4,6,11,0.35) 100%)' }} />
+           style={{ background: 'radial-gradient(70% 80% at 50% 50%, rgba(4,6,11,0.82) 0%, rgba(4,6,11,0.55) 55%, rgba(4,6,11,0.35) 100%)' }} />
       {/* grão + vinheta */}
       <div className="absolute inset-0 grain-noise opacity-[0.05] pointer-events-none" />
       <div className="absolute inset-0 pointer-events-none"
-           style={{ background: 'radial-gradient(130% 100% at 30% 45%, transparent 45%, rgba(0,0,0,0.7) 100%)' }} />
+           style={{ background: 'radial-gradient(130% 100% at 50% 50%, transparent 45%, rgba(0,0,0,0.7) 100%)' }} />
     </div>
   )
 }
@@ -94,12 +94,13 @@ export default function LoginPage() {
         </nav>
       </header>
 
-      {/* ── Hero (alinhado à esquerda) ──────────────────────────── */}
-      <main className="relative z-20 h-[calc(100%-140px)] flex items-center px-8 lg:px-14">
-        <div className="w-full max-w-xl">
+      {/* ── Hero (centralizado) ──────────────────────────────────── */}
+      <main className="relative z-20 h-[calc(100%-140px)] flex items-center justify-center px-8 lg:px-14">
+        <div className="w-full max-w-xl flex flex-col items-center text-center">
           <div className="flex items-center gap-2 mb-5">
             <span className="h-px w-8 bg-gold" />
             <span className="font-mono text-[11px] text-gold3 tracking-[0.3em] uppercase">North Police Department</span>
+            <span className="h-px w-8 bg-gold" />
           </div>
 
           <h1 className="wordmark text-[84px] md:text-[112px] leading-[0.9] text-white mb-4"
@@ -111,7 +112,7 @@ export default function LoginPage() {
             Central operacional da unidade — controle de apreensões, efetivo e desempenho em tempo real.
           </p>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col items-center gap-3">
             <motion.a href={DISCORD_URL} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
               className="flex items-center gap-2.5 w-fit px-7 py-3.5 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] text-white font-medium text-sm transition-colors shadow-[0_12px_34px_-10px_rgba(88,101,242,0.6)]">
               <DiscordIcon /> Entrar com Discord
@@ -120,7 +121,7 @@ export default function LoginPage() {
           </div>
 
           {reason === 'exonerado' && (
-            <div className="mt-6 max-w-md flex gap-3 rounded-xl border border-red/50 bg-red/15 backdrop-blur px-4 py-4">
+            <div className="mt-6 max-w-md w-full text-left flex gap-3 rounded-xl border border-red/50 bg-red/15 backdrop-blur px-4 py-4">
               <ShieldX size={22} className="text-red shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-white">Você foi exonerado da unidade.</p>
@@ -129,7 +130,7 @@ export default function LoginPage() {
             </div>
           )}
           {reason === 'ausente' && (
-            <div className="mt-6 max-w-md flex gap-3 rounded-xl border border-gold/50 bg-gold/15 backdrop-blur px-4 py-4">
+            <div className="mt-6 max-w-md w-full text-left flex gap-3 rounded-xl border border-gold/50 bg-gold/15 backdrop-blur px-4 py-4">
               <CalendarClock size={22} className="text-gold3 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-white">Você está em ausência{ateFmt ? ` até ${ateFmt}` : ''}.</p>
