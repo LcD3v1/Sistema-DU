@@ -16,6 +16,7 @@ const FIELDS: { key: 'nome' | 'passaporte' | 'registro' | 'data'; x: number; y: 
 ]
 const PHOTO = { x: 1157, y: 319, w: 291, h: 367, r: 14 }
 const SIG = { cx: 1246, y: 846 }
+const SUB = { cx: 770, y: 222 } // subtítulo sob "FORCE ACTION STRIKE TERRESTRIAL"
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()
@@ -41,6 +42,7 @@ export default function GerarCarteiraPage() {
   const [passaporte, setPassaporte] = useState('')
   const [registro, setRegistro] = useState('')
   const [data, setData] = useState('')
+  const [subtitulo, setSubtitulo] = useState('PILOT FAST LICENSE CERTIFICATION')
   const [assinatura, setAssinatura] = useState('')
   const [temFoto, setTemFoto] = useState(false)
   const [tplOk, setTplOk] = useState(false)
@@ -61,6 +63,18 @@ export default function GerarCarteiraPage() {
     const ctx = c.getContext('2d'); if (!ctx) return
     ctx.clearRect(0, 0, W, H)
     if (tplRef.current) ctx.drawImage(tplRef.current, 0, 0, W, H)
+
+    // Subtítulo editável (sob o título), com sublinhado dourado
+    if (subtitulo.trim()) {
+      const st = subtitulo.trim().toUpperCase()
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+      ctx.font = '700 40px Geist, sans-serif'; ctx.fillStyle = '#ffffff'
+      ctx.fillText(st, SUB.cx, SUB.y)
+      const w = ctx.measureText(st).width
+      ctx.strokeStyle = '#c9962a'; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(SUB.cx - w / 2, SUB.y + 12); ctx.lineTo(SUB.cx + w / 2, SUB.y + 12); ctx.stroke()
+      ctx.textAlign = 'left'
+    }
 
     // Foto (na moldura OFFICER PHOTO)
     if (fotoRef.current) {
@@ -130,6 +144,8 @@ export default function GerarCarteiraPage() {
         <div className="bg-card border border-bdr rounded-xl p-5 space-y-4">
           <h2 className="text-base font-semibold text-txt">Dados da carteira</h2>
 
+          <div><label className={labelCls}>Subtítulo (topo)</label>
+            <input value={subtitulo} onChange={e => setSubtitulo(e.target.value)} placeholder="Ex: PILOT FAST LICENSE CERTIFICATION" className={inputCls} /></div>
           <div><label className={labelCls}>Name</label>
             <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} /></div>
           <div><label className={labelCls}>Passport</label>

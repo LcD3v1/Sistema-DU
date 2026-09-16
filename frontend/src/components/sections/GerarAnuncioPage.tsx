@@ -6,6 +6,13 @@ import { useAnuncioSituacoes } from '@/hooks/useConfig'
 import Brand from '@/components/ui/Brand'
 import LoadingHud from '@/components/ui/LoadingHud'
 
+/** Brasão padrão do anúncio: escudo NPD, com fallback pro emblema FAST se não existir. */
+function DefaultEmblem({ size = 56 }: { size?: number }) {
+  const [erro, setErro] = useState(false)
+  if (erro) return <Brand size={size} />
+  return <img src="/media/npd-shield.png" alt="" width={size} height={size} className="object-contain" style={{ width: size, height: size }} onError={() => setErro(true)} />
+}
+
 function resolve(template: string, local: string, assinatura: string) {
   return template
     .replace(/\[LOCAL\]/g, local.trim() || '[LOCAL]')
@@ -190,7 +197,7 @@ export default function GerarAnuncioPage() {
               <div className="shrink-0 rounded-lg overflow-hidden border border-gold/30 bg-black/40 p-1">
                 {imagem.trim()
                   ? <img src={imagem} alt="" className="w-14 h-14 object-cover rounded" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                  : <Brand size={56} />}
+                  : <DefaultEmblem size={56} />}
               </div>
               <div className="min-w-0">
                 <p className="wordmark text-gold3 text-sm tracking-wide mb-1">{titulo || 'N.P.D INFORMA:'}</p>
