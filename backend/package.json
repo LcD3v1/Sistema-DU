@@ -7,6 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "cross-env NODE_ENV=production node dist/index.js",
+    "start:shardcloud": "cross-env NODE_ENV=production PORT=80 PUBLIC_URL=https://fastunit.shardweb.app FRONTEND_URL=https://fastunit.shardweb.app DISCORD_REDIRECT_URI=https://fastunit.shardweb.app/api/auth/discord/callback node dist/index.js",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-check.mjs",
     "audit": "npm audit --omit=dev --audit-level=high",

@@ -2,7 +2,7 @@
 // Se JWT_SECRET estiver ausente/fraco/placeholder, o processo aborta aqui.
 import { env } from './config/env'
 import path from 'path'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import hpp from 'hpp'
@@ -72,10 +72,24 @@ app.use('/api', (_req: Request, res: Response) => {
   res.status(404).json({ error: 'Recurso não encontrado' })
 })
 
+/**
+ * URL pública do site para as tags de prévia (og:image precisa ser absoluta).
+ * Usa PUBLIC_URL se definido; senão deriva do host da requisição (validado).
+ */
+function urlDoSite(req: Request): string {
+  const fixa = process.env.PUBLIC_URL?.trim().replace(/\/+$/, '')
+  if (fixa && /^https?:\/\/[\w.-]+(:\d+)?$/i.test(fixa)) return fixa
+  const host = req.get('host') ?? ''
+  const proto = req.protocol === 'https' ? 'https' : 'http'
+  return /^[\w.-]+(:\d+)?$/.test(host) ? `${proto}://${host}` : ''
+}
+
 // ── Serve frontend buildado ───────────────────────────────────────────────────
 const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist')
 if (existsSync(frontendDist)) {
+  // index.html é entregue pela rota abaixo (com a URL do site nas tags de prévia)
   app.use(express.static(frontendDist, {
+    index: false,
     setHeaders(res, filePath) {
       if (filePath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
@@ -88,9 +102,10 @@ if (existsSync(frontendDist)) {
       }
     },
   }))
-  app.use((_req: Request, res: Response) => {
+  const indexHtml = readFileSync(path.join(frontendDist, 'index.html'), 'utf-8')
+  app.use((req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-    res.sendFile(path.join(frontendDist, 'index.html'))
+    res.type('html').send(indexHtml.replace(/__SITE_URL__/g, urlDoSite(req)))
   })
   console.log('[FAST] Servindo frontend de:', frontendDist)
 } else {
