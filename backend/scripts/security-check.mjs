@@ -341,6 +341,31 @@ check(/return users\.length > 0 \? \{ parse: \[\], users \} : \{ parse: \[\] \}/
 check(/allowed_mentions: allowedMentions\(mencionarId \? \[mencionarId\] : \[\]\)/.test(formTs),
   'postagem da carteira só menciona o usuário escolhido', 'postagem da carteira sem trava de menção')
 
+// 16. Painel de ranking de apreensões (botões do Discord)
+console.log('\n[16] Painel de apreensões no Discord')
+const painelTs = ler('src/discord/painelApreensoes.ts')
+const gwTs = ler('src/discord/gateway.ts')
+
+check(painelTs.length > 0, 'painelApreensoes.ts presente', 'ausente: src/discord/painelApreensoes.ts')
+// O clique chega do Discord: a permissão tem de ser conferida no handler
+const hb = gwTs.slice(gwTs.indexOf('Events.InteractionCreate'))
+check(/canArea\(conta, dados, 'pendentes', 'editar'\)/.test(hb),
+  'botão do painel exige editar em Aprovações', 'botão do painel sem checagem de permissão')
+check(/conta\.exonerado \|\| conta\.ativo === false/.test(hb),
+  'exonerado bloqueado nos botões do painel', 'exonerado pode usar os botões do painel')
+const posPerm = hb.indexOf("canArea(conta, dados, 'pendentes', 'editar')")
+const posReset = hb.indexOf('resetarRanking(')
+check(posPerm > -1 && posReset > -1 && posPerm < posReset,
+  'permissão conferida antes de resetar', 'reset executado antes da checagem de permissão')
+check(/audit\('UNAUTHORIZED_ACCESS'/.test(hb), 'clique negado é auditado', 'clique negado sem auditoria')
+check(/audit\('RANKING_APREENSOES_RESETADO'/.test(painelTs), 'reset do ranking é auditado', 'reset do ranking sem auditoria')
+// O placar é editado o tempo todo: não pode notificar ninguém
+check(/allowed_mentions: \{ parse: \[\] \}/.test(painelTs),
+  'painel não notifica ninguém (allowed_mentions vazio)', 'painel pode notificar em massa')
+// Resetar não apaga apreensão: só move a data de corte
+check(/resetadoEmData/.test(painelTs) && !/splice|filter\(a => a\.id !==/.test(painelTs),
+  'reset não apaga apreensões, só move o corte', 'reset do ranking apaga dados')
+
 // Resultado
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

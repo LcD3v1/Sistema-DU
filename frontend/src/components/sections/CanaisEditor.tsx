@@ -8,6 +8,7 @@ const MODULOS: { chave: CanalChave; titulo: string; descricao: string; tipos?: n
   { chave: 'registro',   titulo: 'Registro',   descricao: 'Cada cadastro concluído vira uma postagem no canal configurado. Quando possível, exonerações entram no mesmo tópico.' },
   { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma mensagem direta no canal configurado.', tipos: [0, 5] },
   { chave: 'carteira',   titulo: 'Carteira',   descricao: 'Fórum onde as carteirinhas são postadas. Na tela de gerar carteira você escolhe o tópico de destino a cada envio.', tipos: [15, 16] },
+  { chave: 'rankingApreensoes', titulo: 'Ranking de apreensões', descricao: 'Ao escolher o canal, o painel é postado lá e se reordena sozinho a cada apreensão aprovada. Os botões do painel só funcionam para quem tem editar em Aprovações.', tipos: [0, 5] },
 ]
 
 const TIPO_CANAL: Record<number, string> = {

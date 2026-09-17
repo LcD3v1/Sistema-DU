@@ -17,7 +17,8 @@ import { readData, writeData } from '../data'
 import { Conta, FastData, CargoPermissao, CanaisDiscord } from '../types'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
-import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro } from '../discord/forum'
+import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, emSegundoPlano } from '../discord/forum'
+import { publicarPainel } from '../discord/painelApreensoes'
 import { notificar } from '../notificacoes'
 
 const router = Router()
@@ -33,6 +34,7 @@ const CANAIS_CFG: Record<keyof CanaisDiscord, { rotulo: string; tipos?: number[]
   registro:   { rotulo: 'Registro' },
   apreensoes: { rotulo: 'Apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio, não fórum' },
   carteira:   { rotulo: 'Carteira',   tipos: [GUILD_FORUM, GUILD_MEDIA],       exigencia: 'fórum ou mídia' },
+  rankingApreensoes: { rotulo: 'Ranking de apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio' },
 }
 type ChaveCanal = keyof typeof CANAIS_CFG
 const CHAVES_CANAIS = Object.keys(CANAIS_CFG) as ChaveCanal[]
@@ -413,12 +415,18 @@ router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async 
   }
 
   const data = readData()
+  const anteriorPainel = data.canais.rankingApreensoes
   for (const chave of CHAVES_CANAIS) {
     if (body[chave] === null) delete data.canais[chave]
     else if (body[chave]) data.canais[chave] = body[chave]
   }
+  const canalPainelMudou = body.rankingApreensoes !== undefined && anteriorPainel !== data.canais.rankingApreensoes
   writeData(data)
   audit('CANAIS_UPDATED', req, CHAVES_CANAIS.map(k => `${k}: ${data.canais[k] ?? '—'}`).join(' | '))
+  // O painel de apreensões é postado justamente quando o canal é escolhido.
+  if (canalPainelMudou && data.canais.rankingApreensoes) {
+    emSegundoPlano('painel de apreensões', publicarPainel)
+  }
   res.json({ canais: data.canais })
 })
 

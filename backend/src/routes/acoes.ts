@@ -7,6 +7,7 @@ import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Acao } from '../types'
 import { postarApreensao, emSegundoPlano } from '../discord/forum'
+import { atualizarPainelEmSegundoPlano } from '../discord/painelApreensoes'
 import { notificar, notificarAprovadores } from '../notificacoes'
 import { contaDoMembro } from '../efetivo'
 
@@ -138,6 +139,8 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
   writeData(data)
 
   audit('ACAO_APPROVED', req, `ID: ${id} | QRU: ${acao.qru}`)
+  // O placar se reordena sozinho a cada apreensão aprovada.
+  if (!jaAprovada) atualizarPainelEmSegundoPlano()
   if (!jaAprovada && !acao.discordThreadId) {
     const aprovadoPor = req.user!.username
     emSegundoPlano('postagem de apreensão', async () => {
@@ -169,6 +172,7 @@ router.delete('/:id', requireAuth, requireArea('pendentes', 'editar'), (req: Req
   writeData(data)
 
   audit('ACAO_DELETED', req, `ID: ${id}`)
+  if ((removida.status ?? 'aprovada') === 'aprovada') atualizarPainelEmSegundoPlano()
   res.json({ ok: true })
 })
 

@@ -1,12 +1,13 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js'
+import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js'
 import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
-import { PROTECTED_OWNER_ID } from '../access'
+import { PROTECTED_OWNER_ID, canArea } from '../access'
 import { botConfigurado } from './forum'
 import { definirBotNoServidor, verificarBotNoServidor } from './acessoServidor'
 import { exonerarMembro, ehContaDona } from '../efetivo'
 import { notificarArea } from '../notificacoes'
 import { aplicarIdentidade, MembroServidor } from './identidade'
+import { ID_BOTAO_ATUALIZAR, ID_BOTAO_RESETAR, atualizarPainel, resetarRanking } from './painelApreensoes'
 
 /**
  * Conexão em tempo real com o Discord (gateway) para detectar quando alguém
@@ -131,6 +132,43 @@ export function iniciarGateway(): void {
     } catch (err) {
       console.error('[FAST][DISCORD] verificação inicial de membros:', err instanceof Error ? err.message : err,
         '— confira se o "Server Members Intent" está ativado no Developer Portal.')
+    }
+  })
+
+  // ── Botões do painel de apreensões ──────────────────────────────────────────
+  // O clique vem do Discord, não do painel: a permissão é conferida AQUI, pelo
+  // discordId de quem clicou. Quem não tem "editar" em Aprovações não passa.
+  client.on(Events.InteractionCreate, async interaction => {
+    if (!interaction.isButton()) return
+    if (interaction.customId !== ID_BOTAO_ATUALIZAR && interaction.customId !== ID_BOTAO_RESETAR) return
+
+    const negar = (motivo: string) =>
+      interaction.reply({ content: motivo, flags: MessageFlags.Ephemeral }).catch(() => {})
+
+    try {
+      const dados = peekData()
+      const conta = dados.contas.find(c => c.discordId === interaction.user.id)
+      // Exonerado é bloqueio total, mesmo que o cargo antigo permitisse.
+      if (!conta || conta.exonerado || conta.ativo === false) {
+        audit('UNAUTHORIZED_ACCESS', undefined, `Botão do painel de apreensões sem conta ativa (Discord ${interaction.user.id})`)
+        await negar('Você não tem acesso ao painel da FAST.')
+        return
+      }
+      if (!canArea(conta, dados, 'pendentes', 'editar')) {
+        audit('UNAUTHORIZED_ACCESS', undefined, `Botão "${interaction.customId}" negado para ${conta.username} (#${conta.id})`)
+        await negar('Seu cargo não tem permissão para isso.')
+        return
+      }
+
+      await interaction.deferUpdate()
+      if (interaction.customId === ID_BOTAO_RESETAR) {
+        await resetarRanking(conta.nomeServidor || conta.username)
+        await interaction.followUp({ content: '🟥 Ranking resetado.', flags: MessageFlags.Ephemeral }).catch(() => {})
+      } else {
+        await atualizarPainel()
+      }
+    } catch (err) {
+      console.error('[FAST][DISCORD] botão do painel de apreensões:', err instanceof Error ? err.message : err)
     }
   })
 

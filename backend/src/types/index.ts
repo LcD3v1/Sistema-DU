@@ -216,6 +216,20 @@ export interface CanaisDiscord {
   registro?: string     // ID do canal Fórum de registro
   apreensoes?: string   // ID do canal Fórum de apreensões
   carteira?: string     // ID do canal Fórum onde as carteirinhas são postadas
+  rankingApreensoes?: string  // canal do painel de ranking de apreensões
+}
+
+/**
+ * Painel fixo de ranking de apreensões: uma única mensagem no canal, EDITADA a
+ * cada apreensão aprovada (nunca repostada). `resetadoEm` zera a contagem sem
+ * apagar nada — as apreensões continuam no histórico, só saem deste placar.
+ */
+export interface PainelApreensoes {
+  canalId?: string
+  mensagemId?: string
+  resetadoEm?: string     // ISO — só conta apreensões a partir daqui
+  resetadoPor?: string
+  resetadoEmData?: string
 }
 
 export interface FastData {
@@ -249,6 +263,7 @@ export interface FastData {
   nextNotifId: number
   solicitacoesPerfil: SolicitacaoPerfil[]
   nextSolPerfilId: number
+  painelApreensoes?: PainelApreensoes
 }
 
 export interface AuthPayload {
