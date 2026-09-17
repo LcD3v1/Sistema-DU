@@ -88,6 +88,15 @@ const FAST_PERMISSION_ROLES = [
   '(FAST) Probationary',
 ] as const
 
+function canonicalFastRoleName(nome: string) {
+  return nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
 let db: Db | undefined
 let client: MongoClient | undefined
 let cache: FastData | undefined
@@ -262,6 +271,12 @@ export function ensureFastPermissionRoles(): void {
   let mudou = false
 
   const byName = (nome: string) => data.cargosPermissao.find(c => c.nome.toLowerCase() === nome.toLowerCase())
+  const byFastRole = (nome: string) => {
+    const canon = canonicalFastRoleName(nome)
+    return data.cargosPermissao
+      .filter(c => canonicalFastRoleName(c.nome) === canon)
+      .sort((a, b) => a.id - b.id)
+  }
   let commander = byName('(FAST) Commander')
   const legacyAdmin = data.cargosPermissao.find(c => c.admin && c.nome.toLowerCase() === 'administrador')
 
@@ -274,7 +289,27 @@ export function ensureFastPermissionRoles(): void {
   }
 
   for (const nome of FAST_PERMISSION_ROLES) {
-    let cargo = byName(nome)
+    const equivalentes = byFastRole(nome)
+    let cargo = equivalentes[0] ?? byName(nome)
+
+    if (cargo && cargo.nome !== nome) {
+      cargo.nome = nome
+      mudou = true
+    }
+
+    if (cargo && equivalentes.length > 1) {
+      const idsDuplicados = new Set(equivalentes.slice(1).map(c => c.id))
+      for (const conta of data.contas) {
+        if (conta.cargoPermId && idsDuplicados.has(conta.cargoPermId)) {
+          conta.cargoPermId = cargo.id
+          mudou = true
+        }
+      }
+      if (equivalentes.some(c => c.padrao)) cargo.padrao = true
+      data.cargosPermissao = data.cargosPermissao.filter(c => !idsDuplicados.has(c.id))
+      mudou = true
+    }
+
     if (!cargo) {
       cargo = {
         id: data.nextCargoPermId++,
