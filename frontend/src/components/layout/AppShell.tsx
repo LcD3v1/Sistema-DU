@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom'
 import LimiteErro from '@/components/ui/LimiteErro'
-import { AnimatePresence, motion } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
 import { Suspense, useEffect, useState } from 'react'
 import Sidebar from './Sidebar'
@@ -50,22 +49,15 @@ export default function AppShell() {
         )}
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8, transition: { duration: 0.12 } }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
-            >
+          {/* A rota e seu fallback precisam ficar visíveis mesmo se uma transição
+              for interrompida por navegação rápida ou carregamento sob demanda. */}
+          <div key={location.pathname} className="h-full">
               <LimiteErro>
                 <Suspense fallback={<div className="flex items-center justify-center py-24"><LoadingHud message="CARREGANDO MÓDULO..." /></div>}>
                   <Outlet />
                 </Suspense>
               </LimiteErro>
-            </motion.div>
-          </AnimatePresence>
+          </div>
         </main>
       </div>
 

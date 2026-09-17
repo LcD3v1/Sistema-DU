@@ -257,12 +257,44 @@ before(async () => {
   app.use(express.json())
   app.use('/api/membros', require('../dist/routes/membros').default)
   app.use('/api/auth', require('../dist/routes/auth').default)
+  app.use('/api/config', require('../dist/routes/config').default)
   global.setInterval = originalInterval
   app.use((_err, _req, res, _next) => res.status(500).json({ error: 'Erro interno do servidor' }))
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
   base = `http://127.0.0.1:${server.address().port}`
 })
 after(() => { timers.forEach(clearInterval); return new Promise(resolve => server.close(resolve)) })
+
+test('canal do ranking permanece salvo após consulta e pode ser desvinculado', async () => {
+  const original = structuredClone(data)
+  const forum = require('../dist/discord/forum')
+  const originalConfigured = forum.botConfigurado
+  const originalList = forum.listarForuns
+  const channelId = '444444444444444444'
+  const registro = '555555555555555555'
+  forum.botConfigurado = () => true
+  forum.listarForuns = async () => [{ id: channelId, name: 'ranking', type: 0 }]
+  data.canais = { registro }
+  const save = value => fetch(base + '/api/config/canais', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rankingApreensoes: value }),
+  })
+  try {
+    const saved = await save(channelId)
+    assert.equal(saved.status, 200)
+    assert.deepEqual((await saved.json()).canais, { registro, rankingApreensoes: channelId })
+    assert.deepEqual((await get('/api/config/canais')).body.canais, { registro, rankingApreensoes: channelId })
+    assert.equal((await save('invalid')).status, 400)
+    assert.equal((await get('/api/config/canais')).body.canais.rankingApreensoes, channelId)
+    assert.equal((await save(null)).status, 200)
+    assert.deepEqual((await get('/api/config/canais')).body.canais, { registro })
+  } finally {
+    forum.botConfigurado = originalConfigured
+    forum.listarForuns = originalList
+    data = original; revision++
+  }
+})
 test('API requer autenticação e sessão da guild/bot correta mesmo com segredo compartilhado', async () => {
   assert.equal((await get('/api/ranking', null)).status, 401)
   assert.equal((await get('/api/ranking', token(1, 'foreign:' + bot))).status, 401)

@@ -1,5 +1,6 @@
 import { z, ZodSchema } from 'zod'
 import { Request, Response, NextFunction } from 'express'
+import type { CanaisDiscord } from '../types'
 import { imagemValida, ehImagemEnviada, ehLinkImagem, MAX_URL_IMAGEM } from '../security/imagem'
 
 export function validateBody<T>(schema: ZodSchema<T>) {
@@ -231,7 +232,8 @@ export const canaisSchema = z.object({
   registro:   snowflake.nullable().optional(),
   apreensoes: snowflake.nullable().optional(),
   carteira:   snowflake.nullable().optional(),
-})
+  rankingApreensoes: snowflake.nullable().optional(),
+} satisfies Record<keyof CanaisDiscord, ZodSchema>)
 
 /** Postagem da carteirinha: tópico de destino + PNG gerado no navegador. */
 export const carteiraPostSchema = z.object({
