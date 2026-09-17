@@ -27,6 +27,7 @@ import { MembroNomeMenu } from '@/components/sections/MembroGestao'
 import AprovacoesPerfil from '@/components/sections/AprovacoesPerfil'
 import type { Membro, StatusMembro } from '@/types'
 import { confirmar } from '@/lib/dialogo'
+import { discordNome, nomeComDiscord } from '@/lib/discordDisplay'
 
 interface NovoMembroForm {
   badge: string; passaporte: string; policial: string
@@ -111,7 +112,12 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
         <InlineCell field="passaporte" value={membro.passaporte} canEdit={canEdit} onSave={v => onUpdate(membro.id, { passaporte: v })} />
       </td>
       <td className="px-3 py-2.5">
-        <MembroNomeMenu membro={membro}>{membro.policial}</MembroNomeMenu>
+        <MembroNomeMenu membro={membro}>
+          <span className="inline-flex flex-col gap-0.5 leading-tight">
+            <span>{nomeComDiscord(membro)}</span>
+            {discordNome(membro) && <span className="text-[10px] text-txt3">{membro.policial}</span>}
+          </span>
+        </MembroNomeMenu>
         {membro.ausenteAte && (
           <span className="ml-2 px-1.5 py-0.5 rounded bg-blue/15 border border-blue/40 text-blue text-[9px] font-mono" title="Em ausência aprovada">
             AUSENTE ATÉ {membro.ausenteAte.split('-').reverse().join('/')}
@@ -244,7 +250,7 @@ export default function MembrosPage() {
 
   async function handleRetirarExoneracao(id: number) {
     const conta = exonerados.find(e => e.id === id)
-    const nome = conta?.policial || conta?.discordUsername || conta?.username || 'esta pessoa'
+    const nome = conta ? nomeComDiscord(conta, conta.username) : 'esta pessoa'
     if (!(await confirmar({
       titulo: 'Retirar exoneração',
       mensagem: `Retirar a exoneração de ${nome}? A conta poderá entrar novamente e vai precisar preencher o cadastro para pedir set de novo.`,
@@ -403,7 +409,7 @@ export default function MembrosPage() {
                   </tr>
                 ) : (
                   exonerados.map(conta => {
-                    const nome = conta.policial || conta.discordUsername || conta.username
+                    const nome = nomeComDiscord(conta, conta.username)
                     const selecionado = exoneradoSelecionado === conta.id
                     return (
                       <tr key={conta.id} className={`border-b border-bdr/50 transition-colors ${selecionado ? 'bg-red/10' : 'hover:bg-bdr/30'}`}>
@@ -417,7 +423,7 @@ export default function MembrosPage() {
                           </button>
                           {conta.cargoNome && <span className="ml-2 text-[10px] font-mono text-txt3">{conta.cargoNome}</span>}
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs text-txt2">{conta.discordUsername ? `@${conta.discordUsername}` : '—'}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-txt2">{discordNome(conta) ? `@${discordNome(conta)}` : '—'}</td>
                         <td className="px-3 py-3 font-mono text-xs text-txt2">{conta.exoneradoEm ? new Date(conta.exoneradoEm).toLocaleDateString('pt-BR') : '—'}</td>
                         <td className="px-3 py-3 text-xs text-txt2 max-w-[360px] truncate" title={conta.exoneradoMotivo ?? ''}>{conta.exoneradoMotivo || '—'}</td>
                         <td className="px-3 py-3">

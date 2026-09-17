@@ -10,6 +10,7 @@ import HudButton from '@/components/ui/HudButton'
 import AdvBox from '@/components/ui/AdvBox'
 import type { Membro } from '@/types'
 import { confirmar } from '@/lib/dialogo'
+import { nomeComDiscord } from '@/lib/discordDisplay'
 
 type Acao = 'promocao' | 'gerenciar' | 'exonerar'
 
@@ -20,6 +21,7 @@ const erroApi = (e: unknown, padrao: string) =>
 
 const nivelAtual = (m: Membro) => (m.adv3 ? 3 : m.adv2 ? 2 : m.adv1 ? 1 : 0)
 const fmtData = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
+const nomePessoa = (m: Membro) => nomeComDiscord(m)
 
 /**
  * Nome do membro clicável: abre um menu lateral com Promoção, Gerenciar e
@@ -112,7 +114,7 @@ export function PromocaoModal({ membro, open, onClose }: ModalProps) {
     if (cargoId === '') return
     promover.mutate({ id: membro.id, cargoPermId: cargoId, motivo: motivo.trim() }, {
       onSuccess: r => {
-        addToast('success', `${membro.policial} ${r.data.tipo === 'promocao' ? 'promovido' : 'rebaixado'} para ${r.data.para}.`)
+        addToast('success', `${nomePessoa(membro)} ${r.data.tipo === 'promocao' ? 'promovido' : 'rebaixado'} para ${r.data.para}.`)
         fechar()
       },
       onError: e => addToast('error', erroApi(e, 'Erro ao alterar o cargo.')),
@@ -123,7 +125,7 @@ export function PromocaoModal({ membro, open, onClose }: ModalProps) {
     <ModalOverlay open={open} onClose={fechar} title="PROMOÇÃO / REBAIXAMENTO">
       <div className="space-y-4">
         <div className="px-3 py-2.5 rounded-lg bg-card2 border border-bdr">
-          <p className="text-sm text-txt font-medium">{membro.policial}</p>
+          <p className="text-sm text-txt font-medium">{nomePessoa(membro)}</p>
           <p className="text-[11px] text-txt3 font-mono">Cargo atual: <span className="text-gold3">{atual?.nome ?? membro.cargoNome ?? 'Sem cargo'}</span></p>
           {!membro.contaId && <p className="text-[11px] text-txt3 mt-1">Sem conta vinculada — o cargo é registrado, mas não há acesso ao painel para atualizar.</p>}
         </div>
@@ -191,7 +193,7 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
   function enviar() {
     if (motivo.trim().length < 3) { addToast('error', 'Descreva o motivo da advertência.'); return }
     advertir.mutate({ id: membro.id, nivel, motivo: motivo.trim() }, {
-      onSuccess: () => { addToast('success', `Advertência nível ${nivel} aplicada a ${membro.policial}.`); setMotivo('') },
+      onSuccess: () => { addToast('success', `Advertência nível ${nivel} aplicada a ${nomePessoa(membro)}.`); setMotivo('') },
       onError: e => addToast('error', erroApi(e, 'Erro ao aplicar advertência.')),
     })
   }
@@ -203,7 +205,7 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
       <div className="space-y-5">
         <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-card2 border border-bdr">
           <div>
-            <p className="text-sm text-txt font-medium">{membro.policial}</p>
+            <p className="text-sm text-txt font-medium">{nomePessoa(membro)}</p>
             <p className="text-[11px] text-txt3 font-mono">{membro.cargoNome ?? membro.patenteInterna ?? '—'}</p>
           </div>
           <div className="flex items-center gap-1">
@@ -240,7 +242,7 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
               <button
                 disabled={remover.isPending}
                 onClick={async () => {
-                  if (!(await confirmar({ titulo: 'Retirar advertências', mensagem: `Retirar as advertências de ${membro.policial}? O histórico é mantido.`, tom: 'aviso', textoConfirmar: 'Retirar' }))) return
+                  if (!(await confirmar({ titulo: 'Retirar advertências', mensagem: `Retirar as advertências de ${nomePessoa(membro)}? O histórico é mantido.`, tom: 'aviso', textoConfirmar: 'Retirar' }))) return
                   remover.mutate(membro.id, {
                     onSuccess: () => addToast('success', 'Advertências retiradas.'),
                     onError: e => addToast('error', erroApi(e, 'Erro ao retirar advertências.')),
@@ -279,7 +281,7 @@ export function ExonerarModal({ membro, open, onClose }: ModalProps) {
   function enviar() {
     if (motivo.trim().length < 3) { addToast('error', 'Informe o motivo da exoneração.'); return }
     exonerar.mutate({ id: membro.id, motivo: motivo.trim() }, {
-      onSuccess: () => { addToast('success', `${membro.policial} foi exonerado.`); fechar() },
+      onSuccess: () => { addToast('success', `${nomePessoa(membro)} foi exonerado.`); fechar() },
       onError: e => addToast('error', erroApi(e, 'Erro ao exonerar.')),
     })
   }
@@ -290,7 +292,7 @@ export function ExonerarModal({ membro, open, onClose }: ModalProps) {
         <div className="flex gap-3 px-3 py-3 rounded-lg border border-red/40 bg-red/10">
           <UserX size={18} className="text-red shrink-0 mt-0.5" />
           <p className="text-xs text-txt2 leading-relaxed">
-            <span className="text-txt font-medium">{membro.policial}</span> será removido do efetivo e <span className="text-red">perderá todo o acesso ao painel</span>.
+            <span className="text-txt font-medium">{nomePessoa(membro)}</span> será removido do efetivo e <span className="text-red">perderá todo o acesso ao painel</span>.
             A exoneração é registrada no canal dele no Discord (❌). Ao tentar entrar, verá o aviso para procurar o Alto Comando.
           </p>
         </div>

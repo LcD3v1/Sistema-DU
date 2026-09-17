@@ -23,6 +23,8 @@ export interface Membro {
   cargoPermId?: number | null
   cargoNome?: string
   ausenteAte?: string | null
+  discordId?: string | null
+  discordUsername?: string | null
   nomeServidor?: string | null
   avatarServidor?: string | null
 }
@@ -83,6 +85,7 @@ export interface ContaExonerada {
   username: string
   discordUsername?: string
   discordId?: string
+  nomeServidor?: string
   exoneradoEm?: string
   exoneradoMotivo?: string
   membroId?: number | null

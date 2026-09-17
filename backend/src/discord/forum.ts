@@ -68,6 +68,31 @@ const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' 
 const campo = (name: string, value: string | undefined, inline = true) =>
   ({ name, value: cut(value?.trim() || '—', 1024), inline })
 
+function contaDoMembro(data: FastData, membroId: number) {
+  return data.contas.find(c => c.membroId === membroId)
+}
+
+function nomeServidorOuPolicial(data: FastData, m: Membro): string {
+  const conta = contaDoMembro(data, m.id)
+  return conta?.nomeServidor || conta?.discordUsername || m.policial
+}
+
+function mencionarMembro(data: FastData, m: Membro): string {
+  const conta = contaDoMembro(data, m.id)
+  const nome = nomeServidorOuPolicial(data, m)
+  return conta?.discordId ? `<@${conta.discordId}> ${nome}` : nome
+}
+
+function idsMencionaveis(data: FastData, ...membros: (Membro | undefined)[]): string[] {
+  return [...new Set(membros
+    .map(m => (m ? contaDoMembro(data, m.id)?.discordId : undefined))
+    .filter((id): id is string => Boolean(id)))]
+}
+
+function allowedMentions(users: string[] = []) {
+  return users.length > 0 ? { parse: [], users } : { parse: [] }
+}
+
 function tituloRegistro(m: Membro, ok: boolean): string {
   return cut(`${ok ? '✅' : '❌'} - ${m.policial}${m.passaporte ? ` | ${m.passaporte}` : ''}`, 100)
 }
@@ -110,14 +135,17 @@ async function criarTopicoOuPostar(
 export async function postarRegistro(data: FastData, m: Membro, discordId?: string): Promise<string | undefined> {
   const channelId = data.canais?.registro
   if (!botConfigurado() || !channelId) return undefined
+  const mentionIds = idsMencionaveis(data, m)
+  if (discordId && !mentionIds.includes(discordId)) mentionIds.push(discordId)
   return criarTopicoOuPostar(channelId, tituloRegistro(m, true), {
-    allowed_mentions: { parse: [] },
+    content: `👤 ${mencionarMembro(data, m)}`,
+    allowed_mentions: allowedMentions(mentionIds),
     embeds: [{
       title: '📝 CADASTRO · Novo membro',
       description: 'Cadastro inicial confirmado no site.',
       color: COR_REGISTRO,
       fields: [
-        campo('Nome', discordId ? `<@${discordId}>` : m.policial),
+        campo('Nome', mencionarMembro(data, m)),
         campo('ID do jogador', m.passaporte),
         campo('Distintivo', m.badge),
         campo('Patente NPD', m.patenteNPD),
@@ -138,14 +166,16 @@ type Embed = Record<string, unknown>
  */
 async function postarNoTopico(data: FastData, m: Membro, embed: Embed, ativo: boolean): Promise<void> {
   if (!botConfigurado()) return
+  const mentionIds = idsMencionaveis(data, m)
+  const message = { content: `👤 ${mencionarMembro(data, m)}`, allowed_mentions: allowedMentions(mentionIds), embeds: [embed] }
   if (m.discordThreadId) {
-    await discord('POST', `/channels/${m.discordThreadId}/messages`, { allowed_mentions: { parse: [] }, embeds: [embed] })
+    await discord('POST', `/channels/${m.discordThreadId}/messages`, message)
     await discord('PATCH', `/channels/${m.discordThreadId}`, { name: tituloRegistro(m, ativo) })
     return
   }
   const channelId = data.canais?.registro
   if (!channelId) return
-  const threadId = await criarTopicoOuPostar(channelId, tituloRegistro(m, ativo), { allowed_mentions: { parse: [] }, embeds: [embed] })
+  const threadId = await criarTopicoOuPostar(channelId, tituloRegistro(m, ativo), message)
   if (!threadId) return
   const fresco = readData()
   const alvo = fresco.membros.find(x => x.id === m.id)
@@ -164,7 +194,7 @@ export async function postarExoneracao(data: FastData, m: Membro, registradoPor:
     description: 'Membro exonerado da Unidade FAST.',
     color: COR_EXONERACAO,
     fields: [
-      campo('Membro', m.policial, false),
+      campo('Membro', mencionarMembro(data, m), false),
       campo('Último cargo', m.patenteInterna || m.patenteNPD),
       campo('Registrado por', registradoPor),
       ...(motivo ? [campo('Motivo', motivo, false)] : []),
@@ -183,7 +213,7 @@ export async function postarMudancaCargo(
     description: promo ? 'Membro promovido na Unidade FAST.' : 'Membro rebaixado na Unidade FAST.',
     color: promo ? COR_PROMOCAO : COR_REBAIXAMENTO,
     fields: [
-      campo('Membro', m.policial, false),
+      campo('Membro', mencionarMembro(data, m), false),
       campo('Cargo anterior', de),
       campo('Novo cargo', para),
       campo('Registrado por', por),
@@ -200,7 +230,7 @@ export async function postarAdvertencia(data: FastData, m: Membro, nivel: number
     description: 'Advertência aplicada ao membro.',
     color: COR_ADVERTENCIA,
     fields: [
-      campo('Membro', m.policial, false),
+      campo('Membro', mencionarMembro(data, m), false),
       campo('Nível', `Advertência ${nivel}`),
       campo('Aplicada por', por),
       campo('Motivo', motivo, false),
@@ -211,7 +241,7 @@ export async function postarAdvertencia(data: FastData, m: Membro, nivel: number
     title: '✅ ADVERTÊNCIAS REMOVIDAS',
     description: 'As advertências do membro foram retiradas.',
     color: COR_PROMOCAO,
-    fields: [campo('Membro', m.policial, false), campo('Removidas por', por)],
+    fields: [campo('Membro', mencionarMembro(data, m), false), campo('Removidas por', por)],
     footer: rodape(),
     timestamp: agora(),
   }, true)
@@ -249,7 +279,7 @@ export async function postarAusencia(
   await postarNoTopico(data, m, {
     ...meta,
     fields: [
-      campo('Membro', m.policial, false),
+      campo('Membro', mencionarMembro(data, m), false),
       campo('Período', `${fmtData(dataInicio)} → ${fmtData(dataFim)}`),
       campo(evento === 'aprovada' ? 'Aprovada por' : 'Registrado por', por),
       ...(motivo ? [campo('Motivo', motivo, false)] : []),
@@ -264,10 +294,12 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
   const channelId = data.canais?.apreensoes
   if (!botConfigurado() || !channelId) return undefined
   const membros = new Map(data.membros.map(m => [m.id, m]))
+  const membrosAcao = acao.participants.map(p => membros.get(p.memberId)).filter((m): m is Membro => Boolean(m))
+  const mentionIds = idsMencionaveis(data, ...membrosAcao)
   const participantes = [
     ...acao.participants.map(p => {
       const m = membros.get(p.memberId)
-      return `• ${[p.patenteUnidade, m?.policial ?? `ID ${p.memberId}`].filter(Boolean).join(' ')}`
+      return `• ${[p.patenteUnidade, m ? mencionarMembro(data, m) : `ID ${p.memberId}`].filter(Boolean).join(' ')}`
     }),
     ...(acao.participantesExtras ?? []).map(e => `• ${[e.patente, e.nome].filter(Boolean).join(' ')} (externo)`),
   ].join('\n')
@@ -292,7 +324,8 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
   if (acao.imagem && /^https?:\/\//.test(acao.imagem)) embed.image = { url: acao.imagem }
 
   return criarTopicoOuPostar(channelId, cut(`${emoji} ${acao.qru} | ${d}/${mes}/${a} | #${acao.id}`, 100), {
-    allowed_mentions: { parse: [] },
+    content: mentionIds.length > 0 ? cut(`👥 ${membrosAcao.map(m => mencionarMembro(data, m)).join(' · ')}`, 1900) : undefined,
+    allowed_mentions: allowedMentions(mentionIds),
     embeds: [embed],
   })
 }
