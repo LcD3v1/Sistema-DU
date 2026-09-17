@@ -5,9 +5,16 @@ import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 
 const MODULOS: { chave: CanalChave; titulo: string; descricao: string }[] = [
-  { chave: 'registro',   titulo: 'Registro',   descricao: 'Cada cadastro concluído vira uma postagem neste fórum. Exonerações são registradas na mesma postagem.' },
-  { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma postagem neste fórum.' },
+  { chave: 'registro',   titulo: 'Registro',   descricao: 'Cada cadastro concluído vira uma postagem no canal configurado. Quando possível, exonerações entram no mesmo tópico.' },
+  { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma postagem no canal configurado.' },
 ]
+
+const TIPO_CANAL: Record<number, string> = {
+  0: 'texto',
+  5: 'anúncio',
+  15: 'fórum',
+  16: 'mídia',
+}
 
 export default function CanaisEditor() {
   const { addToast } = useUIStore()
@@ -28,7 +35,7 @@ export default function CanaisEditor() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">CANAIS DO DISCORD</h3>
-          <p className="text-[11px] text-txt3">Escolha para onde cada módulo envia as postagens. Apenas canais do tipo <span className="text-gold3">Fórum</span> são aceitos.</p>
+          <p className="text-[11px] text-txt3">Escolha para onde cada módulo envia as postagens. O bot lista canais de <span className="text-gold3">texto, anúncio, fórum e mídia</span>.</p>
         </div>
         <button
           onClick={() => refetch()}
@@ -51,7 +58,7 @@ export default function CanaisEditor() {
         </div>
       )}
       {data.botConfigurado && !data.erro && data.foruns.length === 0 && (
-        <p className="text-[11px] text-txt3">Nenhum canal Fórum encontrado no servidor (ou o bot não tem acesso a eles).</p>
+        <p className="text-[11px] text-txt3">Nenhum canal de postagem encontrado no servidor (ou o bot não tem acesso a eles).</p>
       )}
 
       <div className="space-y-2">
@@ -73,7 +80,7 @@ export default function CanaisEditor() {
               >
                 <option value="">— nenhum canal —</option>
                 {perdido && <option value={atual}>⚠ canal indisponível ({atual})</option>}
-                {data.foruns.map(f => <option key={f.id} value={f.id}># {f.name}</option>)}
+                {data.foruns.map(f => <option key={f.id} value={f.id}># {f.name}{f.type !== undefined ? ` · ${TIPO_CANAL[f.type] ?? 'canal'}` : ''}</option>)}
               </select>
             </div>
           )

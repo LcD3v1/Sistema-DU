@@ -150,7 +150,7 @@ export interface CanaisConfig {
   botConfigurado: boolean
   erro?: string
   canais: Partial<Record<CanalChave, string>>
-  foruns: { id: string; name: string }[]
+  foruns: { id: string; name: string; type?: number; parentId?: string | null }[]
 }
 
 export function useCanais(enabled = true) {

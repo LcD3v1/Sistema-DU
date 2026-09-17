@@ -320,7 +320,7 @@ router.delete('/cargos-permissao/:id', requireAuth, adminOnly, (req: Request, re
   res.json({ ok: true })
 })
 
-// ── Canais (fóruns do Discord) ──────────────────────────────────────────────────
+// ── Canais do Discord ───────────────────────────────────────────────────────────
 
 router.get('/canais', requireAuth, adminOnly, async (_req: Request, res: Response): Promise<void> => {
   const data = readData()
@@ -330,7 +330,7 @@ router.get('/canais', requireAuth, adminOnly, async (_req: Request, res: Respons
   try {
     res.json({ botConfigurado: true, canais: data.canais, foruns: await listarForuns() })
   } catch (err) {
-    console.error('[FAST][DISCORD] listar fóruns:', err instanceof Error ? err.message : err)
+    console.error('[FAST][DISCORD] listar canais:', err instanceof Error ? err.message : err)
     res.json({ botConfigurado: true, erro: 'Não foi possível listar os canais do servidor. Verifique o token do bot e o ID do servidor.', canais: data.canais, foruns: [] })
   }
 })
@@ -346,7 +346,7 @@ router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async 
   const ids = new Set(foruns.map(f => f.id))
   for (const [chave, id] of Object.entries(body)) {
     if (id && !ids.has(id)) {
-      res.status(400).json({ error: `O canal selecionado em "${chave}" não é um Fórum deste servidor.` }); return
+      res.status(400).json({ error: `O canal selecionado em "${chave}" não é um canal de postagem acessível deste servidor.` }); return
     }
   }
 

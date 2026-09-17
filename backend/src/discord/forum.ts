@@ -8,11 +8,18 @@ import { readData, writeData } from '../data'
  * - Apreensões: cada ação aprovada vira uma postagem no fórum configurado.
  *
  * Tudo aqui é "best effort": falhas no Discord são logadas e NUNCA quebram a
- * requisição do painel. Os canais só aceitam o tipo Fórum (GUILD_FORUM = 15).
+ * requisição do painel. Aceita canais de texto/anúncio e canais com tópicos
+ * (Fórum/Mídia).
  */
 
 const API = 'https://discord.com/api/v10'
+export const GUILD_TEXT = 0
+export const GUILD_ANNOUNCEMENT = 5
 export const GUILD_FORUM = 15
+export const GUILD_MEDIA = 16
+const GUILD_NEWS_THREAD = 10
+const GUILD_PUBLIC_THREAD = 11
+const POSTABLE_CHANNEL_TYPES = new Set([GUILD_TEXT, GUILD_ANNOUNCEMENT, GUILD_FORUM, GUILD_MEDIA])
 
 const COR_REGISTRO = 0xf5b301
 const COR_EXONERACAO = 0xed4245
@@ -22,7 +29,7 @@ const COR_REBAIXAMENTO = 0xe67e22
 const COR_ADVERTENCIA = 0xf1c40f
 const COR_AUSENCIA = 0x3498db
 
-export interface ForumChannel { id: string; name: string }
+export interface ForumChannel { id: string; name: string; type: number; parentId?: string | null }
 
 export function botConfigurado(): boolean {
   return Boolean(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID)
@@ -44,15 +51,15 @@ async function discord<T>(method: string, route: string, body?: unknown): Promis
   return (res.status === 204 ? undefined : await res.json()) as T
 }
 
-/** Lista apenas os canais do tipo Fórum do servidor configurado. */
+/** Lista os canais do servidor onde o bot pode postar. Mantém o nome legado da função/API. */
 export async function listarForuns(): Promise<ForumChannel[]> {
-  const canais = await discord<{ id: string; name: string; type: number; position: number }[]>(
+  const canais = await discord<{ id: string; name: string; type: number; position: number; parent_id?: string | null }[]>(
     'GET', `/guilds/${process.env.DISCORD_GUILD_ID}/channels`,
   )
   return canais
-    .filter(c => c.type === GUILD_FORUM)
+    .filter(c => POSTABLE_CHANNEL_TYPES.has(c.type))
     .sort((a, b) => a.position - b.position)
-    .map(c => ({ id: c.id, name: c.name }))
+    .map(c => ({ id: c.id, name: c.name, type: c.type, parentId: c.parent_id ?? null }))
 }
 
 const rodape = () => ({ text: 'FAST · North Police Department' })
@@ -65,31 +72,61 @@ function tituloRegistro(m: Membro, ok: boolean): string {
   return cut(`${ok ? '✅' : '❌'} - ${m.policial}${m.passaporte ? ` | ${m.passaporte}` : ''}`, 100)
 }
 
+async function obterCanal(channelId: string): Promise<{ id: string; name?: string; type: number }> {
+  return discord<{ id: string; name?: string; type: number }>('GET', `/channels/${channelId}`)
+}
+
+async function criarTopicoOuPostar(
+  channelId: string,
+  name: string,
+  message: Record<string, unknown>,
+): Promise<string | undefined> {
+  const canal = await obterCanal(channelId)
+
+  if (canal.type === GUILD_FORUM || canal.type === GUILD_MEDIA) {
+    const thread = await discord<{ id: string }>('POST', `/channels/${channelId}/threads`, { name, message })
+    return thread.id
+  }
+
+  if (canal.type === GUILD_TEXT || canal.type === GUILD_ANNOUNCEMENT) {
+    try {
+      const thread = await discord<{ id: string }>('POST', `/channels/${channelId}/threads`, {
+        name,
+        type: canal.type === GUILD_ANNOUNCEMENT ? GUILD_NEWS_THREAD : GUILD_PUBLIC_THREAD,
+        auto_archive_duration: 1440,
+      })
+      await discord('POST', `/channels/${thread.id}/messages`, message)
+      return thread.id
+    } catch {
+      await discord('POST', `/channels/${channelId}/messages`, message)
+      return undefined
+    }
+  }
+
+  throw new Error(`Canal ${channelId} não aceita postagem de texto.`)
+}
+
 /** Cria a postagem de registro e devolve o ID do tópico (thread). */
 export async function postarRegistro(data: FastData, m: Membro, discordId?: string): Promise<string | undefined> {
-  const forumId = data.canais?.registro
-  if (!botConfigurado() || !forumId) return undefined
-  const thread = await discord<{ id: string }>('POST', `/channels/${forumId}/threads`, {
-    name: tituloRegistro(m, true),
-    message: {
-      allowed_mentions: { parse: [] },
-      embeds: [{
-        title: '📝 CADASTRO · Novo membro',
-        description: 'Cadastro inicial confirmado no site.',
-        color: COR_REGISTRO,
-        fields: [
-          campo('Nome', discordId ? `<@${discordId}>` : m.policial),
-          campo('ID do jogador', m.passaporte),
-          campo('Distintivo', m.badge),
-          campo('Patente NPD', m.patenteNPD),
-          campo('Patente interna', m.patenteInterna),
-        ],
-        footer: rodape(),
-        timestamp: agora(),
-      }],
-    },
+  const channelId = data.canais?.registro
+  if (!botConfigurado() || !channelId) return undefined
+  return criarTopicoOuPostar(channelId, tituloRegistro(m, true), {
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      title: '📝 CADASTRO · Novo membro',
+      description: 'Cadastro inicial confirmado no site.',
+      color: COR_REGISTRO,
+      fields: [
+        campo('Nome', discordId ? `<@${discordId}>` : m.policial),
+        campo('ID do jogador', m.passaporte),
+        campo('Distintivo', m.badge),
+        campo('Patente NPD', m.patenteNPD),
+        campo('Patente interna', m.patenteInterna),
+      ],
+      footer: rodape(),
+      timestamp: agora(),
+    }],
   })
-  return thread.id
 }
 
 type Embed = Record<string, unknown>
@@ -106,15 +143,13 @@ async function postarNoTopico(data: FastData, m: Membro, embed: Embed, ativo: bo
     await discord('PATCH', `/channels/${m.discordThreadId}`, { name: tituloRegistro(m, ativo) })
     return
   }
-  const forumId = data.canais?.registro
-  if (!forumId) return
-  const thread = await discord<{ id: string }>('POST', `/channels/${forumId}/threads`, {
-    name: tituloRegistro(m, ativo),
-    message: { allowed_mentions: { parse: [] }, embeds: [embed] },
-  })
+  const channelId = data.canais?.registro
+  if (!channelId) return
+  const threadId = await criarTopicoOuPostar(channelId, tituloRegistro(m, ativo), { allowed_mentions: { parse: [] }, embeds: [embed] })
+  if (!threadId) return
   const fresco = readData()
   const alvo = fresco.membros.find(x => x.id === m.id)
-  if (alvo) { alvo.discordThreadId = thread.id; writeData(fresco) }
+  if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
 }
 
 const fmtData = (iso: string) => { const [a, mes, d] = iso.slice(0, 10).split('-'); return `${d}/${mes}/${a}` }
@@ -226,8 +261,8 @@ export async function postarAusencia(
 
 /** Cria a postagem de uma apreensão (ação aprovada). */
 export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: string): Promise<string | undefined> {
-  const forumId = data.canais?.apreensoes
-  if (!botConfigurado() || !forumId) return undefined
+  const channelId = data.canais?.apreensoes
+  if (!botConfigurado() || !channelId) return undefined
   const membros = new Map(data.membros.map(m => [m.id, m]))
   const participantes = [
     ...acao.participants.map(p => {
@@ -256,11 +291,10 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
   }
   if (acao.imagem && /^https?:\/\//.test(acao.imagem)) embed.image = { url: acao.imagem }
 
-  const thread = await discord<{ id: string }>('POST', `/channels/${forumId}/threads`, {
-    name: cut(`${emoji} ${acao.qru} | ${d}/${mes}/${a} | #${acao.id}`, 100),
-    message: { allowed_mentions: { parse: [] }, embeds: [embed] },
+  return criarTopicoOuPostar(channelId, cut(`${emoji} ${acao.qru} | ${d}/${mes}/${a} | #${acao.id}`, 100), {
+    allowed_mentions: { parse: [] },
+    embeds: [embed],
   })
-  return thread.id
 }
 
 /** Executa uma chamada ao Discord sem bloquear/derrubar a requisição. */
