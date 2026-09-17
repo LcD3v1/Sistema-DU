@@ -71,7 +71,7 @@ export default function NotificationBell() {
         }`}
         aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}`}
       >
-        <Bell size={16} />
+        <Bell size={16} className="text-[#3b82f6]" />
         {naoLidas > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-red text-white text-[10px] font-bold flex items-center justify-center">
             {naoLidas > 99 ? '99+' : naoLidas}

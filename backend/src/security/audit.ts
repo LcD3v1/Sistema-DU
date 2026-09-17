@@ -3,6 +3,7 @@ import path from 'path'
 import { Request } from 'express'
 
 export type AuditEvent =
+  | 'RANKING_VIEW' | 'MEMBER_VIEW' | 'MEMBER_UPDATED' | 'ROLE_CHANGED' | 'RANKING_RECALCULATED'
   | 'LOGIN_SUCCESS' | 'LOGIN_FAILED' | 'LOGIN_LOCKED'
   | 'LOGOUT' | 'TOKEN_REFRESHED' | 'PASSWORD_CHANGED'
   | 'ACCOUNT_CREATED' | 'ACCOUNT_UPDATED' | 'ACCOUNT_DELETED'

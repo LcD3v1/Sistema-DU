@@ -17,6 +17,7 @@ import { limparNotificacoesAntigas } from './notificacoes'
 import { readData as lerDados, writeData as gravarDados } from './data'
 import authRoutes from './routes/auth'
 import publicRoutes from './routes/public'
+import { createRankingRouter } from './modules/ranking/router'
 import membrosRoutes from './routes/membros'
 import acoesRoutes from './routes/acoes'
 import configRoutes from './routes/config'
@@ -56,6 +57,8 @@ app.use(sanitizeBody)
 app.use('/api', apiLimiter)
 app.use('/api/auth', authRoutes)
 app.use('/api/public', publicRoutes)
+app.use('/api/ranking', createRankingRouter())
+app.use('/api/public/directory', createRankingRouter(true))
 app.use('/api/membros', membrosRoutes)
 app.use('/api/acoes', acoesRoutes)
 app.use('/api/config', configRoutes)
@@ -105,7 +108,8 @@ if (existsSync(frontendDist)) {
   const indexHtml = readFileSync(path.join(frontendDist, 'index.html'), 'utf-8')
   app.use((req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-    res.type('html').send(indexHtml.replace(/__SITE_URL__/g, urlDoSite(req)))
+    const ambiente = process.env.AMBIENTE === 'local' ? 'local' : 'producao'
+    res.type('html').send(indexHtml.replace(/__SITE_URL__/g, urlDoSite(req)).replace(/__AMBIENTE__/g, ambiente))
   })
   console.log('[FAST] Servindo frontend de:', frontendDist)
 } else {

@@ -3,6 +3,8 @@ import path from 'path'
 import { MongoClient, Db, AnyBulkWriteOperation, Document } from 'mongodb'
 import { FastData, CargoPermissao } from './types'
 import { fullPermMap, normalizePermMap } from './permAreas'
+import { bindDatabaseScope, configuredScope } from './modules/ranking/scope'
+import { auditRankingChanges } from './modules/ranking/auditChanges'
 
 /**
  * Persistência em MongoDB.
@@ -126,6 +128,8 @@ export async function initData(): Promise<void> {
   client = new MongoClient(uri, { serverSelectionTimeoutMS: 15_000 })
   await client.connect()
   db = client.db(process.env.MONGODB_DB || 'fast')
+  const scope = configuredScope()
+  if (scope) await bindDatabaseScope(db, scope)
 
   const metaDoc = await db.collection<MetaDoc>('config').findOne({ _id: 'meta' })
   if (!metaDoc) {
@@ -160,9 +164,15 @@ export function readData(): FastData {
 
 let gravando: Promise<void> | undefined
 let pendente = false
+let revision = 0
+let persistenceFailed = false
+export function dataRevision(): number { return revision }
+export function rankingPersistenceReady(): boolean { return !persistenceFailed }
 
 export function writeData(data: FastData): void {
+  if (cache) auditRankingChanges(cache, data)
   cache = clone(data)
+  revision++
   agendarFlush()
 }
 
@@ -172,7 +182,8 @@ function agendarFlush(): void {
   gravando = (async () => {
     while (pendente) {
       pendente = false
-      try { await flush() } catch (err) {
+      try { await flush(); persistenceFailed = false } catch (err) {
+        persistenceFailed = true
         console.error('[FAST][DB] Falha ao gravar no MongoDB:', err instanceof Error ? err.message : err)
         pendente = true
         await new Promise(r => setTimeout(r, 3000))

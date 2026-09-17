@@ -93,6 +93,7 @@ export function exonerarMembro(data: FastData, membro: Membro, por: string, moti
     }
   })
   if (conta) {
+    conta.membroArquivado = structuredClone(membro)
     conta.exonerado = true
     conta.exoneradoEm = new Date().toISOString()
     conta.exoneradoMotivo = motivo

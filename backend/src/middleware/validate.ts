@@ -226,6 +226,35 @@ export const canaisSchema = z.object({
   apreensoes: snowflake.nullable().optional(),
 })
 
+const discordMessageBlockSchema = z.discriminatedUnion('tipo', [
+  z.object({
+    id:     safeStr(1, 80),
+    tipo:   z.literal('titulo'),
+    titulo: safeStr(1, 256),
+  }),
+  z.object({
+    id:    safeStr(1, 80),
+    tipo:  z.literal('texto'),
+    texto: safeStr(1, 4000),
+  }),
+  z.object({
+    id:       safeStr(1, 80),
+    tipo:     z.literal('imagem'),
+    origem:   z.enum(['link', 'upload']),
+    valor:    z.string().min(1).max(25_000_000),
+    nome:     z.string().max(140).optional(),
+    mimeType: z.string().max(80).optional(),
+  }),
+])
+
+export const discordMensagemSchema = z.object({
+  canalId: snowflake,
+  blocos:  z.array(discordMessageBlockSchema).min(1).max(10),
+}).refine(body => body.blocos.some(b => b.tipo !== 'imagem' || b.valor.trim()), {
+  message: 'Monte ao menos um bloco válido para enviar',
+  path: ['blocos'],
+})
+
 export const promoverSchema = z.object({
   cargoPermId: z.number().int().positive(),
   motivo:      safeStrOpt(500).default(''),

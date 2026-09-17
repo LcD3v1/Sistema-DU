@@ -10,6 +10,7 @@ export interface MembroServidor {
   user: { id: string; username: string; global_name?: string | null; avatar?: string | null; discriminator?: string }
   nick?: string | null
   avatar?: string | null   // avatar específico do servidor
+  roles?: string[]
 }
 
 const CDN = 'https://cdn.discordapp.com'
@@ -29,6 +30,7 @@ export function nomeDoMembro(m: MembroServidor): string {
 export async function buscarMembroServidor(discordId: string): Promise<MembroServidor | undefined> {
   if (!botConfigurado()) return undefined
   const res = await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${discordId}`, {
+    signal: AbortSignal.timeout(10_000),
     headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
   })
   if (res.status === 404) return undefined
@@ -40,8 +42,10 @@ export async function buscarMembroServidor(discordId: string): Promise<MembroSer
 export function aplicarIdentidade(conta: Conta, m: MembroServidor): boolean {
   const nome = nomeDoMembro(m)
   const avatar = avatarDoMembro(process.env.DISCORD_GUILD_ID!, m)
-  if (conta.nomeServidor === nome && conta.avatarServidor === avatar) return false
+  const roles = m.roles ? [...m.roles].sort() : conta.discordRoleIds
+  if (conta.nomeServidor === nome && conta.avatarServidor === avatar && JSON.stringify(conta.discordRoleIds) === JSON.stringify(roles)) return false
   conta.nomeServidor = nome
   conta.avatarServidor = avatar
+  if (roles) conta.discordRoleIds = roles
   return true
 }

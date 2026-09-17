@@ -1,0 +1,19 @@
+.ranking-module button, .ranking-module input, .ranking-module select { font-family: inherit; }
+.ranking-module button:focus-visible, .ranking-module input:focus-visible, .ranking-module select:focus-visible { outline: 2px solid var(--gold2); outline-offset: 3px; }
+.ranking-hover { transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease; }
+.ranking-hover:hover { transform: translateY(-2px); border-color: var(--gold); background-color: rgba(58,114,196,.06); }
+body:has(.ranking-module) { min-width: 320px; }
+@media (max-width: 639px) {
+  .ranking-podium > :has([aria-label^="Posição 1,"]), .ranking-podium > :has([aria-label="Posição 1"]) { order: -1; }
+  /* Scoped to the module: keep desktop navigation untouched on other screens. */
+  body:has(.ranking-page) #root > div > nav { width: 56px; }
+  body:has(.ranking-page) #root > div > nav > div:first-child { display: none; }
+  body:has(.ranking-page) #root > div > nav a { justify-content: center; padding-left: 8px; padding-right: 8px; }
+  body:has(.ranking-page) #root > div > nav a span { display: none; }
+  body:has(.ranking-page) #root > div > nav p { display: none; }
+  body:has(.ranking-page) #root > div > div > header { padding-left: 12px; padding-right: 12px; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ranking-module *, .ranking-module *::before, .ranking-module *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .ranking-hover:hover { transform: none; }
+}

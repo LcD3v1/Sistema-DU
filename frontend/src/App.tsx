@@ -28,6 +28,8 @@ import PromocoesPage from '@/components/sections/PromocoesPage'
 import AvisosPage from '@/components/sections/AvisosPage'
 import GerarCarteiraPage from '@/components/sections/GerarCarteiraPage'
 import ProfilePage from '@/components/sections/ProfilePage'
+import PerfilPublicoPage from '@/components/sections/PerfilPublicoPage'
+import FaixaAmbiente from '@/components/ui/FaixaAmbiente'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -61,12 +63,14 @@ function RootRedirect() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <FaixaAmbiente />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={
             <PublicRoute><LoginPage /></PublicRoute>
           } />
           <Route path="/auth/discord" element={<DiscordCallback />} />
+          <Route path="/perfil/:slug" element={<PerfilPublicoPage />} />
           <Route path="/" element={
             <ProtectedRoute><AppShell /></ProtectedRoute>
           }>

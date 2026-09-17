@@ -134,6 +134,8 @@ router.post('/:id/promover', requireAuth, requireArea('promocoes', 'editar'), va
   if (conta) conta.cargoPermId = cargoPermId
   membro.patenteInterna = destino.nome
   membro.promocao = hoje()
+  membro.historicoCargos = [...(membro.historicoCargos ?? []),
+    { data: new Date().toISOString(), tipo, de, para: destino.nome, por: req.user!.username }]
   notificarArea(data, 'membros', [conta?.id, req.user!.contaId], tipo,
     tipo === 'promocao' ? `${membro.policial} foi promovido` : `${membro.policial} foi rebaixado`,
     `${de} → ${destino.nome} · por ${req.user!.username}`, '/membros')

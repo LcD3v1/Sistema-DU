@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import { configuredScope, scopeKey } from '../modules/ranking/scope'
 import { requireAuth } from '../middleware/auth'
 import { loginLimiter } from '../middleware/rateLimiter'
 import { validateBody, onboardingSchema, membroSelfSchema } from '../middleware/validate'
@@ -11,6 +12,7 @@ import { readData, writeData } from '../data'
 import { tentarPostarRegistro } from '../discord/forum'
 import { bloqueioDeAcesso } from '../efetivo'
 import { buscarMembroServidor, aplicarIdentidade } from '../discord/identidade'
+import { verificarBotNoServidor } from '../discord/acessoServidor'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { isAdmin, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
@@ -33,7 +35,7 @@ function discordConfigured(): boolean {
 function issueToken(conta: { id: number; username: string; nivel: string }): string {
   const jti = crypto.randomUUID()
   return jwt.sign(
-    { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti },
+    { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti, scope: configuredScope() ? scopeKey(configuredScope()!) : undefined },
     process.env.JWT_SECRET!,
     { expiresIn: '8h' },
   )
@@ -92,12 +94,35 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
     if (!meRes.ok) throw new Error('user fetch failed')
     const me = await meRes.json() as { id: string; username: string; global_name?: string }
 
-    const data = readData()
-    let conta = data.contas.find(c => c.discordId === me.id)
-
     // Donos (DISCORD_OWNER_ID, aceita vários IDs separados por vírgula) têm
     // acesso total. O primeiro dono a entrar assume a conta id 1.
     const ehDono = discordIdsDonos().includes(me.id)
+
+    // Vínculo com o servidor: o bot precisa estar no servidor da unidade e a
+    // pessoa precisa fazer parte dele. Donos passam (evita ficar trancado fora).
+    if (!ehDono) {
+      let botPresente = false
+      try { botPresente = await verificarBotNoServidor() } catch (err) {
+        console.error('[FAST][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err)
+        res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
+      }
+      if (!botPresente) {
+        audit('DISCORD_LOGIN_DENIED', req, `Bot fora do servidor — Discord: ${me.username} (${me.id})`)
+        res.redirect(`${FRONTEND_URL}/login?reason=bot_fora_servidor`); return
+      }
+      let membroServidor
+      try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
+        console.error('[FAST][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
+        res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
+      }
+      if (!membroServidor) {
+        audit('DISCORD_LOGIN_DENIED', req, `Não faz parte do servidor — Discord: ${me.username} (${me.id})`)
+        res.redirect(`${FRONTEND_URL}/login?reason=fora_servidor`); return
+      }
+    }
+
+    const data = readData()
+    let conta = data.contas.find(c => c.discordId === me.id)
     if (!conta && ehDono) {
       const dono = data.contas.find(c => c.id === PROTECTED_OWNER_ID)
       if (dono && !dono.discordId) {
@@ -237,6 +262,15 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
 
   let membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
   const novo = !membro
+  if (!membro) {
+    if (conta.membroArquivado && !data.membros.some(m => m.id === conta.membroArquivado!.id)) {
+      membro = { ...conta.membroArquivado, ...body, status: 'Ativo' }
+      data.membros.push(membro)
+      data.membrosOrder.push(membro.id)
+      conta.membroId = membro.id
+      delete conta.membroArquivado
+    }
+  }
   if (!membro) {
     membro = {
       id: data.nextMemId,

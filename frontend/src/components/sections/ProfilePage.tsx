@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Shield, Trophy, Target, Crosshair, CalendarDays, BadgeCheck, Link2, UserCog, Award, Percent,
   Camera, Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle,
@@ -6,11 +6,12 @@ import {
 import { useMe, useLinkMembro, useSetAvatar, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil } from '@/hooks/useMe'
 import { ROTULO_CAMPO } from '@/lib/perfil'
 import { useMembros } from '@/hooks/useMembros'
-import { useAllAcoes } from '@/hooks/useAcoes'
+import { useDirectoryQuery } from '@/modules/ranking/queries'
+import type { Member as RankingMember } from '@/modules/ranking/types'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { resolveBanner, unlockedTiers, PRESET_BANNERS, TIER_BANNERS } from '@/lib/banners'
-import type { Membro, Acao } from '@/types'
+import type { Membro } from '@/types'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
@@ -31,7 +32,7 @@ function Stat({ icon: Icon, label, value, color = '#3a72c4' }: { icon: typeof Tr
 export default function ProfilePage() {
   const { data: me, isLoading: lme } = useMe()
   const { data: membros, isLoading: lm } = useMembros()
-  const { data: acoesData, isLoading: la } = useAllAcoes()
+  const { data: rankingMember, isLoading: la } = useDirectoryQuery<RankingMember | null>('/me', { period: 'all', search: '', role: '', page: 1 }, false, !!me?.membroId && (me.admin || !!me.cargoPermId))
   const link = useLinkMembro()
   const setAvatar = useSetAvatar()
   const setBanner = useSetBanner()
@@ -48,19 +49,10 @@ export default function ProfilePage() {
   const membrosList: Membro[] = membros ?? []
   const membro = me?.membroId ? membrosList.find(m => m.id === me.membroId) ?? null : null
 
-  const desempenho = useMemo(() => {
-    if (!membro) return null
-    const acoes: Acao[] = (acoesData?.acoes ?? []).filter(a => (a.status ?? 'aprovada') === 'aprovada')
-    const ranking = membrosList
-      .map(m => ({ id: m.id, s: acoes.filter(a => a.resultado === 'Vitória' && a.participants.some(p => p.memberId === m.id)).length }))
-      .filter(r => r.s > 0).sort((a, b) => b.s - a.s)
-    const mine = acoes.filter(a => a.participants.some(p => p.memberId === membro.id))
-    const vitorias = mine.filter(a => a.resultado === 'Vitória').length
-    const derrotas = mine.filter(a => a.resultado === 'Derrota').length
-    const fechadas = vitorias + derrotas
-    const pos = ranking.findIndex(r => r.id === membro.id)
-    return { posicao: pos >= 0 ? pos + 1 : null, sucedidas: vitorias, total: mine.length, vitorias, derrotas, winRate: fechadas ? Math.round((vitorias / fechadas) * 100) : 0 }
-  }, [membro, membrosList, acoesData])
+  const desempenho = rankingMember ? {
+    posicao: rankingMember.rank, sucedidas: rankingMember.wins, total: rankingMember.records,
+    vitorias: rankingMember.wins, derrotas: rankingMember.losses, winRate: rankingMember.winRate,
+  } : null
 
   if (lme || lm || la) return <LoadingHud />
   if (!me) return null

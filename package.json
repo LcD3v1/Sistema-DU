@@ -6,6 +6,7 @@
     "build": "npm run install:all && cd frontend && npm run build && cd ../backend && npm run build",
     "start": "npm run build && cd backend && npm start",
     "start:shardcloud": "npm run build && cd backend && npm run start:shardcloud",
+    "testar:local": "npm run build && cd backend && npm run testar:local",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "install:all": "cd backend && npm install && cd ../frontend && npm install",

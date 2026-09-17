@@ -1,178 +1,267 @@
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { X, Crown, Trophy, Users, ArrowRight } from 'lucide-react'
-import { usePublicRanking, usePublicMembros } from '@/hooks/usePublic'
-import type { MembroPub } from '@/hooks/usePublic'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/axios'
+import type { Member, Page, Period, Ranking, Role } from '@/modules/ranking/types'
+import './diretorio-publico.css'
 
-type Tab = 'ranking' | 'membros'
+/**
+ * Consulta pública da tela inicial (sem login), no visual "paper panel":
+ *  - navegação RANKING — MEMBROS centralizada no topo;
+ *  - Ranking (esquerda) e Membros (direita) abrem de forma independente —
+ *    os dois podem ficar abertos ao mesmo tempo.
+ * Dados da API pública do módulo de ranking (sem IDs do Discord nem histórico).
+ */
 
-const WINDOWS = [
-  { key: 'all', label: 'Todo o período' },
-  { key: '7', label: '7 dias' },
-  { key: '15', label: '15 dias' },
-  { key: '30', label: '30 dias' },
+const PERIODOS: { id: Period; label: string }[] = [
+  { id: 'all', label: 'Todo o período' },
+  { id: '7d', label: '7 dias' },
+  { id: '15d', label: '15 dias' },
+  { id: '30d', label: '30 dias' },
 ]
+const DURACAO_DESENROLAR = 1050
 
-function initials(name: string) {
-  return name.split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('')
-}
-function fmtDate(d: string) {
-  if (!d) return '—'
-  const [y, m, day] = d.split('-')
-  return `${day}/${m}/${y}`
-}
+const semPrefixo = (nome: string) => nome.replace(/^\(FAST\)\s*/i, '')
+const doisDigitos = (n: number) => String(n).padStart(2, '0')
+const dataBR = (d: string) => (/^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10).split('-').reverse().join('/') : '—')
+const iniciais = (nome: string) => nome.split(/\s+/).slice(0, 2).map(p => p[0] || '').join('').toUpperCase() || '?'
 
-function RankingView() {
-  const [win, setWin] = useState('all')
-  const { data, isLoading } = usePublicRanking(win)
+function IconeFechar() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+}
+function IconeSeta() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+}
+function Coroa({ pos }: { pos: number }) {
+  const tipo = pos === 1 ? 'ouro' : pos === 2 ? 'prata' : 'bronze'
   return (
-    <>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="grid grid-cols-3 gap-3 flex-1 min-w-[280px]">
-          <div className="rounded-lg border border-gold/40 bg-gold/10 p-3">
-            <p className="font-mono text-[9px] text-gold3 tracking-[0.15em] uppercase mb-1">Win rate</p>
-            <p className="text-2xl font-bold text-gold3">{data?.winRate ?? 0}%</p>
-            <p className="text-[10px] text-white/50 mt-0.5">{data?.vitoriasTotais ?? 0} vitórias / {data?.acoesFechadas ?? 0} fechadas</p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-            <p className="font-mono text-[9px] text-white/50 tracking-[0.15em] uppercase mb-1">Apreensões</p>
-            <p className="text-2xl font-bold text-white">{data?.totalApreensoes ?? 0}</p>
-            <p className="text-[10px] text-white/50 mt-0.5">registros aprovados</p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-            <p className="font-mono text-[9px] text-white/50 tracking-[0.15em] uppercase mb-1">Conquistas</p>
-            <p className="text-2xl font-bold text-white">{data?.conquistas ?? 0}</p>
-            <p className="text-[10px] text-white/50 mt-0.5">liberadas</p>
-          </div>
-        </div>
-        <div className="flex gap-0.5 bg-white/5 rounded-md p-0.5 self-start">
-          {WINDOWS.map(w => (
-            <button key={w.key} onClick={() => setWin(w.key)}
-              className={`px-2.5 py-1 rounded text-[10px] font-mono transition-colors ${win === w.key ? 'bg-gold text-white' : 'text-white/50 hover:text-white'}`}>
-              {w.label}
+    <svg className={`directory-ranking-crown directory-ranking-crown--${tipo}`} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-1.8 10H4.8z" /><path d="M4.8 18h14.4" />
+    </svg>
+  )
+}
+
+function Foto({ membro, className = 'directory-avatar', children }: { membro: Pick<Member, 'name' | 'avatar'>; className?: string; children?: React.ReactNode }) {
+  const [falhou, setFalhou] = useState(false)
+  return (
+    <span className={className}>
+      {membro.avatar && !falhou
+        ? <img src={membro.avatar} alt={`Foto de ${membro.name}`} loading="lazy" referrerPolicy="no-referrer" onError={() => setFalhou(true)} />
+        : iniciais(membro.name)}
+      {children}
+    </span>
+  )
+}
+
+function Carregando() {
+  return <div className="directory-loading" role="status"><span /><span /><span /><small>Carregando</small></div>
+}
+function Erro({ tentar }: { tentar: () => void }) {
+  return (
+    <div className="directory-error" role="alert">
+      <strong>Não foi possível carregar.</strong>
+      <button className="directory-retry" onClick={tentar}>Tentar novamente</button>
+    </div>
+  )
+}
+
+/** Controla as classes is-open / is-unrolling (animação de "desenrolar"). */
+function useEstadoPainel(aberto: boolean) {
+  const [desenrolando, setDesenrolando] = useState(false)
+  const anterior = useRef(aberto)
+  useEffect(() => {
+    if (aberto && !anterior.current) {
+      setDesenrolando(true)
+      const t = setTimeout(() => setDesenrolando(false), DURACAO_DESENROLAR)
+      anterior.current = aberto
+      return () => clearTimeout(t)
+    }
+    anterior.current = aberto
+  }, [aberto])
+  return `${aberto ? ' is-open' : ''}${aberto && desenrolando ? ' is-unrolling' : ''}`
+}
+
+/* ─────────────────────────── RANKING (esquerda) ─────────────────────────── */
+function PainelRanking({ aberto, onClose }: { aberto: boolean; onClose: () => void }) {
+  const navigate = useNavigate()
+  const [periodo, setPeriodo] = useState<Period>('all')
+  const classes = useEstadoPainel(aberto)
+  const q = useQuery<Ranking>({
+    queryKey: ['publico', 'ranking', periodo],
+    queryFn: async () => (await api.get<Ranking>('/public/directory', { params: { period: periodo, limit: 100, page: 1 } })).data,
+    staleTime: 30_000,
+    enabled: aberto,
+  })
+  const itens = q.data?.items ?? []
+  const maxRegistros = Math.max(1, ...itens.map(m => m.records))
+  const stats = q.data?.stats
+  const fechadas = (stats?.wins ?? 0) + (stats?.losses ?? 0)
+  const rotuloPeriodo = PERIODOS.find(p => p.id === periodo)!.label.toLowerCase()
+
+  return (
+    <section className={`paper-panel paper-panel--ranking${classes}`} aria-hidden={!aberto} aria-labelledby="painel-ranking-titulo">
+      <div className="paper-panel__chrome">
+        <button className="paper-panel__close" onClick={onClose} aria-label="Fechar ranking"><IconeFechar /></button>
+      </div>
+      <header className="paper-panel__header">
+        <span className="paper-panel__eyebrow">Classificação resumida</span>
+        <h2 id="painel-ranking-titulo">Ranking</h2>
+        <div className="directory-periods" role="group" aria-label="Período">
+          {PERIODOS.map(p => (
+            <button key={p.id} className={`directory-period${periodo === p.id ? ' is-selected' : ''}`} aria-pressed={periodo === p.id} onClick={() => setPeriodo(p.id)}>
+              {p.label}
             </button>
           ))}
         </div>
-      </div>
-
-      {isLoading ? (
-        <p className="text-white/40 text-sm py-10 text-center">Carregando…</p>
-      ) : (data?.list.length ?? 0) === 0 ? (
-        <p className="text-white/40 text-sm py-12 text-center">Nenhum registro no período.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-x-8 gap-y-0">
-          {data!.list.map(item => (
-            <div key={item.memberId} className="flex items-center gap-3 py-2.5 border-b border-white/[0.06]">
-              <span className={`font-mono text-sm w-6 text-right ${item.rank <= 3 ? 'text-gold3 font-bold' : 'text-white/40'}`}>{String(item.rank).padStart(2, '0')}</span>
-              <div className="w-8 h-8 rounded-md bg-white/10 flex items-center justify-center text-[10px] font-semibold text-white/80 shrink-0">{initials(item.name)}</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">{item.name}{item.rank <= 3 && <Crown size={11} className="text-gold3" />}</p>
-                <p className="text-[11px] text-white/50 truncate">{item.role} · {item.vitorias} vitórias</p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-base font-bold text-gold3 leading-none">{item.registros}</p>
-                <p className="font-mono text-[8px] text-white/40 tracking-widest uppercase">Reg.</p>
-              </div>
+      </header>
+      <div className="paper-panel__body paper-panel__body--ranking">
+        {q.isLoading ? <Carregando /> : q.isError ? <Erro tentar={() => q.refetch()} /> : (
+          <div className="directory-ranking-summary">
+            <div className="directory-ranking-kpis" aria-label="Resumo operacional">
+              <article className="directory-ranking-kpi directory-ranking-kpi--accent">
+                <span>Win rate</span>
+                <strong>{Math.round(stats?.winRate ?? 0)}%</strong>
+                <small>{stats?.wins ?? 0} vitórias em {fechadas} ações fechadas</small>
+              </article>
+              <article className="directory-ranking-kpi">
+                <span>Total de apreensões</span>
+                <strong>{stats?.records ?? 0}</strong>
+                <small>registros aprovados</small>
+              </article>
+              <article className="directory-ranking-kpi">
+                <span>Conquistas</span>
+                <strong>{stats?.achievements ?? 0}</strong>
+                <small>liberadas pelo efetivo</small>
+              </article>
             </div>
+            <div className="directory-ranking-meta">
+              <span>Top {itens.length} / {rotuloPeriodo}</span>
+              <button className="directory-full-link" onClick={() => navigate('/ranking')}>Abrir ranking completo <IconeSeta /></button>
+            </div>
+            {itens.length === 0 ? <div className="directory-empty directory-empty--ranking">Nenhum registro aprovado neste período.</div> : (
+              <div className="directory-ranking-list">
+                {itens.map((m, i) => {
+                  const pos = m.rank ?? i + 1
+                  return (
+                    <a key={m.id} href={`/perfil/${m.slug}`} onClick={e => { e.preventDefault(); navigate(`/perfil/${m.slug}`) }}
+                      className={`directory-rank-row${pos === 1 ? ' directory-rank-row--leader' : ''}`}
+                      style={{ '--rank-width': `${(m.records / maxRegistros) * 100}%` } as React.CSSProperties}>
+                      <span className="directory-rank-place">{doisDigitos(pos)}</span>
+                      <Foto membro={m} />
+                      <span className="directory-rank-copy">
+                        <span className="directory-rank-name"><span className="directory-rank-name-text">{m.name}</span>{pos <= 3 && <Coroa pos={pos} />}</span>
+                        <span className="directory-rank-role">{m.role} · {m.wins} vitória{m.wins === 1 ? '' : 's'}</span>
+                      </span>
+                      <span className="directory-rank-score"><strong>{m.records}</strong><small>registros</small></span>
+                    </a>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────── MEMBROS (direita) ─────────────────────────── */
+async function buscarTodosMembros(): Promise<{ items: Member[]; roles: Role[] }> {
+  const itens: Member[] = []
+  let roles: Role[] = []
+  for (let pagina = 1; pagina <= 20; pagina++) {
+    const { data } = await api.get<Page>('/public/directory/members', { params: { page: pagina, limit: 100, period: 'all' } })
+    itens.push(...data.items)
+    roles = data.roles
+    if (pagina >= data.pages) break
+  }
+  return { items: itens, roles }
+}
+
+function PainelMembros({ aberto, onClose }: { aberto: boolean; onClose: () => void }) {
+  const navigate = useNavigate()
+  const classes = useEstadoPainel(aberto)
+  const q = useQuery({ queryKey: ['publico', 'membros'], queryFn: buscarTodosMembros, staleTime: 30_000, enabled: aberto })
+
+  const grupos = useMemo(() => {
+    const itens = q.data?.items ?? []
+    const ordem = new Map((q.data?.roles ?? []).map(r => [r.name, r.order]))
+    const porCargo = new Map<string, Member[]>()
+    for (const m of itens) {
+      const chave = m.hierarchy || 'Sem cargo'
+      porCargo.set(chave, [...(porCargo.get(chave) ?? []), m])
+    }
+    return [...porCargo.entries()]
+      .sort((a, b) => (ordem.get(a[0]) ?? 999) - (ordem.get(b[0]) ?? 999))
+      .map(([cargo, membros]) => ({ cargo, membros }))
+  }, [q.data])
+
+  return (
+    <section className={`paper-panel paper-panel--members${classes}`} aria-hidden={!aberto} aria-labelledby="painel-membros-titulo">
+      <div className="paper-panel__chrome">
+        <button className="paper-panel__close" onClick={onClose} aria-label="Fechar membros"><IconeFechar /></button>
+      </div>
+      <header className="paper-panel__header paper-panel__header--members">
+        <span className="paper-panel__eyebrow">Diretório da unidade</span>
+        <h2 id="painel-membros-titulo">Membros</h2>
+      </header>
+      <div className="paper-panel__body paper-panel__body--members">
+        {q.isLoading ? <Carregando /> : q.isError ? <Erro tentar={() => q.refetch()} />
+          : grupos.length === 0 ? <div className="directory-empty">Nenhum membro ativo no diretório.</div>
+          : grupos.map((g, gi) => (
+            <section key={g.cargo} className="directory-member-group" aria-labelledby={`grupo-${gi}`}>
+              <header className="directory-member-group__head">
+                <span className="directory-member-group__index">{doisDigitos(gi + 1)}</span>
+                <h3 id={`grupo-${gi}`}>{semPrefixo(g.cargo)}</h3>
+              </header>
+              <div className="directory-member-grid">
+                {g.membros.map(m => {
+                  const presenca = m.status === 'Ativo' ? ' directory-member-presence--on' : m.status === 'Ausência' ? ' directory-member-presence--ausente' : ''
+                  return (
+                    <article key={m.id} className="directory-member-card" tabIndex={0} role="link" aria-label={`Abrir perfil de ${m.name}`}
+                      onClick={() => navigate(`/perfil/${m.slug}`)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/perfil/${m.slug}`) } }}>
+                      <Foto membro={m} className="directory-avatar directory-member-avatar">
+                        <span className={`directory-member-presence${presenca}`} role="img" aria-label={m.status} title={m.status} />
+                      </Foto>
+                      <span className="directory-member-identity">
+                        {m.badge && <span className="directory-member-id">{m.badge}</span>}
+                        <span className="directory-member-name">{m.name}</span>
+                      </span>
+                      <span className="directory-member-level">NV.{m.level}</span>
+                      <span className="directory-member-police" title={m.role}>{m.role}</span>
+                      <span className="directory-member-since"><small>Desde</small>{dataBR(m.joinedAt)}</span>
+                    </article>
+                  )
+                })}
+              </div>
+            </section>
           ))}
-        </div>
-      )}
-    </>
-  )
-}
-
-function MemberRow({ m }: { m: MembroPub }) {
-  const active = m.status === 'Ativo'
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="relative shrink-0">
-        <div className="w-8 h-8 rounded-md bg-white/10 flex items-center justify-center text-[10px] font-semibold text-white/80">{initials(m.name)}</div>
-        <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0a0d14] ${active ? 'bg-green' : 'bg-white/30'}`} />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate"><span className="font-mono text-white/40 text-xs mr-1.5">{m.badge}</span>{m.name}</p>
-        <p className="text-[11px] text-white/50 truncate">{m.role}</p>
-      </div>
-      <p className="font-mono text-[10px] text-white/40 shrink-0">desde {fmtDate(m.entrada)}</p>
-    </div>
+    </section>
   )
 }
 
-function MembrosView() {
-  const { data, isLoading } = usePublicMembros()
-  if (isLoading) return <p className="text-white/40 text-sm py-10 text-center">Carregando…</p>
-  if ((data?.grupos.length ?? 0) === 0) return <p className="text-white/40 text-sm py-12 text-center">Nenhum membro cadastrado.</p>
-  return (
-    <div>
-      {data!.grupos.map((g, gi) => (
-        <div key={g.patente} className="mb-5">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="font-mono text-[11px] text-gold3 font-bold">{String(gi + 1).padStart(2, '0')}</span>
-            <span className="font-mono text-[11px] text-white/70 tracking-[0.15em] uppercase">{g.patente}</span>
-            <span className="flex-1 h-px bg-white/[0.08]" />
-            <span className="font-mono text-[10px] text-white/30">{g.membros.length}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-x-8">
-            {g.membros.map(m => <MemberRow key={m.id} m={m} />)}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export default function PublicOverlay({ initialTab, onClose }: { initialTab: Tab; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>(initialTab)
-  useEffect(() => setTab(initialTab), [initialTab])
+export default function PublicOverlay() {
+  const [ranking, setRanking] = useState(false)
+  const [membros, setMembros] = useState(false)
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setRanking(false); setMembros(false) } }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
 
   return (
-    <motion.div
-      className="absolute inset-0 z-40 flex items-center justify-center p-6"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <motion.div
-        initial={{ y: 24, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 24, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 140, damping: 22 }}
-        className="relative w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl overflow-hidden"
-      >
-        {/* Header com abas */}
-        <div className="flex items-center gap-4 px-6 py-4 border-b border-white/10">
-          <div className="flex bg-white/5 rounded-lg p-1">
-            <button onClick={() => setTab('ranking')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === 'ranking' ? 'bg-gold text-white' : 'text-white/60 hover:text-white'}`}>
-              <Trophy size={15} /> Ranking
-            </button>
-            <button onClick={() => setTab('membros')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === 'membros' ? 'bg-gold text-white' : 'text-white/60 hover:text-white'}`}>
-              <Users size={15} /> Membros
-            </button>
-          </div>
-          <div className="flex-1">
-            <p className="font-mono text-[10px] text-white/40 tracking-[0.2em] uppercase">
-              {tab === 'ranking' ? 'Classificação operacional' : 'Diretório da unidade'}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><X size={20} /></button>
-        </div>
-
-        {/* Corpo */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 text-white">
-          {tab === 'ranking' ? <RankingView /> : <MembrosView />}
-        </div>
-
-        <div className="px-6 py-2.5 border-t border-white/10 flex items-center justify-between">
-          <span className="font-mono text-[10px] text-white/30 tracking-widest uppercase">FAST · North Police Department</span>
-          <span className="flex items-center gap-1 font-mono text-[10px] text-white/30"><ArrowRight size={11} /> Esc para fechar</span>
-        </div>
-      </motion.div>
-    </motion.div>
+    <div className="public-directory">
+      <nav className="public-directory__nav" aria-label="Consulta pública">
+        <button className={`public-directory__trigger${ranking ? ' is-active' : ''}`} aria-expanded={ranking} onClick={() => setRanking(v => !v)}>Ranking</button>
+        <span className="public-directory__separator" aria-hidden="true" />
+        <button className={`public-directory__trigger${membros ? ' is-active' : ''}`} aria-expanded={membros} onClick={() => setMembros(v => !v)}>Membros</button>
+      </nav>
+      <PainelRanking aberto={ranking} onClose={() => setRanking(false)} />
+      <PainelMembros aberto={membros} onClose={() => setMembros(false)} />
+    </div>
   )
 }

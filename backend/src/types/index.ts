@@ -4,6 +4,8 @@ export type ResultadoAcao = 'Vitória' | 'Derrota' | 'Empate'
 export type ResultadoRecruita = 'Aprovado' | 'Reprovado'
 
 export interface Membro {
+  guildId?: string
+  botId?: string
   id: number
   badge: string
   passaporte: string
@@ -19,6 +21,15 @@ export interface Membro {
   ordem?: number
   discordThreadId?: string   // postagem no fórum de Registro
   advertencias?: Advertencia[]
+  historicoCargos?: MudancaCargo[]
+}
+
+export interface MudancaCargo {
+  data: string                        // ISO
+  tipo: 'promocao' | 'rebaixamento'
+  de: string
+  para: string
+  por: string
 }
 
 export type NivelAdvertencia = 1 | 2 | 3
@@ -41,6 +52,8 @@ export interface ParticipanteExterno {
 }
 
 export interface Acao {
+  guildId?: string
+  botId?: string
   id: number
   data: string
   qru: string
@@ -56,6 +69,10 @@ export interface Acao {
 }
 
 export interface Conta {
+  guildId?: string
+  botId?: string
+  discordRoleIds?: string[]
+  membroArquivado?: Membro
   id: number
   username: string
   nivel: Nivel
@@ -230,6 +247,7 @@ export interface FastData {
 }
 
 export interface AuthPayload {
+  scope?: string
   contaId: number
   username: string
   nivel: Nivel

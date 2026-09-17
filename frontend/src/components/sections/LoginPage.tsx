@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Trophy, Users, ShieldX, CalendarClock } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ShieldX, CalendarClock } from 'lucide-react'
 import Brand from '@/components/ui/Brand'
 import MusicPlayer from '@/components/ui/MusicPlayer'
 import PublicOverlay from '@/components/sections/PublicOverlay'
@@ -13,6 +13,8 @@ const REASONS: Record<string, string> = {
   discord_off: 'Login por Discord ainda não configurado.',
   discord_nao_vinculado: 'Acesso negado para este Discord. Contate o administrador.',
   discord_erro: 'Falha na autenticação com o Discord. Tente novamente.',
+  fora_servidor: 'Você precisa fazer parte do servidor do Discord da unidade para acessar o painel.',
+  bot_fora_servidor: 'O bot da FAST não está no servidor da unidade — o painel está indisponível. Contate o Alto Comando.',
 }
 
 function DiscordIcon({ size = 17 }: { size?: number }) {
@@ -64,7 +66,6 @@ function VideoBackdrop() {
 
 export default function LoginPage() {
   const [params] = useSearchParams()
-  const [overlay, setOverlay] = useState<'ranking' | 'membros' | null>(null)
   const reason = params.get('reason')
   const ate = params.get('ate')
   const ateFmt = ate && /^\d{4}-\d{2}-\d{2}$/.test(ate) ? ate.split('-').reverse().join('/') : null
@@ -82,16 +83,6 @@ export default function LoginPage() {
             <p className="font-mono text-[8px] text-white/40 tracking-[0.2em]">NPD</p>
           </div>
         </div>
-        <nav className="flex items-center gap-2">
-          <button onClick={() => setOverlay('ranking')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/5 text-sm text-white/80 transition-colors">
-            <Trophy size={15} /> Ranking
-          </button>
-          <button onClick={() => setOverlay('membros')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/5 text-sm text-white/80 transition-colors">
-            <Users size={15} /> Membros
-          </button>
-        </nav>
       </header>
 
       {/* ── Hero (centralizado) ──────────────────────────────────── */}
@@ -108,9 +99,6 @@ export default function LoginPage() {
             FAST
           </h1>
 
-          <p className="text-white/60 text-base max-w-md mb-8 leading-relaxed">
-            Central operacional da unidade — controle de apreensões, efetivo e desempenho em tempo real.
-          </p>
 
           <div className="flex flex-col items-center gap-3">
             <motion.a href={DISCORD_URL} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
@@ -155,9 +143,7 @@ export default function LoginPage() {
       <MusicPlayer />
 
       {/* ── Overlay Ranking/Membros ─────────────────────────────── */}
-      <AnimatePresence>
-        {overlay && <PublicOverlay initialTab={overlay} onClose={() => setOverlay(null)} />}
-      </AnimatePresence>
+      <PublicOverlay />
     </div>
   )
 }

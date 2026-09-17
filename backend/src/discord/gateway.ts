@@ -3,6 +3,7 @@ import { readData, writeData } from '../data'
 import { audit } from '../security/audit'
 import { PROTECTED_OWNER_ID } from '../access'
 import { botConfigurado } from './forum'
+import { definirBotNoServidor, verificarBotNoServidor } from './acessoServidor'
 import { exonerarMembro, ehContaDona } from '../efetivo'
 import { notificarArea } from '../notificacoes'
 import { aplicarIdentidade, MembroServidor } from './identidade'
@@ -51,8 +52,20 @@ export function iniciarGateway(): void {
     console.log('[FAST][DISCORD] Bot não configurado — detecção de saída do servidor desativada.')
     return
   }
+  if (process.env.DISCORD_GATEWAY === 'off') {
+    console.log('[FAST][DISCORD] Gateway desligado (DISCORD_GATEWAY=off) — sem eventos em tempo real; presença do bot consultada pela API.')
+    verificarBotNoServidor(true).then(
+      ok => console.log(`[FAST][DISCORD] Bot ${ok ? 'está' : 'NÃO está'} no servidor da unidade.`),
+      err => console.error('[FAST][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err),
+    )
+    return
+  }
   const guildId = process.env.DISCORD_GUILD_ID!
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] })
+
+  // Presença do bot no servidor (libera/bloqueia o painel)
+  client.on(Events.GuildCreate, g => { if (g.id === guildId) { definirBotNoServidor(true); console.log('[FAST][DISCORD] Bot adicionado ao servidor — painel liberado.') } })
+  client.on(Events.GuildDelete, g => { if (g.id === guildId) { definirBotNoServidor(false); console.warn('[FAST][DISCORD] Bot removido do servidor — acesso ao painel bloqueado.') } })
 
   client.on(Events.GuildMemberRemove, member => {
     if (member.guild.id !== guildId) return
@@ -69,9 +82,13 @@ export function iniciarGateway(): void {
       const conta = data.contas.find(c => c.discordId === depois.id)
       const m: MembroServidor = {
         user: { id: depois.id, username: depois.user.username, global_name: depois.user.globalName, avatar: depois.user.avatar },
-        nick: depois.nickname, avatar: depois.avatar,
+        nick: depois.nickname, avatar: depois.avatar, roles: [...depois.roles.cache.keys()].filter(id => id !== guildId),
       }
-      if (conta && aplicarIdentidade(conta, m)) writeData(data)
+      if (conta && aplicarIdentidade(conta, m)) {
+        writeData(data)
+        audit('MEMBER_UPDATED', undefined, `discord=${depois.id}; guild=${guildId}`)
+        if (!_antes.roles.cache.equals(depois.roles.cache)) audit('ROLE_CHANGED', undefined, `discord=${depois.id}; guild=${guildId}`)
+      }
     } catch (err) {
       console.error('[FAST][DISCORD] atualizar identidade:', err instanceof Error ? err.message : err)
     }
@@ -81,7 +98,12 @@ export function iniciarGateway(): void {
   client.once(Events.ClientReady, async c => {
     console.log(`[FAST][DISCORD] Bot conectado como ${c.user.tag}`)
     try {
-      const guild = await c.guilds.fetch(guildId)
+      const guild = await c.guilds.fetch(guildId).catch(err => {
+        definirBotNoServidor(false)
+        console.warn('[FAST][DISCORD] Bot NÃO está no servidor da unidade — acesso ao painel bloqueado.')
+        throw err
+      })
+      definirBotNoServidor(true)
       const membros = await guild.members.fetch()
 
       // Sincroniza apelido e foto do servidor de todas as contas
@@ -91,7 +113,7 @@ export function iniciarGateway(): void {
         const m = conta.discordId ? membros.get(conta.discordId) : undefined
         if (m && aplicarIdentidade(conta, {
           user: { id: m.id, username: m.user.username, global_name: m.user.globalName, avatar: m.user.avatar },
-          nick: m.nickname, avatar: m.avatar,
+          nick: m.nickname, avatar: m.avatar, roles: [...m.roles.cache.keys()].filter(id => id !== guildId),
         })) mudou = true
       }
       if (mudou) writeData(dados)

@@ -1,0 +1,72 @@
+/* Perfil público do membro (/perfil/:slug) */
+.perfil-page {
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh; background: #000; color: #f6f6f7; font-family: var(--font);
+}
+
+/* ── Banner ────────────────────────────────────────────────── */
+.perfil-banner { position: relative; padding: 46px 24px 64px; background: radial-gradient(circle at 70% 20%, rgba(58, 114, 196, .14), transparent 38%), linear-gradient(115deg, #17161a 0%, #0d0d10 48%, #070708 100%); }
+.perfil-voltar { position: absolute; top: 14px; left: max(24px, calc(50% - 440px)); display: inline-flex; align-items: center; gap: 4px; height: 28px; border: 0; background: transparent; color: rgba(246, 246, 247, .48); font: 650 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: color 160ms; }
+.perfil-voltar:hover { color: #fff; }
+.perfil-voltar svg { width: 13px; height: 13px; }
+.perfil-hero { display: flex; align-items: center; justify-content: center; gap: 26px; }
+.perfil-avatar { position: relative; display: grid; place-items: center; width: 192px; height: 192px; flex: 0 0 auto; overflow: hidden; border-radius: 50%; background: #0b0c0d; box-shadow: #0c0c0e 0 0 0 3px, rgba(244, 244, 245, .24) 0 0 0 4px, rgba(0, 0, 0, .42) 0 18px 50px; }
+.perfil-avatar span { color: rgba(246, 246, 247, .5); font: 650 56px/1 var(--font); }
+.perfil-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.perfil-id-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.perfil-id h1 { margin: 0; color: #fff; font: 700 32px/1.05 var(--font); letter-spacing: -.02em; }
+.perfil-nivel { border: 1px solid rgba(58, 114, 196, .48); background: rgba(58, 114, 196, .18); color: #fff; padding: 4px 10px; font: 700 11px/1.5 var(--mono); text-transform: uppercase; }
+.perfil-meta { margin: 6px 0 0; color: #c3c3c7; font: 500 14px/1.5 var(--font); }
+.perfil-sep { margin: 0 7px; color: rgba(195, 195, 199, .45); }
+.perfil-desde { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 0; }
+.perfil-desde span { color: #c3c3c7; font: 650 9px/1.5 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.perfil-desde strong { color: #fff; font: 700 13px/1.5 var(--mono); }
+.perfil-banner-borda { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 42px; }
+.perfil-banner-borda path { fill: #000; }
+
+/* ── Corpo ─────────────────────────────────────────────────── */
+.perfil-corpo { max-width: 780px; margin: 0 auto; padding: 28px 24px 80px; }
+.perfil-status { color: rgba(246, 246, 247, .5); text-align: center; font: 600 12px/1 var(--mono); padding: 60px 0; }
+
+.perfil-resumo { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 60px; padding: 4px 26px 4px 24px; border-right: 2px solid rgb(58, 114, 196); }
+.perfil-periodos { display: grid; grid-template-columns: repeat(3, 120px); gap: 22px; }
+.perfil-periodos div { display: grid; justify-items: center; gap: 8px; }
+.perfil-periodos span { color: rgb(111, 160, 232); font: 650 8px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.perfil-periodos strong { color: #fff; font: 650 23px/1 var(--font); }
+.perfil-resumo-titulo { display: grid; justify-items: end; gap: 6px; text-align: right; }
+.perfil-resumo-titulo span { color: rgb(111, 160, 232); font: 650 8px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
+.perfil-resumo-titulo h2 { margin: 0; color: #fff; font: 650 19px/1.05 var(--font); }
+
+.perfil-bloco { margin-top: 44px; }
+.perfil-bloco-titulo { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 12px; color: #ededee; font: 700 11px/1.5 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+.perfil-bloco-titulo::before { content: ""; width: 18px; height: 1px; background: rgb(58, 114, 196); }
+.perfil-timeline { border: 1px solid rgba(244, 244, 245, .13); background: #0b0b0d; }
+.perfil-linha { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 53px; padding: 8px 14px; border-bottom: 1px solid rgba(244, 244, 245, .075); }
+.perfil-linha:last-child { border-bottom: 0; }
+.perfil-linha:hover { background: rgba(246, 246, 247, .03); }
+.perfil-linha-data { color: #9b9ba4; font: 500 11px/1.5 var(--font); font-variant-numeric: tabular-nums; }
+.perfil-linha-mov { display: grid; min-width: 0; gap: 1px; }
+.perfil-linha-mov span { overflow: hidden; color: #f6f6f7; font: 400 12px/1.5 var(--font); text-overflow: ellipsis; white-space: nowrap; }
+.perfil-linha-mov em { overflow: hidden; color: #9b9ba4; font: normal 400 11px/1.5 var(--font); text-overflow: ellipsis; white-space: nowrap; }
+.perfil-linha-status { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.perfil-badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid; padding: 2px 7px; font: 600 9px/1.6 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.perfil-badge span { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.perfil-badge--win { border-color: rgba(34, 197, 94, .45); background: rgba(34, 197, 94, .12); color: rgb(34, 197, 94); }
+.perfil-badge--loss { border-color: rgba(224, 25, 25, .45); background: rgba(224, 25, 25, .12); color: rgb(240, 82, 82); }
+.perfil-badge--closed { border-color: rgba(246, 246, 247, .4); background: rgba(246, 246, 247, .08); color: #fff; }
+.perfil-link-foto { display: inline-flex; width: 15px; color: #9b9ba4; transition: color 200ms; }
+.perfil-link-foto:hover { color: rgb(111, 160, 232); }
+.perfil-link-foto svg { width: 15px; height: 15px; }
+.perfil-vazio { padding: 40px 24px; border: 1px dashed rgba(255, 255, 255, .18); color: #9b9ba4; text-align: center; font: 500 13px/1.5 var(--font); }
+
+@media (max-width: 720px) {
+  .perfil-hero { flex-direction: column; text-align: center; }
+  .perfil-id-top, .perfil-desde { justify-content: center; }
+  .perfil-avatar { width: 140px; height: 140px; }
+  .perfil-resumo { flex-direction: column-reverse; align-items: stretch; border-right: 0; border-top: 2px solid rgb(58, 114, 196); padding: 16px 0 0; }
+  .perfil-resumo-titulo { justify-items: center; text-align: center; }
+  .perfil-periodos { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .perfil-linha { grid-template-columns: 70px minmax(0, 1fr); }
+  .perfil-linha-status { grid-column: 1 / -1; justify-content: flex-start; }
+}

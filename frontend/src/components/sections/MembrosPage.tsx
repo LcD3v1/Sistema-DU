@@ -28,6 +28,7 @@ import AprovacoesPerfil from '@/components/sections/AprovacoesPerfil'
 import type { Membro, StatusMembro } from '@/types'
 import { confirmar } from '@/lib/dialogo'
 import { discordNome, nomeComDiscord } from '@/lib/discordDisplay'
+import RankingModule from '@/modules/ranking/RankingModule'
 
 interface NovoMembroForm {
   badge: string; passaporte: string; policial: string
@@ -175,6 +176,7 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
 }
 
 export default function MembrosPage() {
+  const [directoryOpen, setDirectoryOpen] = useState(false)
   const { canEdit: can } = usePerms()
   const { addToast } = useUIStore()
   const { data: membros, isLoading } = useMembros()
@@ -291,6 +293,10 @@ export default function MembrosPage() {
 
   return (
     <div className="p-6 space-y-4">
+      <button type="button" onClick={() => setDirectoryOpen(v => !v)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gold/30 text-sm text-gold3 bg-gold/10">
+        <Users size={16} /> {directoryOpen ? 'Fechar diretório de membros' : 'Abrir diretório e perfis'}
+      </button>
+      {directoryOpen && <RankingModule mode="members" />}
       {canEdit && <AprovacoesPerfil />}
 
       <GlowCard>
