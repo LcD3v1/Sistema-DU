@@ -16,7 +16,7 @@ import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Conta, FastData, CargoPermissao } from '../types'
 import { normalizePermMap } from '../permAreas'
-import { botConfigurado, listarForuns, tentarPostarRegistro } from '../discord/forum'
+import { GUILD_ANNOUNCEMENT, GUILD_TEXT, botConfigurado, listarForuns, tentarPostarRegistro } from '../discord/forum'
 import { notificar } from '../notificacoes'
 
 const router = Router()
@@ -343,10 +343,14 @@ router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async 
   try { foruns = await listarForuns() } catch {
     res.status(502).json({ error: 'Não foi possível consultar o Discord.' }); return
   }
-  const ids = new Set(foruns.map(f => f.id))
+  const porId = new Map(foruns.map(f => [f.id, f]))
   for (const [chave, id] of Object.entries(body)) {
-    if (id && !ids.has(id)) {
+    const canal = id ? porId.get(id) : undefined
+    if (id && !canal) {
       res.status(400).json({ error: `O canal selecionado em "${chave}" não é um canal de postagem acessível deste servidor.` }); return
+    }
+    if (chave === 'apreensoes' && canal && ![GUILD_TEXT, GUILD_ANNOUNCEMENT].includes(canal.type)) {
+      res.status(400).json({ error: 'O canal de Apreensões precisa ser um canal de texto ou anúncio, não fórum.' }); return
     }
   }
 

@@ -83,6 +83,18 @@ function mencionarMembro(data: FastData, m: Membro): string {
   return conta?.discordId ? `<@${conta.discordId}> ${nome}` : nome
 }
 
+function mencionarMembroQru(data: FastData, m: Membro): string {
+  return [mencionarMembro(data, m), m.passaporte].filter(Boolean).join(' | ')
+}
+
+function mencionarConta(data: FastData, contaId: number | undefined, fallback: string): string {
+  const conta = data.contas.find(c => c.id === contaId)
+  const membro = conta?.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+  if (membro) return mencionarMembroQru(data, membro)
+  const nome = conta?.nomeServidor || conta?.discordUsername || conta?.username || fallback
+  return conta?.discordId ? `<@${conta.discordId}> ${nome}` : nome
+}
+
 function idsMencionaveis(data: FastData, ...membros: (Membro | undefined)[]): string[] {
   return [...new Set(membros
     .map(m => (m ? contaDoMembro(data, m.id)?.discordId : undefined))
@@ -126,6 +138,26 @@ async function criarTopicoOuPostar(
       await discord('POST', `/channels/${channelId}/messages`, message)
       return undefined
     }
+  }
+
+  throw new Error(`Canal ${channelId} não aceita postagem de texto.`)
+}
+
+async function postarMensagemNoCanal(
+  channelId: string,
+  threadName: string,
+  message: Record<string, unknown>,
+): Promise<string | undefined> {
+  const canal = await obterCanal(channelId)
+
+  if (canal.type === GUILD_TEXT || canal.type === GUILD_ANNOUNCEMENT) {
+    const msg = await discord<{ id: string }>('POST', `/channels/${channelId}/messages`, message)
+    return msg.id
+  }
+
+  if (canal.type === GUILD_FORUM || canal.type === GUILD_MEDIA) {
+    const thread = await discord<{ id: string }>('POST', `/channels/${channelId}/threads`, { name: threadName, message })
+    return thread.id
   }
 
   throw new Error(`Canal ${channelId} não aceita postagem de texto.`)
@@ -183,6 +215,14 @@ async function postarNoTopico(data: FastData, m: Membro, embed: Embed, ativo: bo
 }
 
 const fmtData = (iso: string) => { const [a, mes, d] = iso.slice(0, 10).split('-'); return `${d}/${mes}/${a}` }
+const fmtDataHora = (date = new Date()) => new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'America/Sao_Paulo',
+}).format(date)
 
 /**
  * Registra a exoneração no tópico do membro e troca o título para ❌.
@@ -296,35 +336,40 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
   const membros = new Map(data.membros.map(m => [m.id, m]))
   const membrosAcao = acao.participants.map(p => membros.get(p.memberId)).filter((m): m is Membro => Boolean(m))
   const mentionIds = idsMencionaveis(data, ...membrosAcao)
+  const responsavel = mencionarConta(data, acao.criadoPorContaId, '—')
+  const aprovador = data.contas.find(c => c.username === aprovadoPor || c.discordUsername === aprovadoPor)
+  if (aprovador?.discordId && !mentionIds.includes(aprovador.discordId)) mentionIds.push(aprovador.discordId)
   const participantes = [
     ...acao.participants.map(p => {
       const m = membros.get(p.memberId)
-      return `• ${[p.patenteUnidade, m ? mencionarMembro(data, m) : `ID ${p.memberId}`].filter(Boolean).join(' ')}`
+      return m ? mencionarMembroQru(data, m) : `ID ${p.memberId}`
     }),
-    ...(acao.participantesExtras ?? []).map(e => `• ${[e.patente, e.nome].filter(Boolean).join(' ')} (externo)`),
+    ...(acao.participantesExtras ?? []).map(e => `${[e.patente, e.nome].filter(Boolean).join(' ')} (externo)`),
   ].join('\n')
   const [a, mes, d] = acao.data.split('-')
-  const emoji = acao.resultado === 'Vitória' ? '✅' : acao.resultado === 'Derrota' ? '❌' : '➖'
+  const dataQru = d && mes && a ? `${d}/${mes}/${a}` : fmtData(acao.data)
 
   const embed: Record<string, unknown> = {
-    title: `🚨 APREENSÃO · ${acao.qru}`,
-    color: COR_APREENSAO,
+    title: `🚓 APREENSÃO · ${acao.qru}`,
+    description: `Apreensão aprovada e registrada no painel.\nRegistrado em **${fmtDataHora()}**.`,
+    color: COR_PROMOCAO,
     fields: [
-      campo('Data', `${d}/${mes}/${a}`),
-      campo('Resultado', `${emoji} ${acao.resultado}`),
       campo('QRU', acao.qru),
-      campo('Local', acao.local),
-      campo('Comandante', acao.comandante),
-      campo('Aprovado por', aprovadoPor),
-      campo(`Participantes (${acao.participants.length + (acao.participantesExtras?.length ?? 0)})`, participantes, false),
+      campo('Tipo', 'QRU convencional'),
+      campo('Responsável pelo registro', responsavel),
+      campo('Aprovado por', mencionarConta(data, aprovador?.id, aprovadoPor), false),
+      campo('Participantes', participantes, false),
+      campo('Data da QRU', dataQru),
+      campo('Resultado', acao.resultado),
+      ...(acao.local ? [campo('Local', acao.local, false)] : []),
+      ...(acao.comandante ? [campo('Comandante', acao.comandante, false)] : []),
     ],
-    footer: rodape(),
+    footer: { text: `FAST - North Police Department · ${fmtDataHora()}` },
     timestamp: agora(),
   }
   if (acao.imagem && /^https?:\/\//.test(acao.imagem)) embed.image = { url: acao.imagem }
 
-  return criarTopicoOuPostar(channelId, cut(`${emoji} ${acao.qru} | ${d}/${mes}/${a} | #${acao.id}`, 100), {
-    content: mentionIds.length > 0 ? cut(`👥 ${membrosAcao.map(m => mencionarMembro(data, m)).join(' · ')}`, 1900) : undefined,
+  return postarMensagemNoCanal(channelId, cut(`APREENSÃO · ${acao.qru} · #${acao.id}`, 100), {
     allowed_mentions: allowedMentions(mentionIds),
     embeds: [embed],
   })

@@ -4,9 +4,9 @@ import type { CanalChave } from '@/hooks/useConfig'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 
-const MODULOS: { chave: CanalChave; titulo: string; descricao: string }[] = [
+const MODULOS: { chave: CanalChave; titulo: string; descricao: string; tipos?: number[] }[] = [
   { chave: 'registro',   titulo: 'Registro',   descricao: 'Cada cadastro concluído vira uma postagem no canal configurado. Quando possível, exonerações entram no mesmo tópico.' },
-  { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma postagem no canal configurado.' },
+  { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma mensagem direta no canal configurado.', tipos: [0, 5] },
 ]
 
 const TIPO_CANAL: Record<number, string> = {
@@ -64,7 +64,8 @@ export default function CanaisEditor() {
       <div className="space-y-2">
         {MODULOS.map(mod => {
           const atual = data.canais[mod.chave] ?? ''
-          const perdido = atual && !data.foruns.some(f => f.id === atual)
+          const canais = mod.tipos ? data.foruns.filter(f => f.type === undefined || mod.tipos?.includes(f.type)) : data.foruns
+          const perdido = atual && !canais.some(f => f.id === atual)
           return (
             <div key={mod.chave} className="flex flex-wrap items-center gap-3 px-4 py-3 bg-card2 border border-bdr rounded-lg">
               <MessagesSquare size={16} className="text-gold3 shrink-0" />
@@ -80,7 +81,7 @@ export default function CanaisEditor() {
               >
                 <option value="">— nenhum canal —</option>
                 {perdido && <option value={atual}>⚠ canal indisponível ({atual})</option>}
-                {data.foruns.map(f => <option key={f.id} value={f.id}># {f.name}{f.type !== undefined ? ` · ${TIPO_CANAL[f.type] ?? 'canal'}` : ''}</option>)}
+                {canais.map(f => <option key={f.id} value={f.id}># {f.name}{f.type !== undefined ? ` · ${TIPO_CANAL[f.type] ?? 'canal'}` : ''}</option>)}
               </select>
             </div>
           )
