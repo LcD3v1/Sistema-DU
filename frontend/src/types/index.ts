@@ -74,7 +74,20 @@ export interface Conta {
   discordUsername?: string
   onboarded?: boolean
   exonerado?: boolean
+  exoneradoEm?: string
   exoneradoMotivo?: string
+}
+
+export interface ContaExonerada {
+  id: number
+  username: string
+  discordUsername?: string
+  discordId?: string
+  exoneradoEm?: string
+  exoneradoMotivo?: string
+  membroId?: number | null
+  policial?: string | null
+  cargoNome?: string | null
 }
 
 export interface CategoriaRecrutamento {

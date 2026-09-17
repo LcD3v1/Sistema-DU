@@ -9,9 +9,9 @@ import {
   useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, RotateCcw, Trash2, UserX, Users } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { useMembros, useCreateMembro, useUpdateMembro, useDeleteMembro, useReorderMembros } from '@/hooks/useMembros'
+import { useMembros, useCreateMembro, useUpdateMembro, useDeleteMembro, useReorderMembros, useMembrosExonerados, useRetirarExoneracao } from '@/hooks/useMembros'
 import { usePatentes, useCargos } from '@/hooks/useConfig'
 import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
@@ -179,11 +179,15 @@ export default function MembrosPage() {
   const reorderMembros = useReorderMembros()
   const createMembro = useCreateMembro()
 
+  const [modo, setModo] = useState<'ativos' | 'exonerados'>('ativos')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [modalOpen, setModalOpen] = useState(false)
   const [localOrder, setLocalOrder] = useState<number[] | null>(null)
+  const [exoneradoSelecionado, setExoneradoSelecionado] = useState<number | null>(null)
 
   const canEdit = can('membros')
+  const { data: exonerados = [], isLoading: loadingExonerados } = useMembrosExonerados(canEdit)
+  const retirarExoneracao = useRetirarExoneracao()
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -238,6 +242,25 @@ export default function MembrosPage() {
     }
   }
 
+  async function handleRetirarExoneracao(id: number) {
+    const conta = exonerados.find(e => e.id === id)
+    const nome = conta?.policial || conta?.discordUsername || conta?.username || 'esta pessoa'
+    if (!(await confirmar({
+      titulo: 'Retirar exoneração',
+      mensagem: `Retirar a exoneração de ${nome}? A conta poderá entrar novamente e vai precisar preencher o cadastro para pedir set de novo.`,
+      tom: 'perigo',
+      textoConfirmar: 'Retirar exoneração',
+    }))) return
+
+    try {
+      await retirarExoneracao.mutateAsync(id)
+      setExoneradoSelecionado(null)
+      addToast('success', 'Exoneração retirada. A pessoa já pode pedir set de novo.')
+    } catch {
+      addToast('error', 'Não foi possível retirar a exoneração.')
+    }
+  }
+
   const { register, handleSubmit, reset } = useForm<NovoMembroForm>({
     defaultValues: {
       status: 'Ativo',
@@ -265,22 +288,47 @@ export default function MembrosPage() {
       {canEdit && <AprovacoesPerfil />}
 
       <GlowCard>
-        <div className="p-4 flex items-center gap-4">
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="bg-card2 border border-bdr2 rounded px-3 py-1.5 text-sm font-mono text-txt"
-          >
-            <option value="">Todos os Status</option>
-            <option value="Ativo">Ativo</option>
-            <option value="Inativo">Inativo</option>
-            <option value="Ausência">Ausência</option>
-          </select>
+        <div className="p-4 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center rounded-lg border border-bdr2 bg-card2 p-1">
+            <button
+              type="button"
+              onClick={() => setModo('ativos')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${modo === 'ativos' ? 'bg-gold text-white' : 'text-txt2 hover:text-txt'}`}
+            >
+              <Users size={13} /> Ativos
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setModo('exonerados')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${modo === 'exonerados' ? 'bg-red text-white' : 'text-txt2 hover:text-txt'}`}
+              >
+                <UserX size={13} /> Exonerados
+              </button>
+            )}
+          </div>
 
-          <span className="text-[11px] text-txt3 hidden md:inline">Clique no nome para promover, gerenciar ou exonerar.</span>
-          <span className="font-mono text-xs text-txt2 ml-auto">{orderedMembros.length} membros</span>
+          {modo === 'ativos' && (
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="bg-card2 border border-bdr2 rounded px-3 py-1.5 text-sm font-mono text-txt"
+            >
+              <option value="">Todos os Status</option>
+              <option value="Ativo">Ativo</option>
+              <option value="Inativo">Inativo</option>
+              <option value="Ausência">Ausência</option>
+            </select>
+          )}
 
-          {canEdit && (
+          <span className="text-[11px] text-txt3 hidden md:inline">
+            {modo === 'ativos' ? 'Clique no nome para promover, gerenciar ou exonerar.' : 'Clique no nome exonerado para liberar a retirada da exoneração.'}
+          </span>
+          <span className="font-mono text-xs text-txt2 ml-auto">
+            {modo === 'ativos' ? `${orderedMembros.length} membros` : `${exonerados.length} exonerados`}
+          </span>
+
+          {canEdit && modo === 'ativos' && (
             <HudButton size="sm" onClick={() => setModalOpen(true)}>
               <Plus size={14} className="inline mr-1.5" />
               Novo Membro
@@ -289,49 +337,115 @@ export default function MembrosPage() {
         </div>
       </GlowCard>
 
-      <GlowCard>
-        <div className="overflow-x-auto">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={orderedMembros.map(m => m.id)} strategy={verticalListSortingStrategy}>
-              <table className="w-full text-sm min-w-[1000px]">
-                <thead>
-                  <tr className="border-b border-bdr">
-                    {[
-                      canEdit ? '⠿' : '',
-                      'Badge', 'Passaporte', 'Nome', 'Patente',
-                      'Cargo', 'Status', 'Entrada', 'Promoção', 'Adv.',
-                      canEdit ? '' : '',
-                    ].map((h, i) => (
-                      <th key={i} className="text-left font-mono text-xs text-txt3 tracking-wider px-3 py-3">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {orderedMembros.length === 0 ? (
-                    <tr>
-                      <td colSpan={11} className="text-center py-12 font-mono text-xs text-txt3">
-                        Nenhum membro encontrado
-                      </td>
+      {modo === 'ativos' ? (
+        <GlowCard>
+          <div className="overflow-x-auto">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={orderedMembros.map(m => m.id)} strategy={verticalListSortingStrategy}>
+                <table className="w-full text-sm min-w-[1000px]">
+                  <thead>
+                    <tr className="border-b border-bdr">
+                      {[
+                        canEdit ? '⠿' : '',
+                        'Badge', 'Passaporte', 'Nome', 'Patente',
+                        'Cargo', 'Status', 'Entrada', 'Promoção', 'Adv.',
+                        canEdit ? '' : '',
+                      ].map((h, i) => (
+                        <th key={i} className="text-left font-mono text-xs text-txt3 tracking-wider px-3 py-3">{h}</th>
+                      ))}
                     </tr>
-                  ) : (
-                    orderedMembros.map(m => (
-                      <SortableRow
-                        key={m.id}
-                        membro={m}
-                        canEdit={canEdit}
-                        onUpdate={handleUpdate}
-                        onDelete={handleDelete}
-                        patentes={patentes}
-                        cargos={cargos}
-                      />
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </SortableContext>
-          </DndContext>
-        </div>
-      </GlowCard>
+                  </thead>
+                  <tbody>
+                    {orderedMembros.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="text-center py-12 font-mono text-xs text-txt3">
+                          Nenhum membro encontrado
+                        </td>
+                      </tr>
+                    ) : (
+                      orderedMembros.map(m => (
+                        <SortableRow
+                          key={m.id}
+                          membro={m}
+                          canEdit={canEdit}
+                          onUpdate={handleUpdate}
+                          onDelete={handleDelete}
+                          patentes={patentes}
+                          cargos={cargos}
+                        />
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </SortableContext>
+            </DndContext>
+          </div>
+        </GlowCard>
+      ) : (
+        <GlowCard>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[760px]">
+              <thead>
+                <tr className="border-b border-bdr">
+                  {['Nome', 'Discord', 'Data', 'Motivo', 'Ação'].map(h => (
+                    <th key={h} className="text-left font-mono text-xs text-txt3 tracking-wider px-3 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loadingExonerados ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-12 font-mono text-xs text-txt3">Carregando exonerados...</td>
+                  </tr>
+                ) : exonerados.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-12 font-mono text-xs text-txt3">Nenhum exonerado encontrado</td>
+                  </tr>
+                ) : (
+                  exonerados.map(conta => {
+                    const nome = conta.policial || conta.discordUsername || conta.username
+                    const selecionado = exoneradoSelecionado === conta.id
+                    return (
+                      <tr key={conta.id} className={`border-b border-bdr/50 transition-colors ${selecionado ? 'bg-red/10' : 'hover:bg-bdr/30'}`}>
+                        <td className="px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setExoneradoSelecionado(selecionado ? null : conta.id)}
+                            className="text-left font-mono text-xs text-txt hover:text-gold transition-colors"
+                          >
+                            {nome}
+                          </button>
+                          {conta.cargoNome && <span className="ml-2 text-[10px] font-mono text-txt3">{conta.cargoNome}</span>}
+                        </td>
+                        <td className="px-3 py-3 font-mono text-xs text-txt2">{conta.discordUsername ? `@${conta.discordUsername}` : '—'}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-txt2">{conta.exoneradoEm ? new Date(conta.exoneradoEm).toLocaleDateString('pt-BR') : '—'}</td>
+                        <td className="px-3 py-3 text-xs text-txt2 max-w-[360px] truncate" title={conta.exoneradoMotivo ?? ''}>{conta.exoneradoMotivo || '—'}</td>
+                        <td className="px-3 py-3">
+                          <AnimatePresence>
+                            {selecionado && (
+                              <motion.button
+                                type="button"
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                onClick={() => handleRetirarExoneracao(conta.id)}
+                                disabled={retirarExoneracao.isPending}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gold/40 text-gold3 text-xs font-mono hover:bg-gold/10 transition-colors disabled:opacity-50"
+                              >
+                                <RotateCcw size={13} /> Retirar exoneração
+                              </motion.button>
+                            )}
+                          </AnimatePresence>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </GlowCard>
+      )}
 
       {/* Modal Novo Membro */}
       <ModalOverlay open={modalOpen} onClose={() => setModalOpen(false)} title="NOVO MEMBRO" maxWidth="max-w-2xl">

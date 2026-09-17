@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
-import type { Membro, CargoHierarquia } from '@/types'
+import type { Membro, CargoHierarquia, ContaExonerada } from '@/types'
 
 export function useMembros() {
   return useQuery<Membro[]>({
@@ -11,6 +11,18 @@ export function useMembros() {
       return data
     },
     refetchInterval: 60_000,
+  })
+}
+
+export function useMembrosExonerados(enabled = true) {
+  return useQuery<ContaExonerada[]>({
+    queryKey: ['membros', 'exonerados'],
+    queryFn: async () => {
+      const { data } = await api.get<ContaExonerada[]>('/membros/exonerados')
+      return data
+    },
+    enabled,
+    refetchInterval: enabled ? 60_000 : false,
   })
 }
 
@@ -52,6 +64,7 @@ export function useHierarquia(enabled = true) {
 
 function invalidarEfetivo() {
   queryClient.invalidateQueries({ queryKey: ['membros'] })
+  queryClient.invalidateQueries({ queryKey: ['membros', 'exonerados'] })
   queryClient.invalidateQueries({ queryKey: ['me'] })
   queryClient.invalidateQueries({ queryKey: ['config', 'contas'] })
 }
@@ -82,6 +95,13 @@ export function useRemoverAdvertencias() {
 export function useExonerar() {
   return useMutation({
     mutationFn: ({ id, motivo }: { id: number; motivo: string }) => api.post(`/membros/${id}/exonerar`, { motivo }),
+    onSuccess: invalidarEfetivo,
+  })
+}
+
+export function useRetirarExoneracao() {
+  return useMutation({
+    mutationFn: (id: number) => api.post(`/membros/exonerados/${id}/retirar`),
     onSuccess: invalidarEfetivo,
   })
 }

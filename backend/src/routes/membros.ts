@@ -49,6 +49,57 @@ router.get('/hierarquia', requireAuth, (_req, res) => {
   res.json(data.cargosPermissao.map((c, i) => ({ id: c.id, nome: c.nome, admin: c.admin === true, posicao: i })))
 })
 
+// GET /api/membros/exonerados — contas bloqueadas por exoneração
+router.get('/exonerados', requireAuth, requireArea('membros', 'editar'), (_req: Request, res: Response): void => {
+  const data = readData()
+  const lista = data.contas
+    .filter(c => c.exonerado)
+    .map(conta => {
+      const membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+      const cargo = conta.cargoPermId ? data.cargosPermissao.find(c => c.id === conta.cargoPermId) : undefined
+      return {
+        id: conta.id,
+        username: conta.username,
+        discordUsername: conta.discordUsername,
+        discordId: conta.discordId,
+        exoneradoEm: conta.exoneradoEm,
+        exoneradoMotivo: conta.exoneradoMotivo,
+        membroId: conta.membroId ?? null,
+        policial: membro?.policial ?? null,
+        cargoNome: cargo?.nome ?? null,
+      }
+    })
+    .sort((a, b) => String(b.exoneradoEm ?? '').localeCompare(String(a.exoneradoEm ?? '')))
+
+  res.json(lista)
+})
+
+// POST /api/membros/exonerados/:id/retirar — readmite a conta e força novo cadastro/aprovação
+router.post('/exonerados/:id/retirar', requireAuth, requireArea('membros', 'editar'), (req: Request, res: Response): void => {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+
+  const data = readData()
+  const conta = data.contas.find(c => c.id === id)
+  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  if (conta.id === PROTECTED_OWNER_ID) { res.status(400).json({ error: 'A conta dona não pode passar por readmissão manual.' }); return }
+  if (!conta.exonerado) { res.status(400).json({ error: 'Esta conta não está exonerada.' }); return }
+
+  delete conta.exonerado
+  delete conta.exoneradoEm
+  delete conta.exoneradoMotivo
+  delete conta.cargoPermId
+  delete conta.membroId
+  conta.ativo = true
+  conta.onboarded = false
+
+  notificar(data, conta.id, 'cadastro', 'Exoneração retirada',
+    'Sua exoneração foi retirada. Entre novamente e preencha o cadastro para solicitar set de novo.', '/perfil')
+  writeData(data)
+  audit('ACCOUNT_READMITTED', req, `Conta ${conta.username} (#${conta.id}) — exoneração retirada por ${req.user!.username}`)
+  res.json({ ok: true })
+})
+
 function carregarMembro(req: Request, res: Response): { data: FastData; membro: Membro } | undefined {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return undefined }
