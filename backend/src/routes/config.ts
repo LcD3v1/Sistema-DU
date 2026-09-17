@@ -14,13 +14,28 @@ import {
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
-import { Conta, FastData, CargoPermissao } from '../types'
+import { Conta, FastData, CargoPermissao, CanaisDiscord } from '../types'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
-import { GUILD_ANNOUNCEMENT, GUILD_TEXT, botConfigurado, listarForuns, tentarPostarRegistro } from '../discord/forum'
+import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro } from '../discord/forum'
 import { notificar } from '../notificacoes'
 
 const router = Router()
+
+/**
+ * Canais configuráveis do Discord — fonte única.
+ *
+ * O tipo `Record<keyof CanaisDiscord, ...>` é proposital: ao acrescentar um canal
+ * em `CanaisDiscord`, o TypeScript quebra AQUI até a entrada ser adicionada, então
+ * o canal novo nunca fica de fora da validação nem da gravação.
+ */
+const CANAIS_CFG: Record<keyof CanaisDiscord, { rotulo: string; tipos?: number[]; exigencia?: string }> = {
+  registro:   { rotulo: 'Registro' },
+  apreensoes: { rotulo: 'Apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio, não fórum' },
+  carteira:   { rotulo: 'Carteira',   tipos: [GUILD_FORUM, GUILD_MEDIA],       exigencia: 'fórum ou mídia' },
+}
+type ChaveCanal = keyof typeof CANAIS_CFG
+const CHAVES_CANAIS = Object.keys(CANAIS_CFG) as ChaveCanal[]
 
 /** O autor da requisição é dev? (poder total, acima do admin) */
 function souDev(req: Request, data: FastData): boolean {
@@ -379,7 +394,7 @@ router.get('/canais', requireAuth, adminOnly, async (_req: Request, res: Respons
 
 router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async (req: Request, res: Response): Promise<void> => {
   if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
-  const body = req.body as { registro?: string | null; apreensoes?: string | null }
+  const body = req.body as Partial<Record<ChaveCanal, string | null>>
 
   let foruns
   try { foruns = await listarForuns() } catch {
@@ -387,22 +402,23 @@ router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async 
   }
   const porId = new Map(foruns.map(f => [f.id, f]))
   for (const [chave, id] of Object.entries(body)) {
+    const cfg = CANAIS_CFG[chave as ChaveCanal]
     const canal = id ? porId.get(id) : undefined
     if (id && !canal) {
       res.status(400).json({ error: `O canal selecionado em "${chave}" não é um canal de postagem acessível deste servidor.` }); return
     }
-    if (chave === 'apreensoes' && canal && ![GUILD_TEXT, GUILD_ANNOUNCEMENT].includes(canal.type)) {
-      res.status(400).json({ error: 'O canal de Apreensões precisa ser um canal de texto ou anúncio, não fórum.' }); return
+    if (canal && cfg?.tipos && !cfg.tipos.includes(canal.type)) {
+      res.status(400).json({ error: `O canal de ${cfg.rotulo} precisa ser um canal de ${cfg.exigencia}.` }); return
     }
   }
 
   const data = readData()
-  for (const chave of ['registro', 'apreensoes'] as const) {
+  for (const chave of CHAVES_CANAIS) {
     if (body[chave] === null) delete data.canais[chave]
     else if (body[chave]) data.canais[chave] = body[chave]
   }
   writeData(data)
-  audit('CANAIS_UPDATED', req, `registro: ${data.canais.registro ?? '—'} | apreensões: ${data.canais.apreensoes ?? '—'}`)
+  audit('CANAIS_UPDATED', req, CHAVES_CANAIS.map(k => `${k}: ${data.canais[k] ?? '—'}`).join(' | '))
   res.json({ canais: data.canais })
 })
 
