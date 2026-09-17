@@ -10,7 +10,7 @@ import { securityHeaders, permissionsPolicy } from './middleware/securityHeaders
 import { globalLimiter, apiLimiter } from './middleware/rateLimiter'
 import { sanitizeBody } from './middleware/sanitize'
 import { audit } from './security/audit'
-import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration } from './data'
+import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureFastPermissionRoles } from './data'
 import { iniciarGateway } from './discord/gateway'
 import { verificarAusencias } from './efetivo'
 import { limparNotificacoesAntigas } from './notificacoes'
@@ -130,6 +130,7 @@ async function iniciar(): Promise<void> {
   await initData()
   ensureDefaultAdmin()
   ensureNivelMigration()
+  ensureFastPermissionRoles()
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[FAST] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
     console.log(`[FAST] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)

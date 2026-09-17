@@ -1,8 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import { MongoClient, Db, AnyBulkWriteOperation, Document } from 'mongodb'
-import { FastData } from './types'
-import { fullPermMap } from './permAreas'
+import { FastData, CargoPermissao } from './types'
+import { fullPermMap, normalizePermMap } from './permAreas'
 
 /**
  * Persistência em MongoDB.
@@ -77,6 +77,16 @@ const DEFAULT_DATA: FastData = {
   solicitacoesPerfil: [],
   nextSolPerfilId: 1,
 }
+
+const FAST_PERMISSION_ROLES = [
+  '(FAST) Commander',
+  '(FAST) Deputy Commander',
+  '(FAST) Coordinator',
+  '(FAST) Veteran',
+  '(FAST) Senior',
+  '(FAST) Officer',
+  '(FAST) Probationary',
+] as const
 
 let db: Db | undefined
 let client: MongoClient | undefined
@@ -228,6 +238,87 @@ export function ensureNivelMigration(): void {
   data.nivelMigrado = true
   writeData(data)
   console.log('[FAST] Migração nível→cargos concluída (cargo Administrador criado/atribuído).')
+}
+
+function defaultPermsForFastRole(nome: string) {
+  if (nome === '(FAST) Commander' || nome === '(FAST) Deputy Commander') return fullPermMap()
+  return normalizePermMap({
+    dashboard: { ver: true },
+    avisos: { ver: true },
+    ranking: { ver: true },
+    estatisticas: { ver: true },
+    membros: { ver: true },
+    historico: { ver: true },
+  })
+}
+
+/**
+ * Garante a hierarquia oficial FAST nos cargos de permissão.
+ * Não sobrescreve permissões já editadas; só cria o que faltar e reordena os
+ * cargos oficiais no topo, na ordem da hierarquia.
+ */
+export function ensureFastPermissionRoles(): void {
+  const data = readData()
+  let mudou = false
+
+  const byName = (nome: string) => data.cargosPermissao.find(c => c.nome.toLowerCase() === nome.toLowerCase())
+  let commander = byName('(FAST) Commander')
+  const legacyAdmin = data.cargosPermissao.find(c => c.admin && c.nome.toLowerCase() === 'administrador')
+
+  if (!commander && legacyAdmin) {
+    legacyAdmin.nome = '(FAST) Commander'
+    legacyAdmin.admin = true
+    legacyAdmin.permissoes = normalizePermMap(legacyAdmin.permissoes)
+    commander = legacyAdmin
+    mudou = true
+  }
+
+  for (const nome of FAST_PERMISSION_ROLES) {
+    let cargo = byName(nome)
+    if (!cargo) {
+      cargo = {
+        id: data.nextCargoPermId++,
+        nome,
+        admin: nome === '(FAST) Commander',
+        padrao: nome === '(FAST) Probationary',
+        permissoes: defaultPermsForFastRole(nome),
+      } satisfies CargoPermissao
+      data.cargosPermissao.push(cargo)
+      mudou = true
+    } else {
+      const normalized = normalizePermMap(cargo.permissoes)
+      if (JSON.stringify(normalized) !== JSON.stringify(cargo.permissoes)) {
+        cargo.permissoes = normalized
+        mudou = true
+      }
+      if (nome === '(FAST) Commander' && cargo.admin !== true) {
+        cargo.admin = true
+        mudou = true
+      }
+    }
+  }
+
+  const oficiais = FAST_PERMISSION_ROLES
+    .map(nome => byName(nome))
+    .filter((c): c is CargoPermissao => Boolean(c))
+  const officialIds = new Set(oficiais.map(c => c.id))
+  const outros = data.cargosPermissao.filter(c => !officialIds.has(c.id))
+  const novaOrdem = [...oficiais, ...outros]
+  if (novaOrdem.map(c => c.id).join(',') !== data.cargosPermissao.map(c => c.id).join(',')) {
+    data.cargosPermissao = novaOrdem
+    mudou = true
+  }
+
+  const probationary = byName('(FAST) Probationary')
+  if (probationary && !data.cargosPermissao.some(c => c.padrao)) {
+    probationary.padrao = true
+    mudou = true
+  }
+
+  if (mudou) {
+    writeData(data)
+    console.log('[FAST] Cargos de permissão FAST sincronizados.')
+  }
 }
 
 /**
