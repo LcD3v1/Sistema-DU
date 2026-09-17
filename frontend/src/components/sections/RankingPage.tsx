@@ -12,6 +12,6 @@ export default function RankingPage() {
         <p className="text-sm text-white/70 mt-1">Classificação por registros aprovados e desempenho da unidade.</p>
       </div>
     </div>
-    <RankingModule />
+    <RankingModule mode="ranking" />
   </div>
 }
