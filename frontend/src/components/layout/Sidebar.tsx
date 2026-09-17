@@ -108,11 +108,11 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
     <div
       aria-hidden
       onClick={onFechar}
-      className={`lg:hidden fixed inset-0 z-[800] bg-black/60 transition-opacity duration-200 ${aberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      className={`lg:hidden fixed inset-0 z-800 bg-black/60 transition-opacity duration-200 ${aberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
     />
     <nav
       className={`w-[min(15rem,82vw)] lg:w-60 bg-sb border-r border-bdr flex flex-col shrink-0 overflow-hidden
-        fixed inset-y-0 left-0 z-[810] transition-transform duration-200 ease-out
+        fixed inset-y-0 left-0 z-810 transition-transform duration-200 ease-out
         lg:static lg:z-auto lg:translate-x-0 lg:transition-none
         ${aberto ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}
       aria-label="Menu principal"
@@ -120,7 +120,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
       <button
         type="button"
         onClick={onFechar}
-        className="lg:hidden absolute top-2 right-2 z-10 w-10 h-10 flex items-center justify-center rounded-md text-txt2 hover:text-txt hover:bg-white/[0.05]"
+        className="lg:hidden absolute top-2 right-2 z-10 w-10 h-10 flex items-center justify-center rounded-md text-txt2 hover:text-txt hover:bg-white/5"
         aria-label="Fechar menu"
       >
         <X size={18} />
@@ -165,7 +165,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
                     `group relative flex items-center gap-3 pl-3 pr-2 py-2.5 lg:py-2 rounded-md text-sm transition-colors
                     ${isActive
                       ? 'bg-gold/10 text-txt font-medium'
-                      : 'text-txt2 hover:text-txt hover:bg-white/[0.03]'
+                      : 'text-txt2 hover:text-txt hover:bg-white/3'
                     }`
                   }
                 >
@@ -202,7 +202,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
       </div>
 
       {/* Footer — desenvolvido por */}
-      <div className="group m-3 flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-gradient-to-br from-navy2/50 to-transparent px-3 py-2.5 transition-colors hover:border-gold/30">
+      <div className="group m-3 flex items-center gap-2.5 rounded-lg border border-white/6 bg-gradient-to-br from-navy2/50 to-transparent px-3 py-2.5 transition-colors hover:border-gold/30">
         <div className="w-7 h-7 shrink-0 rounded-md bg-gold/15 border border-gold/30 flex items-center justify-center transition-transform group-hover:scale-105">
           <Code2 size={14} className="text-gold3" />
         </div>

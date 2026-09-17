@@ -20,6 +20,7 @@ export interface Me {
   onboarded: boolean
   cargoPermId: number | null
   admin: boolean
+  dev: boolean
   permissoes: PermMap | null
 }
 

@@ -9,7 +9,7 @@ import { postarExoneracao, postarMudancaCargo, postarAdvertencia, postarPerfilAt
 import { notificar, notificarArea } from '../notificacoes'
 import { avatarAtual, aplicarCampoPerfil } from '../identidadeMembro'
 import { contaDoMembro, nivelHierarquia, podeGerenciar, exonerarMembro, nomeCargoAtual, ausenciaAtivaDoMembro, hoje } from '../efetivo'
-import { canArea, isAdmin, PROTECTED_OWNER_ID } from '../access'
+import { canArea, isAdmin, isDev, PROTECTED_OWNER_ID } from '../access'
 
 const router = Router()
 
@@ -75,9 +75,14 @@ router.get('/hierarquia', requireAuth, requireAprovado, (req, res) => {
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)
   const admin = Boolean(conta && isAdmin(conta, data))
-  res.json(data.cargosPermissao.map((c, i) => (admin
-    ? { id: c.id, nome: c.nome, admin: c.admin === true, posicao: i }
-    : { id: c.id, nome: c.nome, posicao: i })))
+  const dev = Boolean(conta && isDev(conta, data))
+  res.json(data.cargosPermissao
+    // Cargo de dev só aparece para um dev — ninguém mais pode concedê-lo.
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => dev || c.dev !== true)
+    .map(({ c, i }) => (admin
+      ? { id: c.id, nome: c.nome, admin: c.admin === true, dev: c.dev === true, posicao: i }
+      : { id: c.id, nome: c.nome, posicao: i })))
 })
 
 // GET /api/membros/exonerados — contas bloqueadas por exoneração

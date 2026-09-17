@@ -149,7 +149,7 @@ export function useUpdateRecCfg() {
   })
 }
 
-export type CanalChave = 'registro' | 'apreensoes'
+export type CanalChave = 'registro' | 'apreensoes' | 'carteira'
 export interface CanaisConfig {
   botConfigurado: boolean
   erro?: string

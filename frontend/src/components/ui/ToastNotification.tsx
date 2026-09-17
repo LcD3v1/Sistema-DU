@@ -50,7 +50,7 @@ export default function ToastContainer() {
   const { toasts } = useUIStore()
 
   return (
-    <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-[99999]">
+    <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-99999">
       <AnimatePresence>
         {toasts.map(t => <ToastItem key={t.id} toast={t} />)}
       </AnimatePresence>

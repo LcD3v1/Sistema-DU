@@ -67,7 +67,7 @@ export default function NotificationBell() {
       <button
         onClick={() => setAberto(v => !v)}
         className={`relative w-9 h-9 rounded-full flex items-center justify-center border transition-colors ${
-          aberto ? 'border-gold/50 bg-gold/10 text-gold3' : 'border-bdr2 text-txt2 hover:text-txt hover:border-bdr2 hover:bg-white/[0.03]'
+          aberto ? 'border-gold/50 bg-gold/10 text-gold3' : 'border-bdr2 text-txt2 hover:text-txt hover:border-bdr2 hover:bg-white/3'
         }`}
         aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}`}
       >
@@ -109,8 +109,8 @@ export default function NotificationBell() {
                 return (
                   <div key={n.id}
                     className={`group relative flex gap-3 px-4 py-3 border-b border-bdr/60 last:border-0 transition-colors ${
-                      n.lida ? '' : 'bg-gold/[0.04]'
-                    } ${n.link ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
+                      n.lida ? '' : 'bg-gold/4'
+                    } ${n.link ? 'cursor-pointer hover:bg-white/3' : ''}`}
                     onClick={() => abrir(n)}
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"

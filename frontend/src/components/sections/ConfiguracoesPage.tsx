@@ -234,7 +234,7 @@ function SituacoesEditor({
       </div>
 
       {/* Adicionar */}
-      <div className="border border-gold/20 rounded-lg bg-gold/[0.04] p-3 space-y-2">
+      <div className="border border-gold/20 rounded-lg bg-gold/4 p-3 space-y-2">
         <p className="font-mono text-[11px] text-gold3 tracking-wider">NOVA SITUAÇÃO</p>
         <div className="flex gap-2">
           <input value={novo.label} onChange={e => setNovo(p => ({ ...p, label: e.target.value }))}
@@ -261,7 +261,7 @@ function SituacoesEditor({
 
 export default function ConfiguracoesPage() {
   const { user } = useAuthStore()
-  const { admin: isAdmin } = usePerms()
+  const { admin: isAdmin, dev: souDev } = usePerms()
   const { addToast } = useUIStore()
   const [activeTab, setActiveTab] = useState('logo')
 
@@ -295,7 +295,9 @@ export default function ConfiguracoesPage() {
   const updateConta = useUpdateConta()
   const deleteConta = useDeleteConta()
 
-  const { data: cargosPerm = [] } = useCargosPermissao(isAdmin)
+  const { data: cargosPermTodos = [] } = useCargosPermissao(isAdmin)
+  // Cargo de dev só aparece (e só é atribuível) para um dev.
+  const cargosPerm = cargosPermTodos.filter(cp => souDev || cp.dev !== true)
   // Pendentes = contas criadas pelo Discord que ainda não receberam cargo
   const solicitacoes = contas.filter(c => c.id !== 1 && !c.cargoPermId && c.ativo)
   const cargoPadraoId = cargosPerm.find(c => c.padrao)?.id

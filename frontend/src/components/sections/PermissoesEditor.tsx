@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown, ChevronUp, ChevronDown, MoreHorizontal, X, Users, Eye,
+  Plus, Trash2, Star, ShieldCheck, Pencil, Check, Crown, ChevronUp, ChevronDown, MoreHorizontal, X, Users, Eye, Terminal,
 } from 'lucide-react'
 import { PERM_AREAS, emptyPermMap, type PermMap } from '@/lib/permAreas'
 import {
@@ -10,6 +10,7 @@ import {
   type CargoPermissao,
 } from '@/hooks/useCargosPermissao'
 import { useContas } from '@/hooks/useContas'
+import { useMe } from '@/hooks/useMe'
 import { useUIStore } from '@/store/uiStore'
 import HudButton from '@/components/ui/HudButton'
 import { confirmar } from '@/lib/dialogo'
@@ -71,8 +72,11 @@ function PermGrid({ value, onToggle }: { value: PermMap; onToggle: (area: string
 function EditarCargoModal({ cargo, onClose }: { cargo: CargoPermissao; onClose: () => void }) {
   const update = useUpdateCargoPerm()
   const { addToast } = useUIStore()
+  const { data: me } = useMe()
+  const souDev = me?.dev === true
   const [nome, setNome] = useState(cargo.nome)
   const [admin, setAdmin] = useState(!!cargo.admin)
+  const [dev, setDev] = useState(!!cargo.dev)
   const [perm, setPerm] = useState<PermMap>({ ...emptyPermMap(), ...cargo.permissoes })
 
   useEffect(() => {
@@ -87,7 +91,7 @@ function EditarCargoModal({ cargo, onClose }: { cargo: CargoPermissao; onClose: 
   function salvar() {
     const n = nome.trim()
     if (!n) { addToast('error', 'Informe o nome do cargo.'); return }
-    update.mutate({ id: cargo.id, nome: n, admin, permissoes: perm }, {
+    update.mutate({ id: cargo.id, nome: n, admin, ...(souDev ? { dev } : {}), permissoes: perm }, {
       onSuccess: () => { addToast('success', `Cargo "${n}" atualizado.`); onClose() },
       onError: e => addToast('error', erroApi(e, 'Erro ao salvar o cargo.')),
     })
@@ -98,7 +102,7 @@ function EditarCargoModal({ cargo, onClose }: { cargo: CargoPermissao; onClose: 
   return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9000] flex items-center justify-center p-4"
+      className="fixed inset-0 z-9000 flex items-center justify-center p-4"
       style={{ backdropFilter: 'blur(6px)', background: 'rgba(5,5,5,0.75)' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
       role="dialog" aria-modal="true"
@@ -106,7 +110,7 @@ function EditarCargoModal({ cargo, onClose }: { cargo: CargoPermissao; onClose: 
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="w-full max-w-lg bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-y-auto overscroll-contain max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)]"
+        className="w-full max-w-lg bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-y-auto overscroll-contain max-h-[calc(100dvh-2rem)]"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-bdr">
           <h2 className="text-sm font-semibold text-txt flex items-center gap-2"><Pencil size={15} className="text-gold3" /> Editar cargo</h2>
@@ -120,14 +124,22 @@ function EditarCargoModal({ cargo, onClose }: { cargo: CargoPermissao; onClose: 
               className="input-gold mt-1 w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm text-txt" />
           </div>
 
+          {souDev && (
+            <button type="button" onClick={() => setDev(v => !v)}
+              className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs transition-colors ${dev ? 'border-gold/50 bg-gold/10 text-gold3' : 'border-bdr2 text-txt2 hover:text-txt'}`}>
+              <PermCheck checked={dev} onChange={setDev} />
+              <Terminal size={13} /> Dev (faz tudo — só um dev concede ou retira este cargo)
+            </button>
+          )}
+
           <button type="button" onClick={() => setAdmin(v => !v)}
             className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs transition-colors ${admin ? 'border-red/40 bg-red/10 text-red' : 'border-bdr2 text-txt2 hover:text-txt'}`}>
             <PermCheck checked={admin} onChange={setAdmin} />
             <Crown size={13} /> Acesso total (administra o sistema: contas, cargos, canais e aprovações)
           </button>
 
-          {admin ? (
-            <p className="text-[11px] text-txt3 px-1">Com acesso total, todas as áreas ficam liberadas — não é preciso marcar nada.</p>
+          {dev || admin ? (
+            <p className="text-[11px] text-txt3 px-1">{dev ? 'Dev libera tudo, sem exceção — não é preciso marcar nada.' : 'Com acesso total, todas as áreas ficam liberadas — não é preciso marcar nada.'}</p>
           ) : (
             <>
               <p className="text-[11px] text-txt3 px-1">
@@ -159,6 +171,8 @@ function CargoLinha({ cargo, posicao, total, membros, onMover }: {
   const update = useUpdateCargoPerm()
   const del = useDeleteCargoPerm()
   const { addToast } = useUIStore()
+  const { data: me } = useMe()
+  const bloqueado = cargo.dev === true && me?.dev !== true   // só um dev mexe num cargo de dev
   const [menu, setMenu] = useState(false)
   const [editando, setEditando] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -170,7 +184,7 @@ function CargoLinha({ cargo, posicao, total, membros, onMover }: {
     return () => document.removeEventListener('mousedown', fechar)
   }, [menu])
 
-  const visiveis = cargo.admin ? PERM_AREAS.length : PERM_AREAS.filter(a => cargo.permissoes[a.id]?.ver).length
+  const visiveis = cargo.dev || cargo.admin ? PERM_AREAS.length : PERM_AREAS.filter(a => cargo.permissoes[a.id]?.ver).length
 
   return (
     <div className="flex items-center gap-3 px-4 py-3 bg-card border border-bdr rounded-xl hover:border-gold/30 transition-colors">
@@ -185,6 +199,7 @@ function CargoLinha({ cargo, posicao, total, membros, onMover }: {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-txt flex items-center gap-2 flex-wrap">
           {cargo.nome}
+          {cargo.dev && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gold/15 border border-gold/40 text-gold3 text-[10px] font-mono"><Terminal size={10} /> dev</span>}
           {cargo.admin && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red/15 border border-red/40 text-red text-[10px] font-mono"><Crown size={10} /> acesso total</span>}
           {cargo.padrao && <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gold/15 border border-gold/40 text-gold3 text-[10px] font-mono"><Star size={10} /> padrão</span>}
         </p>
@@ -195,8 +210,9 @@ function CargoLinha({ cargo, posicao, total, membros, onMover }: {
       </div>
 
       <div className="relative" ref={ref}>
-        <button onClick={() => setMenu(v => !v)} aria-label="Opções do cargo"
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${menu ? 'bg-gold/15 text-gold3' : 'text-txt2 hover:text-txt hover:bg-white/[0.05]'}`}>
+        <button onClick={() => setMenu(v => !v)} disabled={bloqueado} aria-label="Opções do cargo"
+          title={bloqueado ? 'Somente um dev gerencia este cargo' : undefined}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${menu ? 'bg-gold/15 text-gold3' : 'text-txt2 hover:text-txt hover:bg-white/5'}`}>
           <MoreHorizontal size={18} />
         </button>
         <AnimatePresence>
@@ -206,11 +222,11 @@ function CargoLinha({ cargo, posicao, total, membros, onMover }: {
               className="absolute right-0 top-full mt-1 z-50 w-52 bg-card border border-bdr2 rounded-lg shadow-2xl p-1"
             >
               <button onClick={() => { setMenu(false); setEditando(true) }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-txt hover:bg-white/[0.05]">
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-txt hover:bg-white/5">
                 <Pencil size={14} className="text-gold3" /> Editar
               </button>
               <button onClick={() => { setMenu(false); update.mutate({ id: cargo.id, padrao: !cargo.padrao }, { onSuccess: () => addToast('success', cargo.padrao ? 'Removido como padrão.' : 'Definido como cargo padrão.') }) }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-txt hover:bg-white/[0.05]">
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-txt hover:bg-white/5">
                 <Star size={14} className="text-gold3" /> {cargo.padrao ? 'Remover como padrão' : 'Definir como padrão'}
               </button>
               <div className="h-px bg-bdr my-1" />

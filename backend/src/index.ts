@@ -29,6 +29,7 @@ import recrutasRoutes from './routes/recrutas'
 import ausenciasRoutes from './routes/ausencias'
 import avisosRoutes from './routes/avisos'
 import fardamentosRoutes from './routes/fardamentos'
+import carteiraRoutes from './routes/carteira'
 import notificacoesRoutes from './routes/notificacoes'
 
 const app = express()
@@ -64,7 +65,7 @@ if (!PROD) {
 // Corpo grande só nas rotas de upload; o resto fica limitado (evita abuso de memória/CPU)
 const jsonGrande = express.json({ limit: '5mb' })
 const jsonPadrao = express.json({ limit: '200kb' })
-const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos)(\/|$)/
+const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|carteira\/postar)(\/|$)/
 app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? jsonGrande : jsonPadrao)(req, res, next))
 app.use(hpp())
 
@@ -95,6 +96,7 @@ app.use('/api/recrutas', recrutasRoutes)
 app.use('/api/ausencias', ausenciasRoutes)
 app.use('/api/avisos', avisosRoutes)
 app.use('/api/fardamentos', fardamentosRoutes)
+app.use('/api/carteira', carteiraRoutes)
 app.use('/api/notificacoes', notificacoesRoutes)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))

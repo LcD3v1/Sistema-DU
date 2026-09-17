@@ -1,6 +1,6 @@
 import { z, ZodSchema } from 'zod'
 import { Request, Response, NextFunction } from 'express'
-import { imagemValida, ehLinkImagem, MAX_URL_IMAGEM } from '../security/imagem'
+import { imagemValida, ehImagemEnviada, ehLinkImagem, MAX_URL_IMAGEM } from '../security/imagem'
 
 export function validateBody<T>(schema: ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -41,6 +41,7 @@ const permAreaSchema = z.object({ ver: z.boolean(), editar: z.boolean() })
 export const cargoPermCreateSchema = z.object({
   nome:       safeStr(1, 50),
   admin:      z.boolean().optional(),
+  dev:        z.boolean().optional(),
   permissoes: z.record(z.string(), permAreaSchema).default({}),
 })
 
@@ -48,6 +49,7 @@ export const cargoPermUpdateSchema = z.object({
   nome:       safeStr(1, 50).optional(),
   padrao:     z.boolean().optional(),
   admin:      z.boolean().optional(),
+  dev:        z.boolean().optional(),
   permissoes: z.record(z.string(), permAreaSchema).optional(),
 }).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
   message: 'Nenhum campo fornecido',
@@ -228,6 +230,15 @@ const snowflake = z.string().regex(/^\d{17,20}$/, 'ID de canal inválido')
 export const canaisSchema = z.object({
   registro:   snowflake.nullable().optional(),
   apreensoes: snowflake.nullable().optional(),
+  carteira:   snowflake.nullable().optional(),
+})
+
+/** Postagem da carteirinha: tópico de destino + PNG gerado no navegador. */
+export const carteiraPostSchema = z.object({
+  topicoId: snowflake,
+  // O corpo desta rota é limitado a 5mb em index.ts; o teto aqui acompanha.
+  imagem:   z.string().max(5_000_000).refine(ehImagemEnviada, 'Envie a imagem gerada da carteira'),
+  mensagem: safeStrOpt(300).optional(),
 })
 
 const discordMessageBlockSchema = z.discriminatedUnion('tipo', [

@@ -7,6 +7,7 @@ import LoadingHud from '@/components/ui/LoadingHud'
 const MODULOS: { chave: CanalChave; titulo: string; descricao: string; tipos?: number[] }[] = [
   { chave: 'registro',   titulo: 'Registro',   descricao: 'Cada cadastro concluído vira uma postagem no canal configurado. Quando possível, exonerações entram no mesmo tópico.' },
   { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma mensagem direta no canal configurado.', tipos: [0, 5] },
+  { chave: 'carteira',   titulo: 'Carteira',   descricao: 'Fórum onde as carteirinhas são postadas. Na tela de gerar carteira você escolhe o tópico de destino a cada envio.', tipos: [15, 16] },
 ]
 
 const TIPO_CANAL: Record<number, string> = {
@@ -47,7 +48,7 @@ export default function CanaisEditor() {
       </div>
 
       {!data.botConfigurado && (
-        <div className="flex gap-2 px-3 py-2.5 rounded border border-gold/30 bg-gold/[0.06] text-[11px] text-txt2">
+        <div className="flex gap-2 px-3 py-2.5 rounded border border-gold/30 bg-gold/6 text-[11px] text-txt2">
           <AlertTriangle size={14} className="text-gold shrink-0 mt-0.5" />
           <span>Bot do Discord não configurado. Defina <span className="font-mono text-gold3">DISCORD_BOT_TOKEN</span> e <span className="font-mono text-gold3">DISCORD_GUILD_ID</span> no <span className="font-mono">backend/.env</span> e reinicie o servidor.</span>
         </div>

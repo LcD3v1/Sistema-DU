@@ -14,9 +14,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Paths */
-    "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
+    /* Paths — relativos a este tsconfig (baseUrl foi removido no TS 6).
+       O bundler resolve o mesmo alias em frontend/vite.config.ts. */
     "paths": {
       "@/*": ["./src/*"]
     },

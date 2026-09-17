@@ -22,7 +22,7 @@ export default function NivelObrigatorio() {
   }
 
   return (
-    <div className="fixed inset-0 z-[9600] flex items-center justify-center p-4" style={{ backdropFilter: 'blur(6px)', background: 'rgba(5,5,5,0.85)' }} role="dialog" aria-modal="true" aria-labelledby="nivel-obrigatorio-titulo">
+    <div className="fixed inset-0 z-9600 flex items-center justify-center p-4" style={{ backdropFilter: 'blur(6px)', background: 'rgba(5,5,5,0.85)' }} role="dialog" aria-modal="true" aria-labelledby="nivel-obrigatorio-titulo">
       <form onSubmit={enviar} className="w-full max-w-sm bg-card border border-bdr2 rounded-2xl shadow-2xl p-6 text-center">
         <div className="mx-auto mb-3 w-12 h-12 rounded-full flex items-center justify-center bg-gold/15 border border-gold/40">
           <Gauge size={22} className="text-gold3" />

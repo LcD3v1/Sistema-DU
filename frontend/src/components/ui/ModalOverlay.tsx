@@ -27,7 +27,7 @@ export default function ModalOverlay({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9000] flex items-center justify-center p-3 sm:p-4"
+          className="fixed inset-0 z-9000 flex items-center justify-center p-3 sm:p-4"
           style={{ backdropFilter: 'blur(4px)', background: 'rgba(5,5,5,0.85)' }}
           onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
         >
@@ -36,7 +36,7 @@ export default function ModalOverlay({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-            className={`bg-card border border-bdr rounded-xl w-full ${maxWidth} shadow-2xl flex flex-col max-h-[calc(100vh-1.5rem)] max-h-[calc(100dvh-1.5rem)]`}
+            className={`bg-card border border-bdr rounded-xl w-full ${maxWidth} shadow-2xl flex flex-col max-h-[calc(100dvh-1.5rem)]`}
           >
             {title && (
               <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-bdr shrink-0">

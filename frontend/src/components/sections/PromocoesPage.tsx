@@ -85,7 +85,7 @@ export default function PromocoesPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: i * 0.03 }}
-              className="grid grid-cols-[1.6fr_1fr_0.6fr_0.6fr_0.9fr_auto] gap-3 px-4 py-3 border-b border-bdr/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors"
+              className="grid grid-cols-[1.6fr_1fr_0.6fr_0.6fr_0.9fr_auto] gap-3 px-4 py-3 border-b border-bdr/50 last:border-0 items-center hover:bg-white/2 transition-colors"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-[11px] font-semibold text-white/80 shrink-0">{initials(m.policial)}</div>

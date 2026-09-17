@@ -16,10 +16,17 @@ import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Conta, FastData, CargoPermissao } from '../types'
 import { normalizePermMap } from '../permAreas'
+import { isDev, podeAtribuirCargo } from '../access'
 import { GUILD_ANNOUNCEMENT, GUILD_TEXT, botConfigurado, listarForuns, tentarPostarRegistro } from '../discord/forum'
 import { notificar } from '../notificacoes'
 
 const router = Router()
+
+/** O autor da requisição é dev? (poder total, acima do admin) */
+function souDev(req: Request, data: FastData): boolean {
+  const autor = data.contas.find(c => c.id === req.user?.contaId)
+  return Boolean(autor && isDev(autor, data))
+}
 
 // ── QRUs ──────────────────────────────────────────────────────────────────────
 
@@ -169,6 +176,14 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
   const conta = data.contas.find(c => c.id === id)
   if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
 
+  const autor = data.contas.find(c => c.id === req.user!.contaId)
+  if (!autor) { res.status(403).json({ error: 'Acesso negado' }); return }
+  // Só um dev gerencia a conta de um dev — nem o admin passa por cima disso.
+  if (!isDev(autor, data) && isDev(conta, data)) {
+    audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de editar conta dev #${conta.id}`)
+    res.status(403).json({ error: 'Acesso negado' }); return
+  }
+
   // Admin não pode rebaixar a si mesmo
   if (id === req.user!.contaId && req.body.nivel && req.body.nivel !== 'admin') {
     audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de auto-rebaixamento: ${conta.username}`)
@@ -200,6 +215,11 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
       delete conta.cargoPermId
       changes.push('cargo de permissão removido')
     } else if (data.cargosPermissao.some(c => c.id === cargoPermId)) {
+      const destino = data.cargosPermissao.find(c => c.id === cargoPermId)!
+      if (!podeAtribuirCargo(autor, destino, data)) {
+        audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de atribuir cargo #${cargoPermId} sem permissão`)
+        res.status(403).json({ error: 'Acesso negado' }); return
+      }
       if (!conta.cargoPermId) {
         const nomeCargo = data.cargosPermissao.find(c => c.id === cargoPermId)!.nome
         notificar(data, conta.id, 'aprovada', 'Cadastro aprovado!',
@@ -232,6 +252,12 @@ router.delete('/contas/:id', requireAuth, adminOnly, (req: Request, res: Respons
   const idx = data.contas.findIndex(c => c.id === id)
   if (idx === -1) { res.status(404).json({ error: 'Conta não encontrada' }); return }
 
+  const autor = data.contas.find(c => c.id === req.user!.contaId)
+  if (!autor || (!isDev(autor, data) && isDev(data.contas[idx], data))) {
+    audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de excluir conta dev #${id}`)
+    res.status(403).json({ error: 'Acesso negado' }); return
+  }
+
   const username = data.contas[idx].username
   data.contas.splice(idx, 1)
   writeData(data)
@@ -262,8 +288,12 @@ router.put('/cargos-permissao/reorder', requireAuth, adminOnly, validateBody(reo
 })
 
 router.post('/cargos-permissao', requireAuth, adminOnly, validateBody(cargoPermCreateSchema), (req: Request, res: Response): void => {
-  const { nome, admin, permissoes } = req.body as { nome: string; admin?: boolean; permissoes: Record<string, { ver: boolean; editar: boolean }> }
+  const { nome, admin, dev, permissoes } = req.body as { nome: string; admin?: boolean; dev?: boolean; permissoes: Record<string, { ver: boolean; editar: boolean }> }
   const data = readData()
+  if (!souDev(req, data) && dev === true) {
+    audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de criar cargo dev: ${nome}`)
+    res.status(403).json({ error: 'Acesso negado' }); return
+  }
   if (data.cargosPermissao.some(c => c.nome.toLowerCase() === nome.toLowerCase())) {
     res.status(409).json({ error: 'Já existe um cargo com esse nome.' }); return
   }
@@ -272,6 +302,7 @@ router.post('/cargos-permissao', requireAuth, adminOnly, validateBody(cargoPermC
     nome,
     padrao: false,
     admin: admin === true,
+    dev: dev === true,
     permissoes: normalizePermMap(permissoes),
   }
   data.cargosPermissao.push(novo)
@@ -287,7 +318,13 @@ router.put('/cargos-permissao/:id', requireAuth, adminOnly, validateBody(cargoPe
   const data = readData()
   const cargo = data.cargosPermissao.find(c => c.id === id)
   if (!cargo) { res.status(404).json({ error: 'Cargo não encontrado' }); return }
-  const { nome, padrao, admin, permissoes } = req.body as { nome?: string; padrao?: boolean; admin?: boolean; permissoes?: Record<string, { ver: boolean; editar: boolean }> }
+  const { nome, padrao, admin, dev, permissoes } = req.body as { nome?: string; padrao?: boolean; admin?: boolean; dev?: boolean; permissoes?: Record<string, { ver: boolean; editar: boolean }> }
+
+  // Cargo de dev: só um dev mexe nele ou concede/retira a marca de dev.
+  if (!souDev(req, data) && (cargo.dev === true || dev !== undefined)) {
+    audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de alterar cargo dev #${id}`)
+    res.status(403).json({ error: 'Acesso negado' }); return
+  }
 
   if (nome !== undefined) {
     if (data.cargosPermissao.some(c => c.id !== id && c.nome.toLowerCase() === nome.toLowerCase())) {
@@ -296,6 +333,7 @@ router.put('/cargos-permissao/:id', requireAuth, adminOnly, validateBody(cargoPe
     cargo.nome = nome
   }
   if (admin !== undefined) cargo.admin = admin
+  if (dev !== undefined) cargo.dev = dev
   if (permissoes !== undefined) cargo.permissoes = normalizePermMap({ ...cargo.permissoes, ...permissoes })
   if (padrao !== undefined) {
     if (padrao) data.cargosPermissao.forEach(c => { c.padrao = c.id === id })
@@ -310,6 +348,10 @@ router.delete('/cargos-permissao/:id', requireAuth, adminOnly, (req: Request, re
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()
+  if (!souDev(req, data) && data.cargosPermissao.some(c => c.id === id && c.dev === true)) {
+    audit('PRIVILEGE_ESCALATION_ATTEMPT', req, `Tentativa de remover cargo dev #${id}`)
+    res.status(403).json({ error: 'Acesso negado' }); return
+  }
   const before = data.cargosPermissao.length
   data.cargosPermissao = data.cargosPermissao.filter(c => c.id !== id)
   if (data.cargosPermissao.length === before) { res.status(404).json({ error: 'Cargo não encontrado' }); return }

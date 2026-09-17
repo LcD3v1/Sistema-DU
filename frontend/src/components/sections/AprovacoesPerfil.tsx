@@ -40,7 +40,7 @@ export default function AprovacoesPerfil() {
 
   return (
     <div className="bg-card border border-gold/30 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-bdr bg-gold/[0.05]">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-bdr bg-gold/5">
         <UserCog size={15} className="text-gold3" />
         <p className="text-sm font-semibold text-txt">Alterações de perfil aguardando aprovação</p>
         <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gold text-white text-[10px] font-bold flex items-center justify-center">{lista.length}</span>

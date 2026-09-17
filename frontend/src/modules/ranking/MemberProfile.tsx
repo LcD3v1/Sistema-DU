@@ -30,7 +30,7 @@ export default function MemberProfile({ id, period, publicView, onClose }: {
     return () => { document.removeEventListener('keydown', keydown, true); previous?.focus() }
   }, [onClose])
   return createPortal(
-    <div className="ranking-module fixed inset-0 z-[9500] flex justify-end bg-black/75 backdrop-blur-sm" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="ranking-module fixed inset-0 z-9500 flex justify-end bg-black/75 backdrop-blur-sm" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby="member-profile-title" tabIndex={-1}
         initial={reduced ? false : { x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.2 }}
         className="bg-card border-l border-bdr2 w-full max-w-lg h-full overflow-y-auto p-5 sm:p-7 outline-none">

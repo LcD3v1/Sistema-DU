@@ -115,7 +115,7 @@ export default function GerarBoletimPage() {
 
           <div className="space-y-4">
             {/* Carregar por Nº do BO */}
-            <div className="rounded-lg border border-gold/25 bg-gold/[0.04] p-3">
+            <div className="rounded-lg border border-gold/25 bg-gold/4 p-3">
               <label className="font-mono text-[11px] text-gold3 tracking-wider mb-1.5 flex items-center gap-1.5"><FileSearch size={12} /> CARREGAR POR Nº DO BO</label>
               <div className="flex gap-2">
                 <input value={bo} onChange={e => setBo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') carregarBO(bo) }}

@@ -105,6 +105,7 @@ export interface CargoPermissao {
   nome: string
   padrao?: boolean
   admin?: boolean   // "acesso total" — administra o sistema (contas, cargos, aprovações)
+  dev?: boolean     // acima do admin: faz tudo. Só um dev concede/remove este cargo.
   permissoes: Record<string, PermArea>
 }
 
@@ -214,6 +215,7 @@ export interface SolicitacaoPerfil {
 export interface CanaisDiscord {
   registro?: string     // ID do canal Fórum de registro
   apreensoes?: string   // ID do canal Fórum de apreensões
+  carteira?: string     // ID do canal Fórum onde as carteirinhas são postadas
 }
 
 export interface FastData {

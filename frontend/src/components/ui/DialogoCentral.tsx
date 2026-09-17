@@ -72,7 +72,7 @@ function Card({ atual, fechar }: { atual: Pedido; fechar: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9500] flex items-center justify-center p-4"
+      className="fixed inset-0 z-9500 flex items-center justify-center p-4"
       style={{ backdropFilter: 'blur(6px)', background: 'rgba(5,5,5,0.75)' }}
       onMouseDown={e => { if (e.target === e.currentTarget) cancelar() }}
       role="dialog"
@@ -83,7 +83,7 @@ function Card({ atual, fechar }: { atual: Pedido; fechar: () => void }) {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative w-full max-w-md bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-y-auto overscroll-contain max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)]"
+        className="relative w-full max-w-md bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-y-auto overscroll-contain max-h-[calc(100dvh-2rem)]"
       >
         <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, transparent, ${cor}, transparent)` }} />
         <button onClick={cancelar} className="absolute top-2 right-2 w-9 h-9 flex items-center justify-center text-txt3 hover:text-txt transition-colors" aria-label="Fechar">
@@ -134,7 +134,7 @@ function Card({ atual, fechar }: { atual: Pedido; fechar: () => void }) {
           {atual.tipo === 'confirmar' ? (
             <>
               <button onClick={cancelar}
-                className="flex-1 py-2.5 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-txt hover:bg-white/[0.03] transition-colors">
+                className="flex-1 py-2.5 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-txt hover:bg-white/3 transition-colors">
                 {atual.opcoes.textoCancelar ?? 'Cancelar'}
               </button>
               <button onClick={confirmarAcao} autoFocus={!pedeMotivo}

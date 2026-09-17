@@ -20,7 +20,7 @@ import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from 
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
 import { imagemValida } from '../security/imagem'
-import { isAdmin, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
+import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
 
 const router = Router()
 
@@ -313,6 +313,7 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     onboarded: conta.onboarded !== false,
     cargoPermId: conta.cargoPermId ?? null,
     admin: isAdmin(conta, data),
+    dev: isDev(conta, data),
     permissoes: resolvePerms(conta, data),
   })
 })

@@ -45,9 +45,39 @@ export function getCargo(conta: Conta, data: FastData): CargoPermissao | undefin
   return conta.cargoPermId ? data.cargosPermissao.find(c => c.id === conta.cargoPermId) : undefined
 }
 
+/** Conta dona: id 1 ou Discord listado em DISCORD_OWNER_ID. Dono é sempre dev. */
+export function ehDono(conta: Conta): boolean {
+  return conta.id === PROTECTED_OWNER_ID || (!!conta.discordId && discordIdsDonos().includes(conta.discordId))
+}
+
+/**
+ * Dev: poder total, um degrau acima do admin. Faz tudo e é o único que pode
+ * conceder/retirar o próprio cargo de dev — nem admin promove alguém a dev.
+ */
+export function isDev(conta: Conta, data: FastData): boolean {
+  if (ehDono(conta)) return true
+  return getCargo(conta, data)?.dev === true
+}
+
 export function isAdmin(conta: Conta, data: FastData): boolean {
-  if (conta.id === PROTECTED_OWNER_ID) return true
+  if (isDev(conta, data)) return true
   return getCargo(conta, data)?.admin === true
+}
+
+/** O cargo concede "editar" em alguma área? */
+export function cargoConcedeEditar(cargo: CargoPermissao): boolean {
+  return Object.values(cargo.permissoes ?? {}).some(p => p?.editar === true)
+}
+
+/**
+ * `autor` pode atribuir este cargo a alguém?
+ * Cargo dev → só dev. Cargo com admin ou com "editar" → só admin/dev.
+ */
+export function podeAtribuirCargo(autor: Conta, cargo: CargoPermissao, data: FastData): boolean {
+  if (isDev(autor, data)) return true
+  if (cargo.dev) return false
+  if (cargo.admin || cargoConcedeEditar(cargo)) return isAdmin(autor, data)
+  return true
 }
 
 export function resolvePerms(conta: Conta, data: FastData): PermMap {

@@ -1,6 +1,6 @@
 import { Ausencia, Conta, FastData, Membro } from './types'
 import { readData, writeData } from './data'
-import { isAdmin, getCargo, PROTECTED_OWNER_ID, discordIdsDonos } from './access'
+import { isAdmin, isDev, getCargo, ehDono, cargoConcedeEditar } from './access'
 import { audit } from './security/audit'
 import { postarAusencia, postarExoneracao, emSegundoPlano } from './discord/forum'
 import { notificar } from './notificacoes'
@@ -21,8 +21,7 @@ export function hoje(): string {
 
 /** Conta dona: id 1 ou Discord listado em DISCORD_OWNER_ID. */
 export function ehContaDona(conta: Conta | undefined): boolean {
-  if (!conta) return false
-  return conta.id === PROTECTED_OWNER_ID || (!!conta.discordId && discordIdsDonos().includes(conta.discordId))
+  return !!conta && ehDono(conta)
 }
 
 export const statusAusencia = (a: Ausencia) => a.status ?? 'aprovada'
@@ -54,14 +53,26 @@ export function nivelHierarquia(data: FastData, cargoPermId: number | undefined)
 export const contaDoMembro = (data: FastData, membroId: number) => data.contas.find(c => c.membroId === membroId)
 
 /**
- * Quem não é administrador só gerencia membros ABAIXO do próprio cargo, e só
- * atribui cargos abaixo do próprio (nunca um cargo de acesso total).
+ * Quem pode gerenciar quem. Em ordem:
+ *
+ * - dev faz tudo;
+ * - ninguém além de um dev mexe num dev ou concede o cargo de dev;
+ * - admin gerencia o resto livremente;
+ * - os demais nunca gerenciam a si mesmos nem alguém do mesmo cargo (ou acima),
+ *   mesmo com "editar" ativo, e não atribuem cargo de acesso total, cargo com
+ *   "editar" (só admin/dev fazem isso) nem cargo do próprio nível ou acima.
  */
 export function podeGerenciar(data: FastData, atorId: number, membro: Membro, cargoDestinoId?: number): string | undefined {
   const ator = data.contas.find(c => c.id === atorId)
   if (!ator) return 'Conta não encontrada'
-  if (isAdmin(ator, data)) return undefined
   const alvo = contaDoMembro(data, membro.id)
+  const destino = cargoDestinoId !== undefined ? data.cargosPermissao.find(c => c.id === cargoDestinoId) : undefined
+
+  if (isDev(ator, data)) return undefined
+  if (alvo && isDev(alvo, data)) return 'Somente um dev pode gerenciar esta conta.'
+  if (destino?.dev) return 'Somente um dev pode conceder o cargo de dev.'
+  if (isAdmin(ator, data)) return undefined
+
   if (alvo?.id === ator.id) return 'Você não pode gerenciar a si mesmo.'
   if (ehContaDona(alvo)) return 'Não é possível gerenciar um dono do sistema.'
   const meu = nivelHierarquia(data, ator.cargoPermId)
@@ -69,8 +80,8 @@ export function podeGerenciar(data: FastData, atorId: number, membro: Membro, ca
     return 'Você só pode gerenciar membros abaixo do seu cargo.'
   }
   if (cargoDestinoId !== undefined) {
-    const destino = data.cargosPermissao.find(c => c.id === cargoDestinoId)
     if (destino?.admin) return 'Somente administradores atribuem cargos de acesso total.'
+    if (destino && cargoConcedeEditar(destino)) return 'Somente administradores atribuem cargos com permissão de editar.'
     if (nivelHierarquia(data, cargoDestinoId) <= meu) return 'Você só pode atribuir cargos abaixo do seu.'
   }
   return undefined

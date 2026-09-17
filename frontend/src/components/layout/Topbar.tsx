@@ -67,7 +67,7 @@ export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
         <button
           type="button"
           onClick={onAbrirMenu}
-          className="lg:hidden -ml-1 w-10 h-10 shrink-0 flex items-center justify-center rounded-md text-txt2 hover:text-txt hover:bg-white/[0.05]"
+          className="lg:hidden -ml-1 w-10 h-10 shrink-0 flex items-center justify-center rounded-md text-txt2 hover:text-txt hover:bg-white/5"
           aria-label="Abrir menu"
         >
           <Menu size={20} />
@@ -103,7 +103,7 @@ export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
             <div className="absolute right-0 top-full mt-2 w-44 bg-card border border-bdr2 rounded-lg shadow-2xl py-1 z-50">
               <button
                 onClick={() => { setOpen(false); navigate('/perfil') }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-txt2 hover:text-txt hover:bg-white/[0.03] transition-colors">
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-txt2 hover:text-txt hover:bg-white/3 transition-colors">
                 <UserIcon size={15} /> Meu perfil
               </button>
               <div className="h-px bg-bdr my-1" />

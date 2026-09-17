@@ -10,6 +10,7 @@ import type { AreaId } from '@/lib/permAreas'
 export function usePerms() {
   const { data: me, isLoading } = useMe()
   const admin = Boolean(me?.admin)
+  const dev = Boolean(me?.dev)   // acima do admin: faz tudo
   const perms = me?.permissoes ?? null
 
   const canView = (area: AreaId): boolean => {
@@ -23,5 +24,5 @@ export function usePerms() {
     return Boolean(perms?.[area]?.editar)
   }
 
-  return { admin, canView, canEdit, perms, loading: isLoading }
+  return { admin, dev, canView, canEdit, perms, loading: isLoading }
 }

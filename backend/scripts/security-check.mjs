@@ -266,6 +266,65 @@ if (fs.existsSync(dist)) {
   check(maps.length === 0, 'frontend/dist sem arquivos .map', `frontend/dist contém ${maps.length} sourcemap(s)`)
 }
 
+// 14. Hierarquia de cargos e cargo de dev
+console.log('\n[14] Hierarquia de cargos e cargo de dev')
+const accessTs  = ler('src/access.ts')
+const efetivoTs = ler('src/efetivo.ts')
+const cfgTs     = ler('src/routes/config.ts')
+const membrosTs = ler('src/routes/membros.ts')
+
+check(/export function isDev\(/.test(accessTs), 'access.ts define isDev', 'access.ts sem isDev')
+check(/export function isAdmin\([^)]*\)[^{]*\{\s*\n\s*if \(isDev\(/.test(accessTs),
+  'isAdmin herda de isDev (dev faz tudo)', 'isAdmin não trata dev como acesso total')
+check(/export function podeAtribuirCargo\(/.test(accessTs) && /cargo\.dev\)\s*return false/.test(accessTs),
+  'podeAtribuirCargo barra o cargo de dev', 'podeAtribuirCargo não barra o cargo de dev')
+check(/export function cargoConcedeEditar\(/.test(accessTs),
+  'cargo com "editar" é detectável (cargoConcedeEditar)', 'falta cargoConcedeEditar')
+
+// Em podeGerenciar os guardas de dev vêm ANTES do atalho de admin — senão o admin passa por cima
+const pg = efetivoTs.slice(efetivoTs.indexOf('export function podeGerenciar'))
+const pDevAlvo = pg.indexOf('isDev(alvo, data)')
+const pDevCargo = pg.indexOf('destino?.dev')
+const pAdmin = pg.indexOf('isAdmin(ator, data)')
+check(pDevAlvo > -1 && pDevCargo > -1 && pAdmin > -1 && pDevAlvo < pAdmin && pDevCargo < pAdmin,
+  'podeGerenciar barra dev antes de liberar o admin', 'podeGerenciar libera o admin antes de checar dev')
+check(/Somente administradores atribuem cargos com permissão de editar/.test(efetivoTs),
+  'só admin/dev atribui cargo com "editar"', 'cargo com "editar" atribuível por não-admin')
+check(/Você não pode gerenciar a si mesmo/.test(efetivoTs),
+  'ninguém gerencia a si mesmo', 'falta o bloqueio de auto-gerenciamento')
+check(/nivelHierarquia\(data, alvo\.cargoPermId\) <= meu/.test(efetivoTs),
+  'cargo igual ou acima é bloqueado', 'cargo igual/superior não é bloqueado')
+
+check(/function souDev\(/.test(cfgTs), 'config.ts checa dev nas rotas de cargo', 'config.ts sem checagem de dev')
+const pontosDev = (cfgTs.match(/!souDev\(req, data\)/g) || []).length
+check(pontosDev >= 3, `flag dev protegida ao criar, editar e excluir cargo (${pontosDev} pontos)`, 'flag dev pouco protegida em config.ts')
+check(/podeAtribuirCargo\(autor, destino, data\)/.test(cfgTs),
+  '/contas atribui cargo via podeAtribuirCargo', '/contas atribui cargo sem podeAtribuirCargo')
+check(/!isDev\(autor, data\) && isDev\(conta, data\)/.test(cfgTs),
+  'só dev edita a conta de um dev', 'conta de dev editável por admin')
+check(/dev \|\| c\.dev !== true/.test(membrosTs),
+  'cargo de dev fora da hierarquia exposta a não-devs', 'cargo de dev exposto na hierarquia')
+
+// 15. Postagem da carteirinha no Discord
+console.log('\n[15] Postagem da carteira no Discord')
+const cartTs = ler('src/routes/carteira.ts')
+const idxTs  = ler('src/index.ts')
+const formTs = ler('src/discord/forum.ts')
+
+check(/requireArea\('carteira', 'ver'\)/.test(cartTs) && /requireArea\('carteira', 'editar'\)/.test(cartTs),
+  'carteira: leitura exige ver e postagem exige editar', 'carteira sem requireArea correto')
+check(/validateBody\(carteiraPostSchema\)/.test(cartTs), 'corpo da postagem validado por Zod', 'postagem de carteira sem Zod')
+// O tópico vem do cliente: sem esta conferência dava para postar em qualquer canal do servidor
+check(/topicoPertenceAoForum\(topicoId, forumId\)/.test(cartTs),
+  'tópico conferido contra o fórum configurado', 'tópico de carteira aceito sem conferir o fórum')
+check(/parent_id === forumId/.test(formTs), 'topicoPertenceAoForum compara o canal pai', 'conferência do fórum não compara parent_id')
+check(/89504e470d0a1a0a/.test(cartTs), 'anexo conferido pela assinatura PNG', 'anexo da carteira aceito sem checar assinatura')
+check(/MAX_PNG_BYTES/.test(cartTs), 'tamanho do anexo limitado', 'anexo da carteira sem limite de tamanho')
+check(idxTs.includes('carteira\\/postar'), 'postagem da carteira sob o limitador de upload', 'carteira/postar fora das rotas de upload')
+check(!/err\.message/.test(cartTs.replace(/console\.error[^\n]*/g, '')),
+  'carteira devolve erro genérico ao cliente', 'carteira vaza err.message na resposta')
+check(/audit\('CARTEIRA_POSTADA'/.test(cartTs), 'postagem da carteira auditada', 'postagem da carteira sem auditoria')
+
 // Resultado
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

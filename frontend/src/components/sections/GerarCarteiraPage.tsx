@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Download, Upload, CreditCard } from 'lucide-react'
+import { ChevronLeft, Download, Upload, CreditCard, Send, RefreshCw, MessagesSquare, AlertTriangle } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
+import { usePerms } from '@/hooks/usePerms'
+import { useCarteiraForum, usePostarCarteira } from '@/hooks/useCarteira'
+
+const erroApi = (e: unknown, padrao: string) =>
+  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? padrao
 
 const TEMPLATE = '/media/carteira-modelo.png'
 const W = 1536
@@ -29,6 +34,109 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: numb
   if (ir > r) { dh = h; dw = h * ir; dx = x - (dw - w) / 2; dy = y }
   else { dw = w; dh = w / ir; dx = x; dy = y - (dh - h) / 2 }
   ctx.drawImage(img, dx, dy, dw, dh)
+}
+
+
+/**
+ * Postagem no Discord: o FÓRUM vem de Configurações → Canais (fica salvo e só muda
+ * lá); o TÓPICO dentro dele é escolhido a cada envio.
+ */
+function PostarNoForum({ gerarPng }: { gerarPng: () => Promise<string | null> }) {
+  const { addToast } = useUIStore()
+  const { canEdit } = usePerms()
+  const podePostar = canEdit('carteira')
+  const { data, isLoading, refetch, isFetching } = useCarteiraForum(podePostar)
+  const postar = usePostarCarteira()
+
+  const [topicoId, setTopicoId] = useState('')
+  const [mensagem, setMensagem] = useState('')
+
+  if (!podePostar) return null
+
+  async function enviar() {
+    if (!topicoId) { addToast('error', 'Escolha o tópico de destino.'); return }
+    const imagem = await gerarPng()
+    if (!imagem) { addToast('error', 'Falha ao gerar a imagem da carteira.'); return }
+    postar.mutate({ topicoId, imagem, mensagem: mensagem.trim() || undefined }, {
+      onSuccess: () => { addToast('success', 'Carteira postada no fórum!'); setMensagem('') },
+      onError: e => addToast('error', erroApi(e, 'Erro ao postar a carteira.')),
+    })
+  }
+
+  const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
+
+  return (
+    <div className="bg-card border border-bdr rounded-xl p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-txt flex items-center gap-2">
+            <MessagesSquare size={17} className="text-gold3" /> Postar no fórum
+          </h2>
+          <p className="text-[11px] text-txt3 mt-0.5">
+            {data?.forum?.nome
+              ? <>Fórum: <span className="text-gold3">#{data.forum.nome}</span> — escolha o tópico de destino.</>
+              : 'Escolha o tópico de destino dentro do fórum configurado.'}
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching || !data?.configurado}
+          title="Atualizar lista de tópicos"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-bdr2 text-txt2 text-xs font-mono hover:text-txt hover:bg-bdr transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} /> Atualizar
+        </button>
+      </div>
+
+      {!isLoading && !data?.configurado && (
+        <div className="flex gap-2 px-3 py-2.5 rounded border border-gold/30 bg-gold/6 text-[11px] text-txt2">
+          <AlertTriangle size={14} className="text-gold shrink-0 mt-0.5" />
+          <span>Nenhum fórum de carteira definido. Configure em <span className="text-gold3">Configurações → Canais → Carteira</span>.</span>
+        </div>
+      )}
+
+      {data?.configurado && (
+        <>
+          <div>
+            <label className={labelCls}>Tópico do fórum</label>
+            <select
+              value={topicoId}
+              onChange={e => setTopicoId(e.target.value)}
+              disabled={isFetching}
+              className="w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt disabled:opacity-50"
+            >
+              <option value="">— escolha o tópico —</option>
+              {data.topicos.map(t => (
+                <option key={t.id} value={t.id}>{t.name}{t.arquivado ? ' · arquivado' : ''}</option>
+              ))}
+            </select>
+            {data.topicos.length === 0 && !isFetching && (
+              <p className="text-[11px] text-txt3 mt-1.5">Nenhum tópico encontrado nesse fórum.</p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelCls}>Mensagem (opcional)</label>
+            <input
+              value={mensagem}
+              onChange={e => setMensagem(e.target.value)}
+              maxLength={300}
+              placeholder="Ex: Carteira emitida em 14/09/2026"
+              className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt placeholder-txt3"
+            />
+          </div>
+
+          <button
+            onClick={enviar}
+            disabled={postar.isPending || !topicoId}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50"
+          >
+            <Send size={16} /> {postar.isPending ? 'Postando...' : 'Postar carteira'}
+          </button>
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function GerarCarteiraPage() {
@@ -111,6 +219,15 @@ export default function GerarCarteiraPage() {
     img.src = url
   }
 
+  /** PNG da prévia como data URL — é o que vai como anexo para o Discord. */
+  function gerarPng(): Promise<string | null> {
+    return new Promise(resolve => {
+      const c = canvasRef.current
+      if (!c) { resolve(null); return }
+      try { resolve(c.toDataURL('image/png')) } catch { resolve(null) }
+    })
+  }
+
   function baixar() {
     const c = canvasRef.current; if (!c) return
     c.toBlob(b => {
@@ -140,34 +257,38 @@ export default function GerarCarteiraPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 sm:gap-6 items-start">
-        {/* Formulário */}
-        <div className="bg-card border border-bdr rounded-xl p-5 space-y-4">
-          <h2 className="text-base font-semibold text-txt">Dados da carteira</h2>
+        {/* Coluna esquerda: dados + postagem */}
+        <div className="space-y-4 sm:space-y-6">
+          <div className="bg-card border border-bdr rounded-xl p-5 space-y-4">
+            <h2 className="text-base font-semibold text-txt">Dados da carteira</h2>
 
-          <div><label className={labelCls}>Subtítulo (topo)</label>
-            <input value={subtitulo} onChange={e => setSubtitulo(e.target.value)} placeholder="Ex: PILOT FAST LICENSE CERTIFICATION" className={inputCls} /></div>
-          <div><label className={labelCls}>Name</label>
-            <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} /></div>
-          <div><label className={labelCls}>Passport</label>
-            <input value={passaporte} onChange={e => setPassaporte(e.target.value)} placeholder="Ex: 12345" className={inputCls} /></div>
-          <div><label className={labelCls}>Registration</label>
-            <input value={registro} onChange={e => setRegistro(e.target.value)} placeholder="Ex: 216F" className={inputCls} /></div>
-          <div><label className={labelCls}>Date of issue</label>
-            <input value={data} onChange={e => setData(e.target.value)} placeholder="Ex: 14/09/2026" className={inputCls} /></div>
-          <div><label className={labelCls}>Assinatura do comandante</label>
-            <input value={assinatura} onChange={e => setAssinatura(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} style={{ fontFamily: '"Great Vibes", cursive', fontSize: 22 }} /></div>
+            <div><label className={labelCls}>Subtítulo (topo)</label>
+              <input value={subtitulo} onChange={e => setSubtitulo(e.target.value)} placeholder="Ex: PILOT FAST LICENSE CERTIFICATION" className={inputCls} /></div>
+            <div><label className={labelCls}>Name</label>
+              <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} /></div>
+            <div><label className={labelCls}>Passport</label>
+              <input value={passaporte} onChange={e => setPassaporte(e.target.value)} placeholder="Ex: 12345" className={inputCls} /></div>
+            <div><label className={labelCls}>Registration</label>
+              <input value={registro} onChange={e => setRegistro(e.target.value)} placeholder="Ex: 216F" className={inputCls} /></div>
+            <div><label className={labelCls}>Date of issue</label>
+              <input value={data} onChange={e => setData(e.target.value)} placeholder="Ex: 14/09/2026" className={inputCls} /></div>
+            <div><label className={labelCls}>Assinatura do comandante</label>
+              <input value={assinatura} onChange={e => setAssinatura(e.target.value)} placeholder="Ex: Peter Wolf" className={inputCls} style={{ fontFamily: '"Great Vibes", cursive', fontSize: 22 }} /></div>
 
-          <div>
-            <label className={labelCls}>Foto do oficial</label>
-            <label className="flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-bdr2 text-txt2 text-sm hover:border-gold/40 hover:text-txt cursor-pointer transition-colors">
-              <Upload size={15} /> {temFoto ? 'Trocar foto' : 'Enviar foto'}
-              <input type="file" accept="image/*" onChange={onFoto} className="hidden" />
-            </label>
+            <div>
+              <label className={labelCls}>Foto do oficial</label>
+              <label className="flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-bdr2 text-txt2 text-sm hover:border-gold/40 hover:text-txt cursor-pointer transition-colors">
+                <Upload size={15} /> {temFoto ? 'Trocar foto' : 'Enviar foto'}
+                <input type="file" accept="image/*" onChange={onFoto} className="hidden" />
+              </label>
+            </div>
+
+            <button onClick={baixar} disabled={!tplOk} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50 shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
+              <Download size={16} /> Baixar carteira
+            </button>
           </div>
 
-          <button onClick={baixar} disabled={!tplOk} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50 shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
-            <Download size={16} /> Baixar carteira
-          </button>
+          <PostarNoForum gerarPng={gerarPng} />
         </div>
 
         {/* Prévia */}

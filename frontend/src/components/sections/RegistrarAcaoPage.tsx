@@ -159,7 +159,7 @@ export default function RegistrarAcaoPage() {
             </div>
 
             {/* Nº do BO */}
-            <div className="flex items-center justify-between rounded-xl border border-gold/40 bg-gold/[0.06] px-4 py-3 mb-4">
+            <div className="flex items-center justify-between rounded-xl border border-gold/40 bg-gold/6 px-4 py-3 mb-4">
               <div>
                 <p className="font-mono text-[10px] text-gold3 tracking-[0.2em] uppercase">Número do BO</p>
                 <p className="text-2xl font-bold text-txt">Nº {registrado.id}</p>

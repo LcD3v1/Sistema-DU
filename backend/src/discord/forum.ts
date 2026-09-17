@@ -443,3 +443,63 @@ export function tentarPostarRegistro(contaId: number): void {
     if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
   })
 }
+
+// ── Carteirinhas ───────────────────────────────────────────────────────────────
+// O fórum fica salvo em `data.canais.carteira`; dentro dele o usuário escolhe,
+// a cada postagem, em qual tópico (post do fórum) a carteira vai.
+
+export interface TopicoForum { id: string; name: string; arquivado: boolean }
+
+type ThreadApi = { id: string; name: string; parent_id?: string | null; thread_metadata?: { archived?: boolean } }
+
+/**
+ * Tópicos de um fórum: os ativos (do servidor, filtrados pelo pai) e os
+ * arquivados públicos. Ordena os ativos primeiro e remove repetidos.
+ */
+export async function listarTopicosForum(forumId: string): Promise<TopicoForum[]> {
+  const ativos = await discord<{ threads: ThreadApi[] }>(
+    'GET', `/guilds/${process.env.DISCORD_GUILD_ID}/threads/active`).catch(() => ({ threads: [] as ThreadApi[] }))
+  const arquivados = await discord<{ threads: ThreadApi[] }>(
+    'GET', `/channels/${forumId}/threads/archived/public?limit=50`).catch(() => ({ threads: [] as ThreadApi[] }))
+
+  const out = new Map<string, TopicoForum>()
+  for (const t of ativos.threads ?? []) {
+    if (t.parent_id === forumId) out.set(t.id, { id: t.id, name: t.name, arquivado: false })
+  }
+  for (const t of arquivados.threads ?? []) {
+    if (!out.has(t.id)) out.set(t.id, { id: t.id, name: t.name, arquivado: true })
+  }
+  return [...out.values()].sort((a, b) => Number(a.arquivado) - Number(b.arquivado) || a.name.localeCompare(b.name))
+}
+
+/** O tópico existe e pertence mesmo ao fórum informado? Evita postar em canal arbitrário. */
+export async function topicoPertenceAoForum(topicoId: string, forumId: string): Promise<boolean> {
+  try {
+    const t = await discord<ThreadApi>('GET', `/channels/${topicoId}`)
+    return t.parent_id === forumId
+  } catch { return false }
+}
+
+/** Envia um PNG como anexo para um tópico. Lança em caso de falha (o chamador trata). */
+export async function postarImagemNoTopico(
+  topicoId: string,
+  arquivo: string,
+  png: Buffer,
+  conteudo?: string,
+): Promise<void> {
+  const form = new FormData()
+  form.append('payload_json', JSON.stringify({
+    ...(conteudo ? { content: cut(conteudo, 1900) } : {}),
+    attachments: [{ id: 0, filename: arquivo }],
+    allowed_mentions: allowedMentions(),
+  }))
+  form.append('files[0]', new Blob([new Uint8Array(png)], { type: 'image/png' }), arquivo)
+
+  const res = await fetch(`${API}/channels/${topicoId}/messages`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(20_000),
+    headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+    body: form,
+  })
+  if (!res.ok) throw new Error(`Discord POST carteira → ${res.status}`)
+}

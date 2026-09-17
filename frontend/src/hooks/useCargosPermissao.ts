@@ -8,6 +8,7 @@ export interface CargoPermissao {
   nome: string
   padrao?: boolean
   admin?: boolean
+  dev?: boolean
   permissoes: PermMap
 }
 
@@ -26,14 +27,14 @@ function invalidate() {
 
 export function useCreateCargoPerm() {
   return useMutation({
-    mutationFn: (body: { nome: string; admin?: boolean; permissoes: PermMap }) => api.post('/config/cargos-permissao', body),
+    mutationFn: (body: { nome: string; admin?: boolean; dev?: boolean; permissoes: PermMap }) => api.post('/config/cargos-permissao', body),
     onSuccess: invalidate,
   })
 }
 
 export function useUpdateCargoPerm() {
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; nome?: string; padrao?: boolean; admin?: boolean; permissoes?: PermMap }) =>
+    mutationFn: ({ id, ...body }: { id: number; nome?: string; padrao?: boolean; admin?: boolean; dev?: boolean; permissoes?: PermMap }) =>
       api.put(`/config/cargos-permissao/${id}`, body),
     onSuccess: invalidate,
   })
