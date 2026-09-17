@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { readData, rankingPersistenceReady } from '../data'
+import { readData, rankingPersistenceReady, dataRevision } from '../data'
 import { snapshot } from '../modules/ranking/router'
 import { configuredScope, belongsToScope } from '../modules/ranking/scope'
 
@@ -22,13 +22,6 @@ router.get('/ranking', (req, res) => {
     list: value.ranking.slice(0, 100).map(m => ({ memberId: m.id, badge: m.badge, name: m.name,
       role: m.role, patenteInterna: m.hierarchy, vitorias: m.wins, registros: m.records, rank: m.rank })) })
 })
-router.get('/perfis', (_req, res) => {
-  const scope = configuredScope()!
-  const data = readData()
-  const active = new Set(snapshot('all').members.map(m => m.id))
-  res.json(data.contas.filter(c => c.membroId && active.has(c.membroId) && belongsToScope(c, scope))
-    .map(c => ({ membroId: c.membroId, avatar: c.avatarServidor || c.avatar || null, banner: c.banner ?? null })))
-})
 router.get('/membros', (_req, res) => {
   const value = snapshot('all')
   res.json({ total: value.members.length, grupos: value.roles.map(role => ({ patente: role.name,
@@ -36,19 +29,22 @@ router.get('/membros', (_req, res) => {
       id: m.id, badge: m.badge, name: m.name, role: m.role, entrada: m.joinedAt, status: m.status,
     })) })).filter(g => g.membros.length) })
 })
+// GET /api/public/revisao — versão atual dos dados (o navegador atualiza tudo quando muda)
+router.get('/revisao', (_req, res) => { res.json({ revisao: dataRevision() }) })
+
 // GET /api/public/perfil/:slug — perfil público do membro (some quando exonerado/inativo)
-const imagemSegura = (url?: string) => (url && /^https?:\/\//i.test(url) ? url : null)
 router.get('/perfil/:slug', (req, res) => {
   const slug = String(req.params.slug).toLowerCase().slice(0, 80)
   const row = snapshot('all').members.find(m => m.slug === slug)
   if (!row) { res.status(404).json({ error: 'Perfil não encontrado.' }); return }
 
   const data = readData()
-  const membro = data.membros.find(m => m.id === row.id)
+  const scope = configuredScope()!
+  const membro = data.membros.find(m => m.id === row.id && belongsToScope(m, scope))
   const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
   const desde = (dias: number) => { const d = new Date(`${hoje}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - dias + 1); return d.toISOString().slice(0, 10) }
   const minhas = data.acoes
-    .filter(a => (a.status ?? 'aprovada') === 'aprovada' && Array.isArray(a.participants)
+    .filter(a => belongsToScope(a, scope) && (a.status ?? 'aprovada') === 'aprovada' && Array.isArray(a.participants)
       && a.participants.some(p => p.memberId === row.id) && a.data.slice(0, 10) <= hoje)
     .sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id)
   const contar = (dias: number) => minhas.filter(a => a.data.slice(0, 10) >= desde(dias)).length
@@ -58,9 +54,10 @@ router.get('/perfil/:slug', (req, res) => {
     cargo: row.hierarchy.replace(/^\(FAST\)\s*/i, ''), patente: row.role, membroDesde: row.joinedAt, status: row.status,
     apreensoes: { d7: contar(7), d15: contar(15), d30: contar(30), total: minhas.length },
     ultimasApreensoes: minhas.slice(0, 10).map(a => ({
-      id: a.id, data: a.data.slice(0, 10), tipo: a.qru, local: a.local || '', resultado: a.resultado, imagem: imagemSegura(a.imagem),
+      id: a.id, data: a.data.slice(0, 10), tipo: a.qru, local: '', resultado: a.resultado, imagem: null,
     })),
-    historicoCargos: [...(membro?.historicoCargos ?? [])].reverse().slice(0, 20),
+    historicoCargos: [...(membro?.historicoCargos ?? [])].reverse().slice(0, 20)
+      .map(({ data, tipo, de, para }) => ({ data, tipo, de, para })),
   })
 })
 

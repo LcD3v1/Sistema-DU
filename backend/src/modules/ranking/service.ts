@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import type { FastData } from '../../types'
 import { belongsToScope, type RankingScope } from './scope'
+import { avatarAtual, nivelDoMembro } from '../../identidadeMembro'
+import { imagemValida } from '../../security/imagem'
+import { isAdmin, PROTECTED_OWNER_ID } from '../../access'
 
 export const filtersSchema = z.object({
   period: z.enum(['all', '7d', '15d', '30d']).default('all'),
@@ -11,12 +14,14 @@ export const filtersSchema = z.object({
 }).strict()
 export type Filters = z.infer<typeof filtersSchema>
 export const winRate = (wins: number, losses: number) => wins + losses > 0 ? Math.round(wins / (wins + losses) * 100) : 0
-const day = (date: Date) => date.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+const fmtDia = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' })
+const day = (date: Date) => fmtDia.format(date)
 function validDate(value: string): boolean {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(value)) return false
   const parsed = new Date(`${value.slice(0, 10)}T12:00:00Z`)
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value.slice(0, 10)
 }
+const RESULTADOS = new Set(['Vitória', 'Derrota', 'Empate'])
 const roleName = (value: string) => value.replace(/^\(FAST\)\s*/i, '').trim().toLocaleLowerCase('pt-BR')
 export function periodStart(period: Filters['period'], now: Date): string {
   if (period === 'all') return ''
@@ -26,10 +31,7 @@ export function periodStart(period: Filters['period'], now: Date): string {
 }
 function safeAvatar(value?: string): string | null {
   if (!value) return null
-  try {
-    const url = new URL(value)
-    return url.protocol === 'https:' && ['cdn.discordapp.com', 'media.discordapp.net'].includes(url.hostname) ? value : null
-  } catch { return null }
+  return imagemValida(value) ? value : null
 }
 export function slugify(texto: string): string {
   return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -64,6 +66,8 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     // A record explicitly linked to a foreign account is not a local unlinked member.
     if (!account && foreignLinks.has(m.id)) continue
     if (m.status === 'Inativo' || account?.exonerado || account?.ativo === false) continue
+    // Conta ainda não aprovada (sem cargo ou cadastro incompleto) não aparece
+    if (account && account.id !== PROTECTED_OWNER_ID && (account.onboarded === false || (!account.cargoPermId && !isAdmin(account, data)))) continue
     const configuredRole = roles.find(r => r.id === String(account?.cargoPermId))
       ?? roles.find(r => roleName(r.name) === roleName(m.patenteInterna || ''))
     const roleId = configuredRole?.id ?? `patente:${m.patenteInterna || 'Sem cargo'}`
@@ -73,11 +77,11 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     }
     rows.set(m.id, {
       id: m.id, name: account?.nomeServidor || m.policial || `Membro #${m.id}`, discordId: account?.discordId ?? null,
-      badge: m.badge || '', internalId: m.passaporte || '', avatar: safeAvatar(account?.avatarServidor || account?.avatar),
+      badge: m.badge || '', internalId: m.passaporte || '', avatar: safeAvatar(avatarAtual(account) ?? undefined),
       role: m.patenteNPD || 'Sem cargo', roleId, hierarchy: configuredRole?.name ?? (m.patenteInterna || 'Sem cargo'),
       level: 1, joinedAt: m.entrada || '', status: m.status || 'Ativo', rank: null, points: 0,
       wins: 0, losses: 0, records: 0, winRate: 0, achievements: [], activity: [], achievedAt: '',
-      discordRoles: account?.discordRoleIds ?? [],
+      discordRoles: [...(account?.discordRoleIds ?? [])],
       slug: '',
     })
   }
@@ -85,8 +89,8 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
   const today = day(now)
   let wins = 0, losses = 0, records = 0
   const activities = data.acoes.filter(a => belongsToScope(a, scope) && (a.status ?? 'aprovada') === 'aprovada'
-    && validDate(a.data) && a.data.slice(0, 10) <= today && Array.isArray(a.participants)
-    && ['Vitória', 'Derrota', 'Empate'].includes(a.resultado))
+    && RESULTADOS.has(a.resultado) && Array.isArray(a.participants)
+    && validDate(a.data) && a.data.slice(0, 10) <= today)
     .sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id)
   for (const action of activities) {
     const ids = new Set(action.participants.map(p => p.memberId))
@@ -117,9 +121,11 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     usados.set(base, (usados.get(base) ?? 0) + 1)
     row.slug = usados.get(base)! > 1 ? `${base}-${row.badge ? slugify(row.badge) || row.id : row.id}` : base
   }
+  const membroPorId = new Map(data.membros.map(m => [m.id, m]))
   for (const row of rows.values()) {
     row.winRate = winRate(row.wins, row.losses)
-    row.level = 1 + Math.floor((lifetime.get(row.id) ?? 0) / 10)
+    const informado = nivelDoMembro(membroPorId.get(row.id))
+    row.level = informado ?? 0   // nível informado pelo membro; 0 = ainda não informado
   }
   const ranking = [...rows.values()].filter(r => r.records > 0).sort((a, b) =>
     b.points - a.points || b.wins - a.wins ||
@@ -146,5 +152,10 @@ export function listPage(rows: MemberRow[], filters: Filters, publicView = false
 }
 /** Public login preview keeps its existing visibility, but never exposes Discord IDs or private activity. */
 export function publicMember(row: MemberRow) {
-  return { ...row, discordId: null, internalId: '', discordRoles: [], activity: [] }
+  return { id: row.id, name: row.name, badge: row.badge, avatar: row.avatar,
+    role: row.role, roleId: row.roleId, hierarchy: row.hierarchy, level: row.level,
+    joinedAt: row.joinedAt, status: row.status, rank: row.rank, points: row.points,
+    wins: row.wins, losses: row.losses, records: row.records, winRate: row.winRate,
+    achievements: row.achievements, achievedAt: row.achievedAt, slug: row.slug,
+    discordId: null, internalId: '', discordRoles: [], activity: [] }
 }

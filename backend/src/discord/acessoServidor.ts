@@ -1,4 +1,4 @@
-import { botConfigurado } from './forum'
+import { botConfigurado, discordFetch } from './forum'
 
 /**
  * Vínculo com o servidor do Discord da unidade:
@@ -22,14 +22,19 @@ export function botNoServidorConhecido(): boolean | undefined {
   return estado?.noServidor
 }
 
+let consultaEmAndamento: Promise<boolean> | undefined
+
 /** Consulta a API do Discord (com cache) se o bot está no servidor da unidade. */
 export async function verificarBotNoServidor(forcar = false): Promise<boolean> {
   if (!botConfigurado()) return false
   if (!forcar && estado && Date.now() - estado.verificadoEm < CACHE_MS) return estado.noServidor
-  const res = await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}`, {
-    signal: AbortSignal.timeout(10_000),
-    headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
-  })
+  // Logins simultâneos compartilham a mesma consulta ao Discord
+  consultaEmAndamento ??= consultarBot().finally(() => { consultaEmAndamento = undefined })
+  return consultaEmAndamento
+}
+
+async function consultarBot(): Promise<boolean> {
+  const res = await discordFetch('GET', `/guilds/${process.env.DISCORD_GUILD_ID}`)
   // 403/404 = bot não está (ou não tem acesso) no servidor; outros erros não mudam o estado
   if (res.ok) definirBotNoServidor(true)
   else if (res.status === 403 || res.status === 404) definirBotNoServidor(false)

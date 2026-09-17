@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/authStore'
@@ -22,15 +21,12 @@ export const useRanking = (filters: Filters, publicView: boolean, enabled = true
 export const useDirectory = (filters: Filters, publicView: boolean, enabled = true) => useDirectoryQuery<Page>('/members', filters, publicView, enabled)
 export const useMember = (id: number, period: Period, publicView: boolean) => useDirectoryQuery<Member>(`/members/${id}`, { period, search: '', role: '', page: 1 }, publicView)
 
-/** Existing writes invalidate mounted directory queries immediately. */
-export function useRankingInvalidation() {
-  const client = useQueryClient()
-  useEffect(() => client.getMutationCache().subscribe(event => {
-    if (event.type === 'updated' && event.action.type === 'success') {
-      void client.invalidateQueries({ queryKey: ['ranking-module'] })
-    }
-  }), [client])
-}
+/**
+ * Gravações já invalidam TODAS as consultas no MutationCache global (lib/queryClient).
+ * Invalidar de novo aqui cancelava a requisição recém-disparada e refazia (2 chamadas).
+ * Mantido como ponto de extensão para o módulo.
+ */
+export function useRankingInvalidation(): void { /* coberto pelo queryClient global */ }
 export function errorMessage(error: unknown): string {
   if (isAxiosError(error)) {
     if (error.response?.status === 403) return 'Você não tem permissão para consultar estes dados.'

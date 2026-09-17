@@ -83,10 +83,10 @@ function Card({ atual, fechar }: { atual: Pedido; fechar: () => void }) {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative w-full max-w-md bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-md bg-card border border-bdr2 rounded-2xl shadow-2xl overflow-y-auto overscroll-contain max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)]"
       >
         <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, transparent, ${cor}, transparent)` }} />
-        <button onClick={cancelar} className="absolute top-3 right-3 text-txt3 hover:text-txt transition-colors" aria-label="Fechar">
+        <button onClick={cancelar} className="absolute top-2 right-2 w-9 h-9 flex items-center justify-center text-txt3 hover:text-txt transition-colors" aria-label="Fechar">
           <X size={16} />
         </button>
 

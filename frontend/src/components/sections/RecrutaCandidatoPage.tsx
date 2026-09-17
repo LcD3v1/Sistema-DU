@@ -78,7 +78,7 @@ export default function RecrutaCandidatoPage() {
   const aberto = recruta.status === 'aberto'
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-4">
+    <div className="p-3 sm:p-6 max-w-2xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/recrutamento')} className="text-txt3 hover:text-txt transition-colors">

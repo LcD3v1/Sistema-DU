@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express'
-import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
-import { configuredScope, scopeKey } from '../modules/ranking/scope'
+import { configuredScope } from '../modules/ranking/scope'
+import { assinarToken } from '../security/jwt'
+import { escopoDoToken } from '../security/escopo'
+import { iguaisSeguro } from '../security/crypto'
 import { requireAuth } from '../middleware/auth'
-import { loginLimiter } from '../middleware/rateLimiter'
-import { validateBody, onboardingSchema, membroSelfSchema } from '../middleware/validate'
+import { adminOnly } from '../middleware/roles'
+import { loginLimiter, trocaLoginLimiter, sessaoLimiter } from '../middleware/rateLimiter'
+import { validateBody, onboardingSchema, membroSelfSchema, nivelInicialSchema } from '../middleware/validate'
 import { Membro, Conta, FastData } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
@@ -15,6 +18,8 @@ import { buscarMembroServidor, aplicarIdentidade } from '../discord/identidade'
 import { verificarBotNoServidor } from '../discord/acessoServidor'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
+import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
+import { imagemValida } from '../security/imagem'
 import { isAdmin, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
 
 const router = Router()
@@ -27,6 +32,18 @@ const DISCORD_AUTHORIZE = 'https://discord.com/api/oauth2/authorize'
 const DISCORD_TOKEN = 'https://discord.com/api/oauth2/token'
 const DISCORD_ME = 'https://discord.com/api/users/@me'
 const oauthStates = new Set<string>()
+const loginCodes = new Map<string, { token: string; contaId: number; username: string; nivel: string; binding: string }>()
+const stateCookie = 'fast_oauth_state'
+const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api/auth' }
+function lerCookie(req: Request, nome: string): string | undefined {
+  return req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith(`${nome}=`))?.slice(nome.length + 1)
+}
+function browserState(req: Request): string | undefined { return lerCookie(req, stateCookie) }
+// Sessão ao recarregar a página: o token fica num cookie httpOnly (JS não lê), SameSite=Strict,
+// enviado só para /api/auth/sessao. Nada de token em localStorage/sessionStorage.
+const sessaoCookie = 'fast_sessao'
+const sessaoCookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const, path: '/api/auth/sessao' }
+const SESSAO_MAX_MS = 8 * 3600_000
 
 function discordConfigured(): boolean {
   return !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET && process.env.DISCORD_REDIRECT_URI)
@@ -34,12 +51,14 @@ function discordConfigured(): boolean {
 
 function issueToken(conta: { id: number; username: string; nivel: string }): string {
   const jti = crypto.randomUUID()
-  return jwt.sign(
-    { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti, scope: configuredScope() ? scopeKey(configuredScope()!) : undefined },
-    process.env.JWT_SECRET!,
-    { expiresIn: '8h' },
-  )
+  // scope = hash do servidor+bot (IDs não ficam legíveis no payload); iss/aud/exp em security/jwt.ts
+  const payload: Record<string, unknown> = { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti }
+  const escopo = escopoDoToken(configuredScope())
+  if (escopo) payload.scope = escopo
+  return assinarToken(payload)
 }
+// Teto de states pendentes (evita encher memória com /discord em massa)
+const MAX_OAUTH_PENDENTES = 5_000
 
 // GET /api/auth/discord — inicia o fluxo
 router.get('/discord', loginLimiter, (_req: Request, res: Response): void => {
@@ -47,9 +66,14 @@ router.get('/discord', loginLimiter, (_req: Request, res: Response): void => {
     res.redirect(`${FRONTEND_URL}/login?reason=discord_off`)
     return
   }
+  if (oauthStates.size >= MAX_OAUTH_PENDENTES) {
+    res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`)
+    return
+  }
   const state = crypto.randomUUID()
   oauthStates.add(state)
-  setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000)
+  setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000).unref()
+  res.cookie(stateCookie, state, { ...cookieOptions, maxAge: 10 * 60 * 1000 })
 
   const params = new URLSearchParams({
     client_id: process.env.DISCORD_CLIENT_ID!,
@@ -67,7 +91,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
   if (!discordConfigured()) { res.redirect(`${FRONTEND_URL}/login?reason=discord_off`); return }
 
   const { code, state } = req.query as { code?: string; state?: string }
-  if (!code || !state || !oauthStates.has(state)) {
+  if (typeof code !== 'string' || typeof state !== 'string' || code.length > 512 || !oauthStates.has(state) || !iguaisSeguro(browserState(req), state)) {
     res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`)
     return
   }
@@ -100,6 +124,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
 
     // Vínculo com o servidor: o bot precisa estar no servidor da unidade e a
     // pessoa precisa fazer parte dele. Donos passam (evita ficar trancado fora).
+    let membroServidor: Awaited<ReturnType<typeof buscarMembroServidor>>
     if (!ehDono) {
       let botPresente = false
       try { botPresente = await verificarBotNoServidor() } catch (err) {
@@ -110,7 +135,6 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
         audit('DISCORD_LOGIN_DENIED', req, `Bot fora do servidor — Discord: ${me.username} (${me.id})`)
         res.redirect(`${FRONTEND_URL}/login?reason=bot_fora_servidor`); return
       }
-      let membroServidor
       try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
         console.error('[FAST][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
         res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
@@ -119,8 +143,14 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
         audit('DISCORD_LOGIN_DENIED', req, `Não faz parte do servidor — Discord: ${me.username} (${me.id})`)
         res.redirect(`${FRONTEND_URL}/login?reason=fora_servidor`); return
       }
+    } else {
+      // Dono: identidade do servidor é opcional (não bloqueia o acesso)
+      try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
+        console.error('[FAST][DISCORD] identidade no servidor:', err instanceof Error ? err.message : err)
+      }
     }
 
+    // Sem await daqui até writeData: evita sobrescrever gravações concorrentes
     const data = readData()
     let conta = data.contas.find(c => c.discordId === me.id)
     if (!conta && ehDono) {
@@ -191,12 +221,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
     }
 
     // Nome e foto iguais aos do servidor da unidade
-    try {
-      const membroServidor = await buscarMembroServidor(me.id)
-      if (membroServidor) aplicarIdentidade(conta, membroServidor)
-    } catch (err) {
-      console.error('[FAST][DISCORD] identidade no servidor:', err instanceof Error ? err.message : err)
-    }
+    if (membroServidor) aplicarIdentidade(conta, membroServidor)
 
     writeData(data)
 
@@ -209,7 +234,10 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
 
     const token = issueToken(conta)
     audit('DISCORD_LOGIN_SUCCESS', req, `Usuário: ${conta.username} | Discord: ${me.username}`)
-    res.redirect(`${FRONTEND_URL}/auth/discord?token=${encodeURIComponent(token)}&contaId=${conta.id}&username=${encodeURIComponent(conta.username)}&nivel=${conta.nivel}`)
+    const loginCode = crypto.randomBytes(32).toString('hex')
+    loginCodes.set(loginCode, { token, contaId: conta.id, username: conta.username, nivel: conta.nivel, binding: state })
+    setTimeout(() => loginCodes.delete(loginCode), 60_000).unref()
+    res.redirect(`${FRONTEND_URL}/auth/discord#code=${loginCode}`)
   } catch {
     audit('DISCORD_LOGIN_ERROR', req)
     res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`)
@@ -217,12 +245,46 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
 })
 
 // POST /api/auth/logout
+router.post('/discord/exchange', trocaLoginLimiter, (req, res): void => {
+  const code = req.body?.code
+  const session = typeof code === 'string' && code.length <= 128 ? loginCodes.get(code) : undefined
+  if (!session || !iguaisSeguro(browserState(req), session.binding)) {
+    res.status(400).json({ error: 'Login inválido ou expirado' }); return
+  }
+  loginCodes.delete(code)
+  res.clearCookie(stateCookie, cookieOptions)
+  res.cookie(sessaoCookie, session.token, { ...sessaoCookieOptions, maxAge: SESSAO_MAX_MS })
+  const { binding: _binding, ...result } = session
+  res.json(result)
+})
+
+// POST /api/auth/sessao — devolve a sessão do cookie httpOnly (recarregar a página sem novo login).
+// Exige header próprio (bloqueia formulário/CSRF entre sites) e valida o token como qualquer rota.
+router.post('/sessao', sessaoLimiter, (req: Request, res: Response): void => {
+  const token = lerCookie(req, sessaoCookie)
+  if (req.get('x-fast-sessao') !== '1' || !token || token.length > 4096 || !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) {
+    res.status(204).end(); return
+  }
+  // Se o token não valer mais (revogado, exonerado, conta desativada…), o cookie é apagado
+  res.clearCookie(sessaoCookie, sessaoCookieOptions)
+  req.headers.authorization = `Bearer ${token}`
+  requireAuth(req, res, () => {
+    const data = readData()
+    const conta = data.contas.find(c => c.id === req.user!.contaId)
+    if (!conta) { res.status(204).end(); return }
+    const restante = Math.max(0, (req.user!.exp ?? 0) * 1000 - Date.now())
+    res.cookie(sessaoCookie, token, { ...sessaoCookieOptions, maxAge: Math.min(restante, SESSAO_MAX_MS) })
+    res.json({ token, contaId: conta.id, username: conta.username, nivel: conta.nivel })
+  })
+})
+
 router.post('/logout', requireAuth, (req: Request, res: Response): void => {
   const user = req.user!
   if (user.jti && user.exp) {
     revokeToken(user.jti, user.exp * 1000)
   }
   audit('LOGOUT', req)
+  res.clearCookie(sessaoCookie, sessaoCookieOptions)
   res.json({ ok: true })
 })
 
@@ -245,6 +307,8 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     nomeServidor: conta.nomeServidor ?? conta.discordUsername ?? conta.username,
     avatarServidor: conta.avatarServidor ?? null,
     avatar: conta.avatar ?? null,
+    avatarAtual: avatarAtual(conta),
+    nivelMembro: nivelDoMembro(conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined),
     banner: conta.banner ?? null,
     onboarded: conta.onboarded !== false,
     cargoPermId: conta.cargoPermId ?? null,
@@ -258,7 +322,11 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)
   if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
-  const body = req.body as { policial: string; badge: string; passaporte: string; patenteNPD: string; patenteInterna: string }
+  // Cadastro já concluído: alterações só pelo fluxo de aprovação
+  if (conta.onboarded !== false && conta.membroId && data.membros.some(m => m.id === conta.membroId)) {
+    res.status(409).json({ error: 'Cadastro já concluído. Envie uma alteração de perfil para aprovação.' }); return
+  }
+  const body = req.body as { nivel: number; policial: string; badge: string; passaporte: string; patenteNPD: string; patenteInterna: string }
 
   let membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
   const novo = !membro
@@ -275,7 +343,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     membro = {
       id: data.nextMemId,
       badge: body.badge, passaporte: body.passaporte, policial: body.policial,
-      patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna,
+      patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel,
       status: 'Ativo',
       entrada: new Date().toISOString().slice(0, 10),
       promocao: new Date().toISOString().slice(0, 10),
@@ -286,7 +354,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     data.nextMemId++
     conta.membroId = membro.id
   } else {
-    Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna })
+    Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel })
   }
   conta.onboarded = true
 
@@ -308,6 +376,22 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   res.json({ ok: true, membroId: membro.id })
 })
 
+// POST /api/auth/me/nivel — informa o nível pela primeira vez (obrigatório).
+// Depois de informado, só muda por solicitação aprovada (alteração de perfil).
+router.post('/me/nivel', requireAuth, validateBody(nivelInicialSchema), (req: Request, res: Response): void => {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  const membro = conta?.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+  if (!membro) { res.status(400).json({ error: 'Nenhum perfil de membro vinculado' }); return }
+  if (nivelDoMembro(membro) !== null) {
+    res.status(409).json({ error: 'Seu nível já foi informado. Para alterar, envie uma alteração de perfil para aprovação.' }); return
+  }
+  membro.nivel = (req.body as { nivel: number }).nivel
+  writeData(data)
+  audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id}: nível informado ${membro.nivel}`)
+  res.json({ ok: true, nivel: membro.nivel })
+})
+
 // PUT /api/auth/me/membro-dados — o usuário PEDE alteração do próprio perfil;
 // só passa a valer quando um superior aprovar (a conta dona aplica direto).
 router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req: Request, res: Response): void => {
@@ -317,15 +401,15 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
   const membro = data.membros.find(m => m.id === conta.membroId)
   if (!membro) { res.status(404).json({ error: 'Membro não encontrado' }); return }
 
-  const campos: CampoPerfil[] = ['policial', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
-  const body = req.body as Partial<Record<CampoPerfil, string>>
+  const campos: CampoPerfil[] = ['nivel', 'policial', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
+  const body = req.body as Partial<Record<CampoPerfil, string | number>>
   const alteracoes = campos
     .filter(k => body[k] !== undefined && String(body[k]) !== String(membro[k] ?? ''))
     .map(k => ({ campo: k, de: String(membro[k] ?? ''), para: String(body[k]) }))
   if (alteracoes.length === 0) { res.status(400).json({ error: 'Nenhuma alteração em relação ao perfil atual.' }); return }
 
   if (conta.id === PROTECTED_OWNER_ID) {
-    for (const a of alteracoes) (membro as unknown as Record<string, unknown>)[a.campo] = a.para
+    for (const a of alteracoes) aplicarCampoPerfil(membro, a.campo, a.para)
     writeData(data)
     audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona)`)
     res.json({ pendente: false, membro })
@@ -363,13 +447,13 @@ router.get('/me/solicitacao-perfil', requireAuth, (req: Request, res: Response):
 // PUT /api/auth/me/avatar — foto de perfil (data URL) ou null p/ remover
 router.put('/me/avatar', requireAuth, (req: Request, res: Response): void => {
   const { avatar } = req.body as { avatar: string | null }
-  if (avatar !== null && (typeof avatar !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,/.test(avatar) || avatar.length > 2_500_000)) {
-    res.status(400).json({ error: 'Imagem inválida ou muito grande (máx ~2MB).' }); return
+  if (avatar !== null && (!imagemValida(avatar) || avatar.length > 2_500_000)) {
+    res.status(400).json({ error: 'Imagem inválida ou muito grande. Envie um arquivo (máx ~2MB) ou cole um link http/https.' }); return
   }
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)
   if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
-  if (avatar === null) delete conta.avatar; else conta.avatar = avatar
+  if (avatar === null) { delete conta.avatar; delete conta.avatarEm } else { conta.avatar = avatar; conta.avatarEm = new Date().toISOString() }
   writeData(data)
   res.json({ ok: true })
 })
@@ -378,8 +462,9 @@ router.put('/me/avatar', requireAuth, (req: Request, res: Response): void => {
 router.put('/me/banner', requireAuth, (req: Request, res: Response): void => {
   const { banner } = req.body as { banner: string | null }
   if (banner !== null) {
-    const isData = /^data:image\/(png|jpeg|webp|gif);base64,/.test(banner)
-    const isKey = typeof banner === 'string' && banner.length <= 40 && /^[\w.-]+$/.test(banner)
+    if (typeof banner !== 'string') { res.status(400).json({ error: 'Banner inválido.' }); return }
+    const isData = imagemValida(banner)
+    const isKey = !isData && banner.length <= 40 && /^[\w.-]+$/.test(banner)
     if (!isData && !isKey) { res.status(400).json({ error: 'Banner inválido.' }); return }
     if (isData && banner.length > 3_500_000) { res.status(400).json({ error: 'Imagem muito grande (máx ~3MB).' }); return }
   }
@@ -392,7 +477,7 @@ router.put('/me/banner', requireAuth, (req: Request, res: Response): void => {
 })
 
 // PUT /api/auth/me/membro — vincula (ou desvincula) o perfil de membro à conta
-router.put('/me/membro', requireAuth, (req: Request, res: Response): void => {
+router.put('/me/membro', requireAuth, adminOnly, (req: Request, res: Response): void => {
   const { membroId } = req.body as { membroId: number | null }
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)

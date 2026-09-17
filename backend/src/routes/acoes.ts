@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import { canArea, isAdmin } from '../access'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, acaoSchema } from '../middleware/validate'
@@ -31,7 +32,12 @@ router.get('/export/csv', requireAuth, requireArea('historico', 'ver'), (_req: R
       .join(' | ')
 
     const participantes = [membersStr, extrasStr].filter(Boolean).join(' | ')
-    rows.push([acao.id, acao.data, acao.qru, acao.resultado, `"${participantes}"`].join(','))
+    const cell = (value: unknown) => {
+      let text = String(value ?? '')
+      if (/^[\s]*[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text
+      return '"' + text.replace(/"/g, '""') + '"'
+    }
+    rows.push([acao.id, acao.data, acao.qru, acao.resultado, participantes].map(cell).join(','))
   }
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
@@ -44,7 +50,9 @@ router.get('/', requireAuth, (req: Request, res: Response): void => {
   const { qru, resultado, status, page, limit } = req.query
 
   const VALID_RESULTADOS = ['Vitória', 'Derrota', 'Empate']
-  let acoes = [...data.acoes].sort((a, b) => b.id - a.id)
+  const conta = data.contas.find(c => c.id === req.user!.contaId)!
+  const completo = (['historico', 'pendentes', 'promocoes', 'estatisticas', 'dashboard'] as const).some(a => canArea(conta, data, a, 'ver'))
+  let acoes = data.acoes.filter(a => completo || a.participants.some(p => p.memberId === conta.membroId)).sort((a, b) => b.id - a.id)
 
   if (qru && typeof qru === 'string') acoes = acoes.filter(a => a.qru === qru)
   if (resultado && typeof resultado === 'string' && VALID_RESULTADOS.includes(resultado)) {
@@ -58,7 +66,9 @@ router.get('/', requireAuth, (req: Request, res: Response): void => {
   const total = acoes.length
   const paginated = acoes.slice((pageNum - 1) * limitNum, pageNum * limitNum)
 
-  res.json({ acoes: paginated, total, page: pageNum, limit: limitNum })
+  // IDs de servidor/bot/tópico do Discord nunca saem da API
+  const semIds = paginated.map(({ guildId: _g, botId: _b, discordThreadId: _t, ...acao }) => acao)
+  res.json({ acoes: semIds, total, page: pageNum, limit: limitNum })
 })
 
 router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateBody(acaoSchema), (req: Request, res: Response): void => {
@@ -106,6 +116,10 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
   const data = readData()
   const acao = data.acoes.find(a => a.id === id)
   if (!acao) { res.status(404).json({ error: 'Ação não encontrada' }); return }
+  const aprovador = data.contas.find(c => c.id === req.user!.contaId)
+  if (acao.criadoPorContaId === req.user!.contaId && !(aprovador && isAdmin(aprovador, data))) {
+    res.status(403).json({ error: 'Não é possível aprovar o próprio registro.' }); return
+  }
 
   const jaAprovada = acao.status === 'aprovada'
   acao.status = 'aprovada'
@@ -134,7 +148,8 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
       if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
     })
   }
-  res.json(acao)
+  const { guildId: _g, botId: _b, discordThreadId: _t, ...acaoPublica } = acao
+  res.json(acaoPublica)
 })
 
 router.delete('/:id', requireAuth, requireArea('pendentes', 'editar'), (req: Request, res: Response): void => {

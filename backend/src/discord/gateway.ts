@@ -1,5 +1,5 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
 import { PROTECTED_OWNER_ID } from '../access'
 import { botConfigurado } from './forum'
@@ -24,6 +24,9 @@ const MOTIVO_SAIDA = 'Saiu do servidor do Discord'
  * a conta fica bloqueada (vê o aviso de exoneração) e o tópico recebe o ❌.
  */
 export function processarSaida(discordId: string, origem: string): void {
+  // Checagem barata sem copiar o banco: a maioria das saídas não tem conta no painel
+  const previa = peekData().contas.find(c => c.discordId === discordId)
+  if (!previa || ehContaDona(previa) || previa.exonerado) return
   const data = readData()
   const conta = data.contas.find(c => c.discordId === discordId)
   if (!conta || ehContaDona(conta) || conta.exonerado) return
@@ -78,6 +81,8 @@ export function iniciarGateway(): void {
   client.on(Events.GuildMemberUpdate, (_antes, depois) => {
     if (depois.guild.id !== guildId) return
     try {
+      // Sem conta vinculada não há o que atualizar → evita copiar o banco a cada evento
+      if (!peekData().contas.some(c => c.discordId === depois.id)) return
       const data = readData()
       const conta = data.contas.find(c => c.discordId === depois.id)
       const m: MembroServidor = {
@@ -118,7 +123,7 @@ export function iniciarGateway(): void {
       }
       if (mudou) writeData(dados)
 
-      for (const conta of readData().contas) {
+      for (const conta of peekData().contas) {
         if (conta.discordId && conta.id !== PROTECTED_OWNER_ID && !conta.exonerado && !membros.has(conta.discordId)) {
           processarSaida(conta.discordId, 'Verificação ao iniciar')
         }

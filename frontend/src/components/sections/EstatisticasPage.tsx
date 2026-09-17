@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Download, X, Calendar } from 'lucide-react'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
   Cell,
@@ -57,7 +55,7 @@ export default function EstatisticasPage() {
 
   const [fromDate, setFromDate] = useState('')
 
-  const acoes: Acao[] = acoesData?.acoes ?? []
+  const acoes: Acao[] = useMemo(() => acoesData?.acoes ?? [], [acoesData])
 
   const filteredAcoes = useMemo(() => {
     if (!fromDate) return acoes
@@ -115,7 +113,9 @@ export default function EstatisticasPage() {
       .sort((a, b) => b.winRate - a.winRate)
   }, [filteredAcoes, qrus])
 
-  function generatePdf() {
+  async function generatePdf() {
+    // jsPDF (~430 KB) só é baixado quando alguém exporta
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
     const W = 210, M = 14
     const now = new Date()
     const toDate = now.toISOString().slice(0, 10)
@@ -246,7 +246,7 @@ export default function EstatisticasPage() {
   if (acoesLoading || membrosLoading) return <LoadingHud />
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       {/* Filtros e exportação */}
       <GlowCard>
         <div className="p-4 flex items-center gap-4 flex-wrap">
@@ -271,14 +271,14 @@ export default function EstatisticasPage() {
             {filteredAcoes.length}
             {filteredAcoes.length !== acoes.length ? ` / ${acoes.length} ações` : ' ações'}
           </span>
-          <HudButton variant="ghost" size="sm" onClick={generatePdf}>
+          <HudButton variant="ghost" size="sm" onClick={() => { void generatePdf() }}>
             <Download size={14} className="inline mr-1.5" />
             Baixar PDF
           </HudButton>
         </div>
       </GlowCard>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Ações por dia da semana */}
         <GlowCard>
           <div className="p-4">
@@ -330,7 +330,8 @@ export default function EstatisticasPage() {
           {operatorData.length === 0 ? (
             <p className="font-mono text-xs text-txt3 text-center py-8">Sem dados suficientes</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto -mx-4 px-4">
+            <table className="w-full text-sm min-w-[520px]">
               <thead>
                 <tr className="border-b border-bdr">
                   {['Operador', 'Total', 'Vitórias', 'Derrotas', 'Win Rate'].map(h => (
@@ -352,10 +353,12 @@ export default function EstatisticasPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded bg-bdrg overflow-hidden">
+                          {/* scaleX (GPU) no lugar de animar width (layout) */}
                           <motion.div
-                            className="h-full rounded bg-gold"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${op.winRate}%` }}
+                            className="h-full rounded bg-gold origin-left"
+                            style={{ width: `${op.winRate}%` }}
+                            initial={{ scaleX: 0 }}
+                            animate={{ scaleX: 1 }}
                             transition={{ duration: 0.7 }}
                           />
                         </div>
@@ -366,6 +369,7 @@ export default function EstatisticasPage() {
                 ))}
               </motion.tbody>
             </table>
+            </div>
           )}
         </div>
       </GlowCard>
@@ -377,7 +381,8 @@ export default function EstatisticasPage() {
           {qruExtData.length === 0 ? (
             <p className="font-mono text-xs text-txt3 text-center py-8">Sem dados suficientes</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto -mx-4 px-4">
+            <table className="w-full text-sm min-w-[520px]">
               <thead>
                 <tr className="border-b border-bdr">
                   {['QRU', 'Total', 'Vitórias', 'Derrotas', 'Part.', 'Win Rate'].map(h => (
@@ -399,21 +404,16 @@ export default function EstatisticasPage() {
                     <td className="px-4 py-3 font-mono text-xs text-blue">{q.empates}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 rounded-full bg-bdrg overflow-hidden flex">
+                        <div className="flex-1 h-1.5 rounded-full bg-bdrg overflow-hidden">
                           <motion.div
-                            style={{ background: '#27ae60' }}
-                            className="h-full"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${q.total > 0 ? (q.vitorias / q.total) * 100 : 0}%` }}
+                            className="h-full flex origin-left"
+                            initial={{ scaleX: 0 }}
+                            animate={{ scaleX: 1 }}
                             transition={{ duration: 0.7, delay: idx * 0.04 }}
-                          />
-                          <motion.div
-                            style={{ background: '#b8433a' }}
-                            className="h-full"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${q.total > 0 ? (q.derrotas / q.total) * 100 : 0}%` }}
-                            transition={{ duration: 0.7, delay: idx * 0.04 + 0.05 }}
-                          />
+                          >
+                            <div className="h-full" style={{ background: '#27ae60', width: `${q.total > 0 ? (q.vitorias / q.total) * 100 : 0}%` }} />
+                            <div className="h-full" style={{ background: '#b8433a', width: `${q.total > 0 ? (q.derrotas / q.total) * 100 : 0}%` }} />
+                          </motion.div>
                         </div>
                         <span className="font-orbitron text-xs text-gold w-10 text-right">{q.winRate}%</span>
                       </div>
@@ -422,6 +422,7 @@ export default function EstatisticasPage() {
                 ))}
               </motion.tbody>
             </table>
+            </div>
           )}
         </div>
       </GlowCard>

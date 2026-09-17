@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { MotionConfig, motion, useReducedMotion } from 'framer-motion'
 import { Trophy, Crown, Medal, Award, Search, Users, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
 import { resolveBanner } from '@/lib/banners'
@@ -22,7 +22,8 @@ function Position({ rank }: { rank: number | null }) {
   </span>
 }
 
-function RankingCard({ member, onSelect, podium = false }: { member: Member; onSelect: (id: number) => void; podium?: boolean }) {
+// memo: digitar na busca re-renderiza o módulo, mas os cards (com animação de layout) só quando o membro muda
+const RankingCard = memo(function RankingCard({ member, onSelect, podium = false }: { member: Member; onSelect: (id: number) => void; podium?: boolean }) {
   const reduced = useReducedMotion()
   const index = (member.rank ?? 1) - 1
   const medal = medals[index] ?? 'var(--gold3)'
@@ -31,7 +32,7 @@ function RankingCard({ member, onSelect, podium = false }: { member: Member; onS
   if (podium) return <motion.button layout={!reduced} initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
     onClick={() => onSelect(member.id)} aria-label={`Ver perfil de ${member.name}, ${member.rank}º lugar`}
     className={`ranking-hover relative min-w-0 overflow-hidden rounded-2xl border p-4 sm:p-5 text-center ${index === 0 ? 'border-gold/50 sm:pb-8 shadow-[0_16px_40px_-20px_rgba(58,114,196,0.6)]' : 'border-bdr'}`}>
-    {banner.img ? <img src={banner.img} alt="" className="absolute inset-0 w-full h-full object-cover" /> : <div className="absolute inset-0" style={{ background: banner.css }} />}
+    {banner.img ? <img src={banner.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" /> : <div className="absolute inset-0" style={{ background: banner.css }} />}
     {banner.overlay && <div className="absolute inset-0" style={{ background: banner.overlay }} />}
     <div className="absolute inset-0 bg-gradient-to-b from-black/35 to-black/95" />
     <div className="relative flex flex-col items-center gap-2"><MedalIcon size={index === 0 ? 24 : 20} style={{ color: medal }} /><Avatar member={member} large />
@@ -46,7 +47,7 @@ function RankingCard({ member, onSelect, podium = false }: { member: Member; onS
     <span className="flex-1 min-w-0"><span className="block text-sm text-txt font-medium truncate">{member.name}</span><span className="block text-xs text-txt2 truncate mt-1">{member.role} · {member.wins} vitórias · {member.winRate}% WR</span></span>
     <span className="text-right shrink-0"><span className="block text-lg font-bold text-gold3">{member.records}</span><span className="text-[9px] text-txt2 uppercase">Registros</span></span>
   </motion.button>
-}
+})
 
 function Statistics({ data }: { data: Ranking }) {
   const stats = data.stats
@@ -109,7 +110,7 @@ export default function RankingModule({ publicView = false, mode = 'both' }: { p
           {!directory.data.items.length ? <EmptyState text="Nenhum membro encontrado." /> : <div className="space-y-5">{directory.data.roles.map((r, i) => {
             const members = directory.data!.items.filter(m => m.roleId === r.id)
             if (!members.length) return null
-            return <div key={r.id}><h3 className="flex items-center gap-2 text-xs font-mono uppercase text-txt border-b border-bdr2 pb-2 mb-2"><span className="text-gold3">{String(i + 1).padStart(2, '0')}</span>{r.name}</h3><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-2">{members.map(m => <button key={m.id} onClick={() => setSelected(m.id)} className="ranking-hover text-left flex gap-3 p-3 rounded-xl border border-bdr bg-card min-w-0"><div className="relative self-start"><Avatar member={m} /><span title={m.status} className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card ${m.status === 'Ativo' ? 'bg-green' : 'bg-gold'}`} /></div><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="text-[10px] font-mono text-gold3 shrink-0">{m.badge || m.internalId || '—'}</span><span className="text-sm font-medium text-txt truncate">{m.name}</span></span><span className="block text-xs text-txt2 truncate mt-1">{m.role} · Nível {m.level}</span><span className="block text-[10px] text-txt2 mt-1">Desde {formatDate(m.joinedAt)}</span><span className="flex flex-wrap gap-2 items-center text-[10px] text-gold3 mt-2"><Position key={period} rank={m.rank} />{m.wins} vitórias · {m.winRate}% WR</span>{!publicView && <span className="block text-[10px] text-txt2 truncate mt-1">Discord: {m.discordId || 'Não vinculado'}</span>}</span></button>)}</div></div>
+            return <div key={r.id}><h3 className="flex items-center gap-2 text-xs font-mono uppercase text-txt border-b border-bdr2 pb-2 mb-2"><span className="text-gold3">{String(i + 1).padStart(2, '0')}</span>{r.name}</h3><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-2">{members.map(m => <button key={m.id} onClick={() => setSelected(m.id)} className="ranking-hover text-left flex gap-3 p-3 rounded-xl border border-bdr bg-card min-w-0"><div className="relative self-start"><Avatar member={m} /><span title={m.status} className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card ${m.status === 'Ativo' ? 'bg-green' : 'bg-gold'}`} /></div><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="text-[10px] font-mono text-gold3 shrink-0">{m.badge || m.internalId || '—'}</span><span className="text-sm font-medium text-txt truncate">{m.name}</span></span><span className="block text-xs text-txt2 truncate mt-1">{m.role} · Nível {m.level > 0 ? m.level : '—'}</span><span className="block text-[10px] text-txt2 mt-1">Desde {formatDate(m.joinedAt)}</span><span className="flex flex-wrap gap-2 items-center text-[10px] text-gold3 mt-2"><Position key={period} rank={m.rank} />{m.wins} vitórias · {m.winRate}% WR</span>{!publicView && <span className="block text-[10px] text-txt2 truncate mt-1">Discord: {m.discordId || 'Não vinculado'}</span>}</span></button>)}</div></div>
           })}</div>}
           <Pagination page={memberPage} pages={directory.data.pages} total={directory.data.total} onChange={setMemberPage} />
         </>}

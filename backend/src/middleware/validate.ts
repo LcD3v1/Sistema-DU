@@ -1,5 +1,6 @@
 import { z, ZodSchema } from 'zod'
 import { Request, Response, NextFunction } from 'express'
+import { imagemValida, ehLinkImagem, MAX_URL_IMAGEM } from '../security/imagem'
 
 export function validateBody<T>(schema: ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -26,6 +27,8 @@ const safeStr = (min: number, max: number) =>
 
 const safeStrOpt = (max: number) =>
   z.string().max(max).transform((s: string) => s.trim())
+
+const nivelSchema = z.coerce.number({ message: 'Informe o seu nível' }).int('Nível deve ser um número inteiro').min(1, 'Nível mínimo é 1').max(999, 'Nível máximo é 999')
 
 export const updateContaSchema = z.object({
   nivel: z.enum(['admin', 'moderador', 'membro', 'view_only']).optional(),
@@ -65,6 +68,7 @@ export const membroSchema = z.object({
 })
 
 export const membroUpdateSchema = z.object({
+  nivel:          nivelSchema.optional(),
   badge:          safeStrOpt(20).optional(),
   passaporte:     safeStrOpt(20).optional(),
   policial:       safeStr(1, 100).optional(),
@@ -86,7 +90,7 @@ export const acaoSchema = z.object({
   resultado:    z.enum(['Vitória', 'Derrota', 'Empate']),
   comandante:   z.string().max(100).optional(),
   local:        safeStrOpt(120).optional(),
-  imagem:       z.string().max(500).optional(),
+  imagem:       z.string().max(MAX_URL_IMAGEM).refine(s => s === '' || ehLinkImagem(s), 'Imagem deve ser um link http/https').optional(),
   participants: z.array(z.object({
     memberId:       z.number().int().positive(),
     patenteUnidade: safeStrOpt(50),
@@ -135,6 +139,7 @@ export const situacaoAnuncioUpdateSchema = z.object({
 })
 
 export const onboardingSchema = z.object({
+  nivel:          nivelSchema,
   policial:       safeStr(1, 100),
   badge:          safeStrOpt(20).default(''),
   passaporte:     safeStrOpt(20).default(''),
@@ -143,6 +148,7 @@ export const onboardingSchema = z.object({
 })
 
 export const membroSelfSchema = z.object({
+  nivel:          nivelSchema.optional(),
   policial:       safeStr(1, 100).optional(),
   badge:          safeStrOpt(20).optional(),
   passaporte:     safeStrOpt(20).optional(),
@@ -157,8 +163,6 @@ export const avisoSchema = z.object({
   mensagem: safeStr(1, 2000),
 })
 
-const imagemValida = (s: string) =>
-  /^data:image\/(png|jpe?g|webp|gif);base64,/.test(s) || /^https?:\/\//.test(s)
 
 export const fardamentoSchema = z.object({
   patente:     safeStr(1, 50),
@@ -276,3 +280,5 @@ export const reorderCargosSchema = z.object({
 export const recusarSchema = z.object({
   motivo: safeStrOpt(300).optional(),
 })
+
+export const nivelInicialSchema = z.object({ nivel: nivelSchema })

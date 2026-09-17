@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trash2, Download, Filter } from 'lucide-react'
 import { useAcoes, useDeleteAcao } from '@/hooks/useAcoes'
@@ -37,7 +37,7 @@ export default function HistoricoPage() {
 
   const canEdit = can('pendentes')
 
-  const membroMap = new Map((membros ?? []).map((m: Membro) => [m.id, m]))
+  const membroMap = useMemo(() => new Map((membros ?? []).map((m: Membro) => [m.id, m])), [membros])
 
   async function handleDelete(id: number) {
     if (!(await confirmar({ titulo: 'Apagar apreensão', mensagem: 'Apagar esta apreensão? Esta operação não pode ser desfeita.', tom: 'perigo', textoConfirmar: 'Apagar' }))) return
@@ -72,7 +72,7 @@ export default function HistoricoPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4">
       {/* Filtros */}
       <GlowCard>
         <div className="p-4 flex items-center gap-4 flex-wrap">
@@ -112,7 +112,7 @@ export default function HistoricoPage() {
       {/* Tabela */}
       <GlowCard>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-bdr">
                 {['#', 'Data', 'QRU', 'Resultado', 'Comandante', 'Participantes', ''].map(h => (

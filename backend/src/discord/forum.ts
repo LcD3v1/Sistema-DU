@@ -35,15 +35,34 @@ export function botConfigurado(): boolean {
   return Boolean(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID)
 }
 
+const TIMEOUT_MS = 10_000
+const MAX_TENTATIVAS_429 = 3
+const esperar = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/**
+ * fetch na API do Discord com timeout e respeito ao rate limit (429 → aguarda
+ * retry_after e tenta de novo). 429 não processa a requisição, então repetir é seguro.
+ */
+export async function discordFetch(method: string, route: string, body?: unknown): Promise<Response> {
+  for (let tentativa = 1; ; tentativa++) {
+    const res = await fetch(API + route, {
+      method,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: {
+        Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    if (res.status !== 429 || tentativa >= MAX_TENTATIVAS_429) return res
+    const info = await res.json().catch(() => ({})) as { retry_after?: number }
+    const segundos = Number(info.retry_after ?? res.headers.get('retry-after') ?? 1)
+    await esperar(Math.min(Math.max(Number.isFinite(segundos) ? segundos : 1, 0.05), 10) * 1000)
+  }
+}
+
 async function discord<T>(method: string, route: string, body?: unknown): Promise<T> {
-  const res = await fetch(API + route, {
-    method,
-    headers: {
-      Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  const res = await discordFetch(method, route, body)
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
     throw new Error(`Discord ${method} ${route} → ${res.status} ${txt.slice(0, 300)}`)
@@ -52,10 +71,18 @@ async function discord<T>(method: string, route: string, body?: unknown): Promis
 }
 
 /** Lista os canais do servidor onde o bot pode postar. Mantém o nome legado da função/API. */
+type CanalGuild = { id: string; name: string; type: number; position: number; parent_id?: string | null }
+const CANAIS_TTL_MS = 15_000
+let canaisCache: { em: number; lista: Promise<CanalGuild[]> } | undefined
+
 export async function listarForuns(): Promise<ForumChannel[]> {
-  const canais = await discord<{ id: string; name: string; type: number; position: number; parent_id?: string | null }[]>(
-    'GET', `/guilds/${process.env.DISCORD_GUILD_ID}/channels`,
-  )
+  // Cache curto + chamadas simultâneas compartilham a mesma requisição
+  if (!canaisCache || Date.now() - canaisCache.em > CANAIS_TTL_MS) {
+    const lista = discord<CanalGuild[]>('GET', `/guilds/${process.env.DISCORD_GUILD_ID}/channels`)
+    canaisCache = { em: Date.now(), lista }
+    lista.catch(() => { if (canaisCache?.lista === lista) canaisCache = undefined })
+  }
+  const canais = await canaisCache.lista
   return canais
     .filter(c => POSTABLE_CHANNEL_TYPES.has(c.type))
     .sort((a, b) => a.position - b.position)
@@ -109,8 +136,18 @@ function tituloRegistro(m: Membro, ok: boolean): string {
   return cut(`${ok ? '✅' : '❌'} - ${m.policial}${m.passaporte ? ` | ${m.passaporte}` : ''}`, 100)
 }
 
-async function obterCanal(channelId: string): Promise<{ id: string; name?: string; type: number }> {
-  return discord<{ id: string; name?: string; type: number }>('GET', `/channels/${channelId}`)
+type CanalInfo = { id: string; name?: string; type: number }
+// O tipo de um canal não muda: cache de 5 min economiza 1 chamada REST por postagem.
+const CANAL_TTL_MS = 5 * 60_000
+const canaisInfo = new Map<string, { em: number; canal: Promise<CanalInfo> }>()
+
+async function obterCanal(channelId: string): Promise<CanalInfo> {
+  const hit = canaisInfo.get(channelId)
+  if (hit && Date.now() - hit.em < CANAL_TTL_MS) return hit.canal
+  const canal = discord<CanalInfo>('GET', `/channels/${channelId}`)
+  canaisInfo.set(channelId, { em: Date.now(), canal })
+  canal.catch(() => { if (canaisInfo.get(channelId)?.canal === canal) canaisInfo.delete(channelId) })
+  return canal
 }
 
 async function criarTopicoOuPostar(
@@ -201,8 +238,13 @@ async function postarNoTopico(data: FastData, m: Membro, embed: Embed, ativo: bo
   const mentionIds = idsMencionaveis(data, m)
   const message = { content: `👤 ${mencionarMembro(data, m)}`, allowed_mentions: allowedMentions(mentionIds), embeds: [embed] }
   if (m.discordThreadId) {
-    await discord('POST', `/channels/${m.discordThreadId}/messages`, message)
-    await discord('PATCH', `/channels/${m.discordThreadId}`, { name: tituloRegistro(m, ativo) })
+    // Mensagem e renomeação são independentes → em paralelo
+    const [msg, titulo] = await Promise.allSettled([
+      discord('POST', `/channels/${m.discordThreadId}/messages`, message),
+      discord('PATCH', `/channels/${m.discordThreadId}`, { name: tituloRegistro(m, ativo) }),
+    ])
+    if (msg.status === 'rejected') throw msg.reason
+    if (titulo.status === 'rejected') throw titulo.reason
     return
   }
   const channelId = data.canais?.registro
@@ -215,14 +257,15 @@ async function postarNoTopico(data: FastData, m: Membro, embed: Embed, ativo: bo
 }
 
 const fmtData = (iso: string) => { const [a, mes, d] = iso.slice(0, 10).split('-'); return `${d}/${mes}/${a}` }
-const fmtDataHora = (date = new Date()) => new Intl.DateTimeFormat('pt-BR', {
+const fmtDataHoraIntl = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: 'long',
   year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   timeZone: 'America/Sao_Paulo',
-}).format(date)
+})
+const fmtDataHora = (date = new Date()) => fmtDataHoraIntl.format(date)
 
 /**
  * Registra a exoneração no tópico do membro e troca o título para ❌.
@@ -288,7 +331,7 @@ export async function postarAdvertencia(data: FastData, m: Membro, nivel: number
 }
 
 const ROTULO_CAMPO: Record<string, string> = {
-  policial: 'Nome', badge: 'Distintivo', passaporte: 'ID do jogador', patenteNPD: 'Patente NPD', patenteInterna: 'Patente interna',
+  nivel: 'Nível', policial: 'Nome', badge: 'Distintivo', passaporte: 'ID do jogador', patenteNPD: 'Patente NPD', patenteInterna: 'Patente interna',
 }
 
 export async function postarPerfilAtualizado(

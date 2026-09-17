@@ -254,14 +254,14 @@ export default function GerarAnuncioPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-3 sm:p-6 max-w-[1400px]">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-txt2 hover:text-txt text-xs font-mono tracking-wider mb-4 transition-colors">
         <ChevronLeft size={14} /> VOLTAR
       </button>
       <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div>
           <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Ferramenta interna</p>
-          <h1 className="text-3xl font-bold text-txt">Gerar anúncio</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-txt">Gerar anúncio</h1>
           <p className="text-sm text-txt2 mt-1">Monte a mensagem, confira como ficará no jogo e copie tudo de uma vez.</p>
         </div>
         <div className="flex items-center gap-2 text-txt2">
@@ -270,7 +270,7 @@ export default function GerarAnuncioPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
         {/* ── Formulário ─────────────────────────────────────── */}
         <div className="bg-card border border-bdr rounded-xl p-5">
           <div className="flex items-center justify-between mb-1">
@@ -282,7 +282,7 @@ export default function GerarAnuncioPage() {
           <p className="text-xs text-txt3 mb-5">Escolha a situação e informe o local e a assinatura.</p>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="font-mono text-[11px] text-txt2 tracking-wider">Situação *</label>
@@ -325,7 +325,7 @@ export default function GerarAnuncioPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Duração em segundos *</label>
                 <input type="number" min={1} max={600} value={duracao} onChange={e => setDuracao(Math.max(1, Number(e.target.value) || 0))} className={inputCls} />

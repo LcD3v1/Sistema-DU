@@ -10,6 +10,8 @@
  */
 const path = require('path')
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true })
+// Redação de segredos em qualquer log (URI do Mongo, tokens). Requer build (dist/).
+try { require('../dist/security/redact').protectConsole() } catch { console.warn('[FAST] build ausente: logs sem redação — rode npm run build') }
 const { MongoClient } = require('mongodb')
 
 const ORIGEM = process.env.MONGODB_DB_PRODUCAO || process.env.MONGODB_DB || 'fast'

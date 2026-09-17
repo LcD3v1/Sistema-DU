@@ -66,7 +66,7 @@ body {
   background-color: var(--bg);
   color: var(--txt);
   font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  min-width: 1024px;
+
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -371,4 +371,17 @@ input[type=range].hud-slider::-moz-range-thumb {
   animation: blink 1s step-end infinite;
   color: var(--gold);
   margin-left: 2px;
+}
+
+/* ── Altura da viewport (dvh evita o salto da barra de endereço no celular) ── */
+.altura-tela { height: 100vh; height: 100dvh; }
+
+/* ── Movimento reduzido: mantém os efeitos, mas praticamente instantâneos ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

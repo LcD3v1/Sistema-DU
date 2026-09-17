@@ -4,6 +4,74 @@ const { buildSnapshot, winRate, periodStart, filtersSchema, listPage, publicMemb
 const { bindDatabaseScope, scopeKey } = require('../dist/modules/ranking/scope')
 const { scope, guild, bot, member, action, makeData } = require('./ranking-fixtures.cjs')
 const now = new Date('2026-09-17T16:00:00Z')
+
+test('segurança: usuário comum não pode assumir outro perfil', async () => {
+  const res = await fetch(base + '/api/auth/me/membro', {
+    method: 'PUT', headers: { Authorization: `Bearer ${token(2)}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ membroId: 3 }),
+  })
+  assert.equal(res.status, 403)
+  assert.equal(data.contas[1].membroId, 2)
+})
+
+test('segurança: sem permissão não recebe dados privados de terceiros', async () => {
+  const old = data.cargosPermissao[1].permissoes.membros.ver
+  data.cargosPermissao[1].permissoes.membros.ver = false
+  try {
+    const result = await get('/api/membros', token(2))
+    assert.equal(result.status, 200)
+    const other = result.body.find(m => m.id === 1)
+    for (const field of ['passaporte', 'discordId', 'advertencias', 'historicoCargos', 'contaId']) assert.equal(other[field], undefined)
+    assert.equal(result.body.find(m => m.id === 2).passaporte, 'P2')
+  } finally { data.cargosPermissao[1].permissoes.membros.ver = old }
+})
+
+test('segurança: OAuth vinculado ao navegador e troca única sem JWT na URL', async () => {
+  process.env.DISCORD_CLIENT_SECRET = 'test-only'
+  process.env.DISCORD_REDIRECT_URI = 'http://localhost/api/auth/discord/callback'
+  process.env.DISCORD_OWNER_ID = '333333333333333333'
+  const originalFetch = global.fetch
+  try {
+    const start = await originalFetch(base + '/api/auth/discord', { redirect: 'manual' })
+    const state = new URL(start.headers.get('location')).searchParams.get('state')
+    const cookie = start.headers.get('set-cookie').split(';')[0]
+    assert.match(start.headers.get('set-cookie'), /HttpOnly/i)
+    const denied = await originalFetch(base + `/api/auth/discord/callback?code=fake&state=${state}`, { redirect: 'manual' })
+    assert.match(denied.headers.get('location'), /reason=discord_erro/)
+    global.fetch = async (url, options) => {
+      if (String(url) === 'https://discord.com/api/oauth2/token') return new Response(JSON.stringify({ access_token: 'synthetic-test-token' }))
+      if (String(url) === 'https://discord.com/api/users/@me') return new Response(JSON.stringify({ id: '333333333333333333', username: 'comando' }))
+      return originalFetch(url, options)
+    }
+    const callback = await originalFetch(base + `/api/auth/discord/callback?code=fake&state=${state}`, { redirect: 'manual', headers: { Cookie: cookie } })
+    const location = new URL(callback.headers.get('location'))
+    assert.equal(location.search, '')
+    assert.ok(!location.href.includes('token='))
+    const code = new URLSearchParams(location.hash.slice(1)).get('code')
+    assert.ok(code)
+    const exchange = (binding) => originalFetch(base + '/api/auth/discord/exchange', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: binding }, body: JSON.stringify({ code }),
+    })
+    assert.equal((await exchange('')).status, 400)
+    const valid = await exchange(cookie)
+    assert.equal(valid.status, 200)
+    const session = await valid.json()
+    assert.equal(jwt.verify(session.token, secret).contaId, 1)
+    assert.equal(session.binding, undefined)
+    assert.equal((await exchange(cookie)).status, 400)
+  } finally {
+    global.fetch = originalFetch
+    delete process.env.DISCORD_CLIENT_SECRET
+    delete process.env.DISCORD_OWNER_ID
+  }
+})
+
+test('segurança: logs removem segredos e DTO público descarta campos desconhecidos', () => {
+  const { redact } = require('../dist/security/redact')
+  const text = redact(`${secret} mongodb://user:synthetic-password@host/db Bearer abc.def.ghi ${token()}`)
+  for (const value of [secret, 'synthetic-password', 'abc.def.ghi', 'eyJ']) assert.ok(!text.includes(value))
+  assert.equal(publicMember({ ...build().members[0], password: 'synthetic' }).password, undefined)
+})
 const build = (data = makeData(), period = 'all') => buildSnapshot(data, scope, period, now)
 
 test('Win Rate: vitórias / (vitórias + derrotas), incluindo zero', () => {
@@ -57,9 +125,9 @@ test('participante duplicado não duplica pontuação', () => {
   const data = makeData(); data.acoes = [action(1, [1, 1, 1])]
   assert.equal(build(data).ranking[0].points, 1)
 })
-test('membro sem atividade tem nível 1, WR zero e posição nula', () => {
+test('membro sem atividade e sem nível informado tem nível 0, WR zero e posição nula', () => {
   const row = build().members.find(m => m.id === 4)
-  assert.equal(row.level, 1); assert.equal(row.winRate, 0); assert.equal(row.rank, null)
+  assert.equal(row.level, 0); assert.equal(row.winRate, 0); assert.equal(row.rank, null)
   assert.equal(row.achievements.length, 0)
 })
 test('inativos, removidos, contas desativadas e exonerados não entram no ranking ativo', () => {
@@ -127,10 +195,11 @@ test('Top 3 contém no máximo três IDs únicos e não inventa participantes', 
   const data = makeData(); data.acoes = []
   assert.deepEqual(build(data).ranking, [])
 })
-test('conquistas e nível derivam de atividades válidas; perfil tem histórico limitado', () => {
+test('conquistas derivam de atividades válidas; nível é o informado pelo membro; perfil tem histórico limitado', () => {
   const data = makeData(); data.acoes = Array.from({ length: 30 }, (_, i) => action(i + 1, [1]))
+  data.membros.find(m => m.id === 1).nivel = 48
   const row = build(data).ranking[0]
-  assert.equal(row.level, 4); assert.equal(row.activity.length, 20)
+  assert.equal(row.level, 48); assert.equal(row.activity.length, 20)
   assert.deepEqual(row.achievements.map(a => a.id), ['first-record', 'ten-wins', 'twenty-five-records'])
 })
 test('avatar inválido tem fallback e projeção pública não expõe identidade privada', () => {
@@ -157,19 +226,22 @@ const timers = []
 const jwt = require('jsonwebtoken')
 const secret = 'local-test-only-not-a-real-credential-123456789'
 function token(id = 1, tokenScope = scopeKey(scope)) {
-  return jwt.sign({ contaId: id, username: 'test', nivel: 'membro', scope: tokenScope }, secret, { expiresIn: '1h' })
+  return jwt.sign({ contaId: id, username: 'test', nivel: 'membro', scope: tokenScope, jti: require('node:crypto').randomUUID() }, secret, { expiresIn: '1h' })
 }
 async function get(path, auth = token()) {
   const res = await fetch(base + path, { headers: auth ? { Authorization: `Bearer ${auth}` } : {} })
   return { status: res.status, body: await res.json(), headers: res.headers }
 }
 before(async () => {
+  process.env.NODE_ENV = 'test'
+  process.env.DISCORD_EXIGIR_SERVIDOR = 'off'
   process.env.DISCORD_GUILD_ID = guild; process.env.DISCORD_CLIENT_ID = bot; process.env.JWT_SECRET = secret
   delete process.env.DISCORD_BOT_TOKEN
   data = makeData()
   data.acoes.forEach(a => { a.data = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) })
   const store = require('../dist/data')
   store.readData = () => structuredClone(data)
+  store.peekData = () => data
   store.writeData = next => { data = structuredClone(next); revision++ }
   store.dataRevision = () => revision
   require('../dist/security/audit').audit = (...args) => auditEvents.push(args)
@@ -264,7 +336,7 @@ test('saída preserva snapshot/histórico; readmissão recupera o mesmo ID', asy
   assert.equal((await get('/api/ranking/members/2')).status, 404)
   const restored = await fetch(base + '/api/membros/exonerados/2/retirar', { method: 'POST', headers: { Authorization: `Bearer ${token()}` } })
   assert.equal(restored.status, 200)
-  const onboard = await fetch(base + '/api/auth/onboarding', { method: 'POST', headers: { Authorization: `Bearer ${token(2)}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ policial: 'Operador Teste', badge: '22', passaporte: '222', patenteNPD: 'Officer', patenteInterna: 'Officer' }) })
+  const onboard = await fetch(base + '/api/auth/onboarding', { method: 'POST', headers: { Authorization: `Bearer ${token(2)}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ nivel: 12, policial: 'Operador Teste', badge: '22', passaporte: '222', patenteNPD: 'Officer', patenteInterna: 'Officer' }) })
   assert.equal(onboard.status, 200, await onboard.text())
   assert.equal(data.contas.find(c => c.id === 2).membroId, 2)
   assert.equal(data.membros.filter(m => m.id === 2).length, 1)

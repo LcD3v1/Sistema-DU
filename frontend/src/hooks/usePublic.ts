@@ -48,16 +48,6 @@ export function usePublicRanking(win: string) {
   })
 }
 
-export interface PerfilPub { membroId: number; avatar: string | null; banner: string | null }
-
-export function usePublicPerfis() {
-  return useQuery<PerfilPub[]>({
-    queryKey: ['public-perfis'],
-    queryFn: async () => (await api.get<PerfilPub[]>('/public/perfis')).data,
-    refetchInterval: 60_000,
-  })
-}
-
 export function usePublicMembros() {
   return useQuery<MembrosResp>({
     queryKey: ['public-membros'],

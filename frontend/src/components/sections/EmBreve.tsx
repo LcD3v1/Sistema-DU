@@ -20,7 +20,7 @@ export default function EmBreve() {
   const { pathname } = useLocation()
   const label = LABELS[pathname] ?? 'Módulo'
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="flex flex-col items-center justify-center text-center py-24 border border-bdr rounded-xl bg-card">
         <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center mb-4">
           <Construction size={26} className="text-gold" />

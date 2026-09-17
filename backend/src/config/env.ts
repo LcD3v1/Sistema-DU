@@ -1,4 +1,9 @@
 import 'dotenv/config'
+import { protectConsole } from '../security/redact'
+protectConsole()
+
+// Nunca permitir que uma variável herdada desabilite a validação TLS.
+delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
 
 /**
  * Validação fail-fast das variáveis de ambiente.
@@ -75,4 +80,32 @@ validateDiscord()
 // Aviso extra em produção sobre CORS aberto/origem padrão.
 if (PROD && !process.env.ALLOWED_ORIGIN) {
   console.warn('[FAST][SEGURANÇA] ALLOWED_ORIGIN não definido em produção — usando same-origin (CORS desligado).')
+}
+
+// Chave de criptografia em repouso (opcional): se definida, precisa ser válida (32 bytes)
+// e diferente do JWT_SECRET (segredos com finalidades distintas nunca são reaproveitados).
+{
+  const bruta = process.env.DATA_ENCRYPTION_KEY
+  if (bruta !== undefined && bruta.trim() !== '') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { decodificarChave } = require('../security/crypto') as typeof import('../security/crypto')
+    if (!decodificarChave(bruta)) fail('DATA_ENCRYPTION_KEY inválida — use 32 bytes em base64url (43 chars) ou hex (64 chars).')
+    if (bruta.trim() === process.env.JWT_SECRET?.trim()) fail('DATA_ENCRYPTION_KEY não pode ser igual ao JWT_SECRET.')
+  }
+}
+
+// Proteções que NÃO devem ser desligadas em produção
+if (PROD) {
+  for (const [nome, desligado] of [
+    ['FIREWALL_ATIVO', /^(off|false|0)$/i],
+    ['FORCAR_HTTPS', /^(off|false|0)$/i],
+    ['FIREWALL_ISENTAR_LOOPBACK', /^(on|true|1)$/i],
+  ] as const) {
+    if (desligado.test(process.env[nome]?.trim() ?? '')) {
+      console.warn(`[FAST][SEGURANÇA] ${nome} enfraquece a proteção em produção — revise o .env.`)
+    }
+  }
+  if (process.env.DISCORD_EXIGIR_SERVIDOR === 'off') {
+    console.warn('[FAST][SEGURANÇA] DISCORD_EXIGIR_SERVIDOR=off é ignorado em produção.')
+  }
 }

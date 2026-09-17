@@ -1,12 +1,16 @@
+import { useMe } from '@/hooks/useMe'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
 import type { RecCfg } from '@/types'
 
 export function useQrus() {
+  const { data: me } = useMe()
   return useQuery<string[]>({
     queryKey: ['config', 'qrus'],
     queryFn: async () => (await api.get<string[]>('/config/qrus')).data,
+    // Rota exige conta aprovada: sem cargo não consulta (evita 403 repetidos)
+    enabled: !!me && (me.admin || !!me.cargoPermId),
   })
 }
 

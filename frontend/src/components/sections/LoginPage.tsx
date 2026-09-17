@@ -36,14 +36,18 @@ function VideoBackdrop() {
     if (!v) return
     v.muted = true
     v.defaultMuted = true
-    const tryPlay = () => { v.play().catch(() => {}) }
+    const tryPlay = () => { if (document.visibilityState === 'visible') v.play().catch(() => {}) }
     tryPlay()
+    // Aba oculta: pausa o vídeo (economiza CPU/bateria); volta ao reexibir
+    const onVisibility = () => { if (document.visibilityState === 'visible') tryPlay(); else v.pause() }
+    document.addEventListener('visibilitychange', onVisibility)
     const onReady = () => tryPlay()
     v.addEventListener('canplay', onReady)
     document.addEventListener('pointerdown', tryPlay, { once: true })
     document.addEventListener('keydown', tryPlay, { once: true })
     return () => {
       v.removeEventListener('canplay', onReady)
+      document.removeEventListener('visibilitychange', onVisibility)
       document.removeEventListener('pointerdown', tryPlay)
       document.removeEventListener('keydown', tryPlay)
     }
@@ -52,7 +56,7 @@ function VideoBackdrop() {
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
       {/* scale 1.35 recorta o letterbox gravado no arquivo (barras de 12,5% em cima/baixo) */}
-      <video ref={ref} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.35)', transformOrigin: 'center' }} src="/media/login-bg.mp4" autoPlay muted loop playsInline preload="auto" />
+      <video ref={ref} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.35) translateZ(0)', transformOrigin: 'center' }} src="/media/login-bg.mp4" autoPlay muted loop playsInline preload="metadata" disablePictureInPicture />
       {/* scrim central para legibilidade do conteúdo */}
       <div className="absolute inset-0 pointer-events-none"
            style={{ background: 'radial-gradient(70% 80% at 50% 50%, rgba(4,6,11,0.82) 0%, rgba(4,6,11,0.55) 55%, rgba(4,6,11,0.35) 100%)' }} />
@@ -71,11 +75,11 @@ export default function LoginPage() {
   const ateFmt = ate && /^\d{4}-\d{2}-\d{2}$/.test(ate) ? ate.split('-').reverse().join('/') : null
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black text-white">
+    <div className="relative altura-tela w-full overflow-hidden bg-black text-white">
       <VideoBackdrop />
 
       {/* ── Top bar ─────────────────────────────────────────────── */}
-      <header className="relative z-30 flex items-center justify-between px-8 lg:px-14 pt-6">
+      <header className="relative z-30 flex items-center justify-between px-5 sm:px-8 lg:px-14 pt-5 sm:pt-6">
         <div className="flex items-center gap-3">
           <Brand size={40} />
           <div className="leading-tight">
@@ -86,7 +90,7 @@ export default function LoginPage() {
       </header>
 
       {/* ── Hero (centralizado) ──────────────────────────────────── */}
-      <main className="relative z-20 h-[calc(100%-140px)] flex items-center justify-center px-8 lg:px-14">
+      <main className="relative z-20 h-[calc(100%-140px)] flex items-center justify-center px-5 sm:px-8 lg:px-14">
         <div className="w-full max-w-xl flex flex-col items-center text-center">
           <div className="flex items-center gap-2 mb-5">
             <span className="h-px w-8 bg-gold" />
@@ -94,7 +98,7 @@ export default function LoginPage() {
             <span className="h-px w-8 bg-gold" />
           </div>
 
-          <h1 className="wordmark text-[84px] md:text-[112px] leading-[0.9] text-white mb-4"
+          <h1 className="wordmark text-[64px] sm:text-[84px] md:text-[112px] leading-[0.9] text-white mb-4"
               style={{ textShadow: '0 8px 50px rgba(0,0,0,0.7)' }}>
             FAST
           </h1>
@@ -133,7 +137,7 @@ export default function LoginPage() {
       </main>
 
       {/* ── Rodapé ──────────────────────────────────────────────── */}
-      <footer className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-end px-8 lg:px-14 py-6">
+      <footer className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-end px-5 sm:px-8 lg:px-14 py-6">
         <p className="font-mono text-[9px] text-white/30 tracking-[0.25em] uppercase">
           Desenvolvido por <span className="text-gold3/80">LC Dev</span>
         </p>

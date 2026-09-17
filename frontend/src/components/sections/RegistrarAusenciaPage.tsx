@@ -68,9 +68,9 @@ export default function RegistrarAusenciaPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-2xl mx-auto">
       <GlowCard>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-11 h-11 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center">
               <CalendarPlus size={18} className="text-gold" />
@@ -115,7 +115,7 @@ export default function RegistrarAusenciaPage() {
             </div>
 
             {/* Período */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="font-mono text-xs text-txt2 tracking-wider block mb-1.5">DE</label>
                 <input

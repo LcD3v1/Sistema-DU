@@ -1,21 +1,30 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { requireArea } from '../middleware/roles'
+import { requireArea, requireAprovado } from '../middleware/roles'
 import { validateBody, membroSchema, membroUpdateSchema, reorderSchema, promoverSchema, advertenciaSchema, exonerarSchema, recusarSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Membro, FastData, NivelAdvertencia } from '../types'
 import { postarExoneracao, postarMudancaCargo, postarAdvertencia, postarPerfilAtualizado, emSegundoPlano } from '../discord/forum'
 import { notificar, notificarArea } from '../notificacoes'
+import { avatarAtual, aplicarCampoPerfil } from '../identidadeMembro'
 import { contaDoMembro, nivelHierarquia, podeGerenciar, exonerarMembro, nomeCargoAtual, ausenciaAtivaDoMembro, hoje } from '../efetivo'
-import { PROTECTED_OWNER_ID } from '../access'
+import { canArea, isAdmin, PROTECTED_OWNER_ID } from '../access'
 
 const router = Router()
 
-router.get('/', requireAuth, (_req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const data = readData()
   const order = data.membrosOrder
-  let membros = data.membros
+  const conta = data.contas.find(c => c.id === req.user!.contaId)!
+  const completo = canArea(conta, data, 'membros', 'ver') || canArea(conta, data, 'promocoes', 'ver')
+  // Detalhes internos (motivo/autor de advertência, quem promoveu, Discord) só para quem edita
+  const detalhes = canArea(conta, data, 'membros', 'editar')
+  const aprovado = isAdmin(conta, data) || Boolean(conta.cargoPermId)
+  // Conta sem cargo (recém-criada) só vê o próprio perfil; sem "ver membros", inativos ficam ocultos
+  let membros = !aprovado
+    ? data.membros.filter(m => m.id === conta.membroId)
+    : completo ? data.membros : data.membros.filter(m => m.status !== 'Inativo' || m.id === conta.membroId)
 
   if (order.length > 0) {
     const orderMap = new Map(order.map((id, idx) => [id, idx]))
@@ -25,15 +34,20 @@ router.get('/', requireAuth, (_req, res) => {
       return ia - ib
     })
   }
-  res.json(membros.map(m => comVinculo(data, m)))
+  res.json(membros.map(m => m.id === conta.membroId || detalhes ? comVinculo(data, m) : completo ? semDetalhesInternos(comVinculo(data, m)) : ({
+    id: m.id, policial: m.policial, badge: m.badge, patenteNPD: m.patenteNPD,
+    patenteInterna: m.patenteInterna, status: m.status, entrada: m.entrada,
+  })))
 })
 
 /** Acrescenta ao membro os dados da conta vinculada (cargo, ausência). */
 function comVinculo(data: FastData, m: Membro) {
   const conta = contaDoMembro(data, m.id)
   const aus = ausenciaAtivaDoMembro(data, m.id)
+  // IDs de servidor/bot/tópico do Discord nunca saem da API
+  const { guildId: _g, botId: _b, discordThreadId: _t, ...publico } = m
   return {
-    ...m,
+    ...publico,
     contaId: conta?.id ?? null,
     cargoPermId: conta?.cargoPermId ?? null,
     cargoNome: nomeCargoAtual(data, m),
@@ -41,14 +55,29 @@ function comVinculo(data: FastData, m: Membro) {
     discordUsername: conta?.discordUsername ?? null,
     nomeServidor: conta?.nomeServidor ?? null,
     avatarServidor: conta?.avatarServidor ?? null,
+    avatarAtual: avatarAtual(conta),
     ausenteAte: aus?.dataFim ?? null,
   }
 }
 
+/** Visão de quem só tem "ver membros": sem motivo/autor de advertências, autor de promoções e Discord. */
+function semDetalhesInternos<T extends ReturnType<typeof comVinculo>>(m: T) {
+  const { discordId: _d, advertencias, historicoCargos, ...resto } = m
+  return {
+    ...resto,
+    advertencias: advertencias?.map(a => ({ nivel: a.nivel, data: a.data })),
+    historicoCargos: historicoCargos?.map(h => ({ data: h.data, tipo: h.tipo, de: h.de, para: h.para })),
+  }
+}
+
 // GET /api/membros/hierarquia — cargos em ordem hierárquica (topo primeiro)
-router.get('/hierarquia', requireAuth, (_req, res) => {
+router.get('/hierarquia', requireAuth, requireAprovado, (req, res) => {
   const data = readData()
-  res.json(data.cargosPermissao.map((c, i) => ({ id: c.id, nome: c.nome, admin: c.admin === true, posicao: i })))
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  const admin = Boolean(conta && isAdmin(conta, data))
+  res.json(data.cargosPermissao.map((c, i) => (admin
+    ? { id: c.id, nome: c.nome, admin: c.admin === true, posicao: i }
+    : { id: c.id, nome: c.nome, posicao: i })))
 })
 
 // GET /api/membros/exonerados — contas bloqueadas por exoneração
@@ -226,7 +255,7 @@ router.put('/solicitacoes-perfil/:id/aprovar', requireAuth, requireArea('membros
   const ctx = carregarSolicitacaoPerfil(req, res); if (!ctx) return
   const { data, sp, membro } = ctx
   const por = req.user!.username
-  for (const a of sp.alteracoes) (membro as unknown as Record<string, unknown>)[a.campo] = a.para
+  for (const a of sp.alteracoes) aplicarCampoPerfil(membro, a.campo, a.para)
   sp.status = 'aprovada'
   sp.decididoPor = por
   sp.decididoEm = new Date().toISOString()
@@ -271,7 +300,9 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
     notificarArea(data, 'membros', [req.user!.contaId], 'exoneracao', `${membro.policial} foi exonerado`,
       `Exonerado por ${req.user!.username}. Motivo: ${motivo}`, '/membros')
   } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Não foi possível exonerar.' }); return
+    // Só mensagens de regra de negócio conhecidas chegam ao cliente (nunca erro interno)
+    const regra = err instanceof Error && /^Um dono do sistema não pode ser exonerado\.$/.test(err.message)
+    res.status(400).json({ error: regra ? (err as Error).message : 'Não foi possível exonerar.' }); return
   }
   writeData(data)
   audit('MEMBRO_EXONERADO', req, `${membro.policial} (#${membro.id}): ${motivo}`)
@@ -330,12 +361,19 @@ router.put('/:id', requireAuth, requireArea('membros', 'editar'), validateBody(m
   const data = readData()
   const idx = data.membros.findIndex(m => m.id === id)
   if (idx === -1) { res.status(404).json({ error: 'Membro não encontrado' }); return }
+  const negado = podeGerenciar(data, req.user!.contaId, data.membros[idx])
+  if (negado) { res.status(403).json({ error: negado }); return }
 
-  const allowed: (keyof Membro)[] = [
-    'badge','passaporte','policial','patenteNPD','patenteInterna',
-    'status','entrada','promocao','adv1','adv2','adv3',
-  ]
+  // Patente interna e advertências têm fluxos próprios (promover/advertência); só admin edita direto
+  const ator = data.contas.find(c => c.id === req.user!.contaId)
+  const allowed: (keyof Membro)[] = ator && isAdmin(ator, data)
+    ? ['badge','passaporte','policial','patenteNPD','patenteInterna','nivel','status','entrada','promocao','adv1','adv2','adv3']
+    : ['badge','passaporte','policial','patenteNPD','nivel','status','entrada','promocao']
   const body = req.body as Partial<Membro>
+  const proibidos = (['patenteInterna', 'adv1', 'adv2', 'adv3'] as const).filter(f => f in body && !allowed.includes(f))
+  if (proibidos.length) {
+    res.status(403).json({ error: 'Patente interna e advertências são alteradas pelas telas de promoção e advertência.' }); return
+  }
   allowed.forEach(field => {
     if (field in body) {
       (data.membros[idx] as unknown as Record<string, unknown>)[field] = body[field]
@@ -344,7 +382,7 @@ router.put('/:id', requireAuth, requireArea('membros', 'editar'), validateBody(m
 
   writeData(data)
   audit('MEMBRO_UPDATED', req, `ID: ${id}`)
-  res.json(data.membros[idx])
+  res.json(comVinculo(data, data.membros[idx]))
 })
 
 router.delete('/:id', requireAuth, requireArea('membros', 'editar'), (req: Request, res: Response): void => {
@@ -354,9 +392,18 @@ router.delete('/:id', requireAuth, requireArea('membros', 'editar'), (req: Reque
   const data = readData()
   const idx = data.membros.findIndex(m => m.id === id)
   if (idx === -1) { res.status(404).json({ error: 'Membro não encontrado' }); return }
+  const negado = podeGerenciar(data, req.user!.contaId, data.membros[idx])
+  if (negado) { res.status(403).json({ error: negado }); return }
 
   const removido = data.membros[idx]
   const nome = removido.policial
+  // Com conta vinculada: vira exoneração (bloqueio total, dados guardados para readmissão)
+  if (contaDoMembro(data, id)) {
+    exonerarMembro(data, removido, req.user!.username, 'Removido do efetivo')
+    writeData(data)
+    audit('MEMBRO_EXONERADO', req, `ID: ${id} | Nome: ${nome} | via remoção`)
+    res.json({ ok: true, exonerado: true }); return
+  }
   data.membros.splice(idx, 1)
   data.membrosOrder = data.membrosOrder.filter(oid => oid !== id)
   writeData(data)

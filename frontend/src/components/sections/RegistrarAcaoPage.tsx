@@ -147,9 +147,9 @@ export default function RegistrarAcaoPage() {
       setSelectedMembros([]); setParticipantesExtras([])
     }
     return (
-      <div className="p-6 max-w-2xl mx-auto">
+      <div className="p-3 sm:p-6 max-w-2xl mx-auto">
         <GlowCard>
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex flex-col items-center text-center mb-6">
               <div className="w-14 h-14 rounded-full bg-green/15 border border-green/40 flex items-center justify-center mb-3">
                 <CheckCircle2 size={28} className="text-green" />
@@ -198,9 +198,9 @@ export default function RegistrarAcaoPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-2xl mx-auto">
       <GlowCard>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-11 h-11 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center">
               <Send size={18} className="text-gold" />

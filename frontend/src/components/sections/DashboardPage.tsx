@@ -27,7 +27,7 @@ function br(n: number, dec = 0) {
 /* ── Cards ─────────────────────────────────────────────────────── */
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub: string }) {
   return (
-    <div className="bg-card border border-bdr rounded-xl p-5">
+    <div className="bg-card border border-bdr rounded-xl p-4 sm:p-5">
       <p className="font-mono text-[10px] text-txt2 tracking-[0.18em] uppercase mb-3">{label}</p>
       <p className="text-3xl font-bold text-txt leading-none mb-2">{value}</p>
       <p className="text-[11px] text-txt2">{sub}</p>
@@ -39,8 +39,8 @@ function Panel({ eyebrow, title, right, children }: {
   eyebrow: string; title: string; right?: React.ReactNode; children: React.ReactNode
 }) {
   return (
-    <div className="bg-card border border-bdr rounded-xl p-5">
-      <div className="flex items-start justify-between mb-4">
+    <div className="bg-card border border-bdr rounded-xl p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
           <p className="font-mono text-[10px] text-txt2 tracking-[0.18em] uppercase mb-1">{eyebrow}</p>
           <h3 className="text-base font-semibold text-txt">{title}</h3>
@@ -112,8 +112,12 @@ export default function DashboardPage() {
 
   const [win, setWin] = useState<Win>(30)
 
-  const acoes: Acao[] = (acoesData?.acoes ?? []).filter(a => (a.status ?? 'aprovada') === 'aprovada')
-  const membrosList: Membro[] = membros ?? []
+  // Memoizados: arrays novos a cada render invalidavam todos os useMemo abaixo
+  const acoes: Acao[] = useMemo(
+    () => (acoesData?.acoes ?? []).filter(a => (a.status ?? 'aprovada') === 'aprovada'),
+    [acoesData],
+  )
+  const membrosList: Membro[] = useMemo(() => membros ?? [], [membros])
 
   const ausStats = useMemo(() => {
     const list = ausencias ?? []
@@ -190,7 +194,7 @@ export default function DashboardPage() {
 
   // ── Dados pessoais do usuário logado ─────────────────────────
   const nomeExibido = me?.nomeServidor || user?.username || 'operador'
-  const fotoExibida = me?.avatarServidor || me?.avatar || null
+  const fotoExibida = me?.avatarAtual || null
   const meuMembro = membrosList.find(m => m.id === me?.membroId)
   const minhas = meuMembro ? acoes.filter(a => a.participants.some(p => p.memberId === meuMembro.id)) : []
   const minhasVitorias = minhas.filter(a => a.resultado === 'Vitória').length
@@ -201,17 +205,17 @@ export default function DashboardPage() {
   const pendentes = acoes.filter(a => a.resultado === 'Empate').length
 
   return (
-    <div className="p-6 space-y-8 max-w-[1600px]">
+    <div className="p-3 sm:p-6 space-y-6 sm:space-y-8 max-w-[1600px]">
       {/* ── Cabeçalho ──────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-16 h-16 rounded-full border-2 border-gold/50 bg-card2 overflow-hidden flex items-center justify-center text-gold3 text-lg font-semibold shrink-0 shadow-[0_0_24px_-6px_rgba(58,114,196,0.6)]">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-2 border-gold/50 bg-card2 overflow-hidden flex items-center justify-center text-gold3 text-lg font-semibold shrink-0 shadow-[0_0_24px_-6px_rgba(58,114,196,0.6)]">
             {fotoExibida
               ? <img src={fotoExibida} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
               : nomeExibido.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold text-txt truncate">Bem-vindo, {nomeExibido}!</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-txt truncate">Bem-vindo, {nomeExibido}!</h1>
             <p className="text-sm text-txt2 mt-1 flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold3 text-xs font-medium">
                 <BadgeCheck size={12} /> {meuCargo}
@@ -237,7 +241,7 @@ export default function DashboardPage() {
       {meuMembro && (
         <section>
           <p className="font-mono text-[10px] text-txt2 tracking-[0.18em] uppercase mb-3">Meu desempenho</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-card border border-bdr rounded-xl p-4 flex items-center gap-3">
               <Target size={20} className="text-gold3 shrink-0" />
               <div><p className="text-2xl font-bold text-txt leading-none">{minhas.length}</p><p className="text-[11px] text-txt2 mt-1">apreensões que participei</p></div>
@@ -261,14 +265,14 @@ export default function DashboardPage() {
       {/* ── Inteligência operacional ───────────────────────────── */}
       <section>
         <p className="font-mono text-[10px] text-txt2 tracking-[0.18em] uppercase mb-1">Leitura consolidada</p>
-        <div className="flex items-end justify-between mb-4">
+        <div className="flex items-end justify-between gap-2 flex-wrap mb-4">
           <h2 className="text-xl font-semibold text-txt">Inteligência operacional</h2>
           <p className="font-mono text-[10px] text-txt3 tracking-[0.15em] uppercase">
             Últimos {win} dias + histórico geral
           </p>
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           {/* WIN RATE — card destacado */}
           <div className="rounded-xl p-5 border border-gold/40 relative overflow-hidden"
                style={{ background: 'linear-gradient(135deg, rgba(58,114,196,0.22), rgba(20,33,61,0.35))' }}>
@@ -301,9 +305,9 @@ export default function DashboardPage() {
       </section>
 
       {/* ── Gráfico + Efetivo ──────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Coluna esquerda */}
-        <div className="col-span-2 space-y-4">
+        <div className="xl:col-span-2 space-y-4 min-w-0">
           <Panel
             eyebrow="Atividade diária"
             title="Ritmo de apreensões"
@@ -314,7 +318,7 @@ export default function DashboardPage() {
               </div>
             }
           >
-            <div className="h-64">
+            <div className="h-52 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={series} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                   <CartesianGrid stroke="#1a2030" vertical={false} />
@@ -328,7 +332,7 @@ export default function DashboardPage() {
             </div>
           </Panel>
 
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <Mini label="Período anterior" value={mini.anteriorSum} sub="30 dias anteriores" />
             <Mini label="Média diária" value={br(mini.media, 1)} sub="apreensões por dia" />
             <Mini label="Pico diário" value={mini.pico} sub="máx. em um dia" />
@@ -338,7 +342,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Coluna direita */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <Panel
             eyebrow="Composição atual"
             title="Panorama do efetivo"

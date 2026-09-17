@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
+import { canArea } from '../access'
 import { requireArea } from '../middleware/roles'
 import { validateBody, avisoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
@@ -13,7 +14,8 @@ const router = Router()
 router.get('/', requireAuth, (req: Request, res: Response): void => {
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)
-  const lastSeen = conta?.avisoLastSeen ?? 0
+  if (!conta || !canArea(conta, data, 'avisos', 'ver')) { res.json({ avisos: [], naoVistos: 0 }); return }
+  const lastSeen = conta.avisoLastSeen ?? 0
   const avisos = [...data.avisos].sort((a, b) => b.id - a.id)
   const naoVistos = avisos.filter(a => a.id > lastSeen).length
   res.json({ avisos, naoVistos })

@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
 import type { Acao, AcoesResponse } from '@/types'
@@ -18,6 +18,8 @@ export function useAcoes(filters: AcoesFilter = {}) {
       const { data } = await api.get<AcoesResponse>('/acoes', { params: filters })
       return data
     },
+    // Troca de página/filtro mantém a lista anterior na tela enquanto carrega (sem piscar o loading)
+    placeholderData: keepPreviousData,
     refetchInterval: 60_000,
   })
 }

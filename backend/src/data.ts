@@ -108,6 +108,9 @@ const salvo: Record<Colecao, Map<number, string>> = Object.fromEntries(
   COLECOES.map(c => [c, new Map<number, string>()]),
 ) as Record<Colecao, Map<number, string>>
 let metaSalvo = ''
+// Cache serializado da revisão atual: JSON.parse é ~3x mais rápido que structuredClone
+// e os dados já são JSON puro (é assim que vão/voltam do Mongo).
+let cacheJson: string | undefined
 
 function clone<T>(v: T): T { return structuredClone(v) }
 
@@ -159,7 +162,17 @@ export async function initData(): Promise<void> {
 
 export function readData(): FastData {
   if (!cache) throw new Error('Dados ainda não carregados — initData() não foi chamado')
-  return clone(cache)
+  cacheJson ??= JSON.stringify(cache)
+  return JSON.parse(cacheJson) as FastData
+}
+
+/**
+ * Leitura SEM cópia, para consultas somente-leitura em caminhos quentes.
+ * NUNCA mutar o objeto retornado (nem passá-lo a writeData); para alterar use readData().
+ */
+export function peekData(): Readonly<FastData> {
+  if (!cache) throw new Error('Dados ainda não carregados — initData() não foi chamado')
+  return cache
 }
 
 let gravando: Promise<void> | undefined
@@ -171,7 +184,8 @@ export function rankingPersistenceReady(): boolean { return !persistenceFailed }
 
 export function writeData(data: FastData): void {
   if (cache) auditRankingChanges(cache, data)
-  cache = clone(data)
+  cacheJson = JSON.stringify(data)
+  cache = JSON.parse(cacheJson) as FastData
   revision++
   agendarFlush()
 }

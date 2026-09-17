@@ -72,12 +72,12 @@ export default function FardamentoPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-3 sm:p-6 max-w-[1400px]">
       {/* Header */}
       <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
         <div>
           <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Efetivo</p>
-          <h1 className="text-3xl font-bold text-txt flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-txt flex items-center gap-2">
             <Shirt size={26} className="text-gold" /> Fardamento
           </h1>
           <p className="text-sm text-txt2 mt-1">Modelos de fardamento por patente da unidade.</p>

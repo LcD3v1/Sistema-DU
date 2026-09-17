@@ -7,6 +7,14 @@ dist/
 **/dist/
 
 # Variáveis de ambiente (contêm segredos)
+.env.*
+**/.env.*
+!**/.env.example
+!frontend/.env.production
+*.pem
+*.key
+*.p12
+*.pfx
 .env
 **/.env
 .env.local

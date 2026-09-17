@@ -323,7 +323,7 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4">
       {/* Tabs */}
       <GlowCard>
         <div className="p-3 flex gap-1 flex-wrap">
@@ -354,7 +354,7 @@ export default function ConfiguracoesPage() {
 
       {/* Conteúdo */}
       <GlowCard>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {/* Logo */}
           {activeTab === 'logo' && (
             <LogoUploader currentLogo={logoData?.logo ?? ''} />
@@ -550,7 +550,8 @@ export default function ConfiguracoesPage() {
                 <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">CONTAS DE ACESSO</h3>
                 <p className="text-[11px] text-txt3">Contas são criadas automaticamente no primeiro login com Discord.</p>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-bdr">
                     {['Usuário', 'Discord', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
@@ -620,6 +621,7 @@ export default function ConfiguracoesPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 

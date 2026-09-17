@@ -15,6 +15,7 @@ import type { Membro } from '@/types'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
+function linkImagemValido(s: string) { try { const u = new URL(s); return (u.protocol === 'https:' || u.protocol === 'http:') && s.length <= 2048 } catch { return false } }
 function fileToDataUrl(file: File, cb: (s: string) => void) { const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(file) }
 
 function Stat({ icon: Icon, label, value, color = '#3a72c4' }: { icon: typeof Trophy; label: string; value: string | number; color?: string }) {
@@ -41,8 +42,10 @@ export default function ProfilePage() {
   const { addToast } = useUIStore()
   const [sel, setSel] = useState('')
   const [pickBanner, setPickBanner] = useState(false)
+  const [linkFoto, setLinkFoto] = useState('')
+  const [linkBanner, setLinkBanner] = useState('')
   const [editMembro, setEditMembro] = useState(false)
-  const [form, setForm] = useState({ policial: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
+  const [form, setForm] = useState({ nivel: '', policial: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
   const avatarInput = useRef<HTMLInputElement>(null)
   const bannerInput = useRef<HTMLInputElement>(null)
 
@@ -72,16 +75,27 @@ export default function ProfilePage() {
     if (f.size > 3_000_000) { addToast('error', 'Imagem muito grande (máx 3MB).'); return }
     fileToDataUrl(f, url => setBanner.mutate(url, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }))
   }
+  function usarLinkFoto() {
+    const url = linkFoto.trim()
+    if (!linkImagemValido(url)) { addToast('error', 'Cole um link de imagem válido (http/https).'); return }
+    setAvatar.mutate(url, { onSuccess: () => { addToast('success', 'Foto atualizada!'); setLinkFoto('') } })
+  }
+  function usarLinkBanner() {
+    const url = linkBanner.trim()
+    if (!linkImagemValido(url)) { addToast('error', 'Cole um link de imagem válido (http/https).'); return }
+    setBanner.mutate(url, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setLinkBanner(''); setPickBanner(false) } })
+  }
   function escolherBanner(key: string) { setBanner.mutate(key, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }) }
   function vincular() { if (sel) link.mutate(Number(sel), { onSuccess: () => { addToast('success', 'Perfil vinculado!'); setSel('') } }) }
   function abrirEdicao() {
     if (!membro) return
-    setForm({ policial: membro.policial, badge: membro.badge, passaporte: membro.passaporte, patenteNPD: membro.patenteNPD, patenteInterna: membro.patenteInterna })
+    setForm({ nivel: me?.nivelMembro ? String(me.nivelMembro) : '', policial: membro.policial, badge: membro.badge, passaporte: membro.passaporte, patenteNPD: membro.patenteNPD, patenteInterna: membro.patenteInterna })
     setEditMembro(true)
   }
   function salvarEdicao() {
     if (!form.policial.trim()) { addToast('error', 'O nome é obrigatório.'); return }
-    updateMeuMembro.mutate(form, {
+    const { nivel, ...resto } = form
+    updateMeuMembro.mutate(nivel.trim() ? { ...resto, nivel: Number(nivel) } : resto, {
       onSuccess: r => {
         addToast('success', r.data.pendente
           ? 'Solicitação enviada! Você está aguardando a aprovação de um superior.'
@@ -93,11 +107,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-6 max-w-[1200px]">
+    <div className="p-3 sm:p-6 max-w-[1200px]">
       {/* ── Hero com banner ─────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-bdr mb-6">
         {banner.img
-          ? <img src={banner.img} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          ? <img src={banner.img} alt="" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
           : <div className="absolute inset-0" style={{ background: banner.css }} />}
         {banner.overlay && <div className="absolute inset-0" style={{ background: banner.overlay }} />}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(5,5,5,0.85) 0%, rgba(5,7,12,0.5) 55%, rgba(5,7,12,0.1) 100%)' }} />
@@ -116,11 +130,11 @@ export default function ProfilePage() {
           <ImageIcon size={13} /> Editar banner
         </button>
 
-        <div className="relative p-6 md:p-8 flex items-center gap-5">
+        <div className="relative px-4 pt-14 pb-14 sm:p-6 md:p-8 flex items-center gap-3 sm:gap-5 flex-wrap">
           {/* Avatar */}
           <div className="relative group shrink-0">
             <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center text-2xl font-bold text-white backdrop-blur">
-              {(me.avatarServidor || me.avatar) ? <img src={me.avatarServidor || me.avatar || ''} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : initials(nome)}
+              {me.avatarAtual ? <img src={me.avatarAtual} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : initials(nome)}
             </div>
             <button onClick={() => avatarInput.current?.click()}
               className="absolute inset-0 rounded-2xl bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
@@ -129,7 +143,13 @@ export default function ProfilePage() {
             <input ref={avatarInput} type="file" accept="image/*" onChange={onAvatar} className="hidden" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold text-white truncate">{nome}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">{nome}</h1>
+            <div className="flex items-center gap-1.5 mt-2 max-w-xs">
+              <input value={linkFoto} onChange={e => setLinkFoto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') usarLinkFoto() }}
+                placeholder="Link da foto (http/https)" aria-label="Link da foto de perfil"
+                className="flex-1 min-w-0 bg-black/40 border border-white/15 rounded-lg px-2.5 py-1 text-xs text-white placeholder:text-white/50" />
+              <button onClick={usarLinkFoto} title="Usar link como foto" className="px-2 py-1 rounded-lg bg-black/50 border border-white/15 text-white/80 hover:text-white text-xs flex items-center gap-1"><Link2 size={12} /> Usar</button>
+            </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-blue border-blue/40 bg-blue/10'}`}>{me.admin ? 'Administrador' : 'Membro'}</span>
               {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}
@@ -149,14 +169,14 @@ export default function ProfilePage() {
 
           {/* Tiers exclusivos */}
           <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase mb-2">Exclusivos do ranking</p>
-          <div className="grid grid-cols-3 gap-3 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
             {TIER_BANNERS.map(t => {
               const unlocked = tiers.some(u => u.key === t.key)
               const active = me.banner === t.key
               return (
                 <button key={t.key} disabled={!unlocked} onClick={() => escolherBanner(t.key)}
                   className={`relative h-20 rounded-lg overflow-hidden border text-left transition ${active ? 'border-gold ring-2 ring-gold/40' : 'border-white/10'} ${unlocked ? 'hover:border-gold/50' : 'opacity-45 cursor-not-allowed'}`}>
-                  <img src={t.img} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={t.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
                   <div className="absolute inset-0" style={{ background: t.overlay }} />
                   <div className="absolute inset-0 p-2 flex flex-col justify-between">
                     <span className="font-mono text-[10px] text-white/90 tracking-wider uppercase flex items-center gap-1"><Crown size={11} /> {t.label}</span>
@@ -178,7 +198,7 @@ export default function ProfilePage() {
                 <button key={p.key} onClick={() => escolherBanner(p.key)}
                   className={`relative h-20 rounded-lg overflow-hidden border transition ${active ? 'border-gold ring-2 ring-gold/40' : 'border-white/10 hover:border-gold/50'}`}
                   style={p.css ? { background: p.css } : undefined}>
-                  {p.img && <img src={p.img} alt="" className="w-full h-full object-cover" />}
+                  {p.img && <img src={p.img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />}
                   <span className="absolute bottom-1 left-1.5 text-[10px] text-white/90 drop-shadow">{p.label}</span>
                   {active && <span className="absolute top-1.5 right-1.5 text-gold3"><Check size={14} /></span>}
                 </button>
@@ -189,6 +209,11 @@ export default function ProfilePage() {
           <div className="flex gap-2">
             <button onClick={() => bannerInput.current?.click()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-bdr2 text-txt2 text-xs hover:text-txt hover:border-gold/40 transition-colors">
               <Upload size={14} /> Enviar imagem própria
+            </button>
+            <input value={linkBanner} onChange={e => setLinkBanner(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') usarLinkBanner() }}
+              placeholder="ou cole o link da imagem" className="input-gold flex-1 min-w-0 bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-xs text-txt" />
+            <button onClick={usarLinkBanner} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-gold/40 transition-colors">
+              <Link2 size={14} /> Usar link
             </button>
             {me.banner && <button onClick={() => setBanner.mutate(null, { onSuccess: () => addToast('success', 'Banner redefinido.') })} className="px-3 py-2 rounded-lg text-txt3 hover:text-red text-xs transition-colors">Redefinir</button>}
             <input ref={bannerInput} type="file" accept="image/*" onChange={onBannerUpload} className="hidden" />
@@ -235,6 +260,7 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 <p className="text-[11px] text-txt3">As alterações só valem depois da aprovação de um superior.</p>
                 {([
+                  ['nivel', 'Nível', 'Ex.: 48'],
                   ['policial', 'Nome do policial', 'Ex.: Peter Wolf'],
                   ['badge', 'Badge', 'Ex.: 4521'],
                   ['passaporte', 'Passaporte / ID', 'Ex.: 10293'],
@@ -301,7 +327,7 @@ export default function ProfilePage() {
                 <Stat icon={Percent} label="Aproveitamento" value={`${desempenho.winRate}%`} color="#2ecc71" />
                 <Stat icon={Crosshair} label="Total de ações" value={desempenho.total} color="#8fb8ee" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-card border border-bdr rounded-xl p-5 flex items-center justify-between">
                   <div className="flex items-center gap-2"><Award size={16} className="text-green" /><span className="text-sm text-txt2">Vitórias</span></div>
                   <span className="text-2xl font-bold text-green">{desempenho.vitorias}</span>

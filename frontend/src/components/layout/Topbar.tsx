@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, ChevronDown, User as UserIcon } from 'lucide-react'
+import { LogOut, ChevronDown, User as UserIcon, Menu } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
@@ -34,7 +34,7 @@ function resolveTitle(pathname: string): string {
   return 'FAST NPD'
 }
 
-export default function Topbar() {
+export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
   const { user, logout } = useAuthStore()
   const { data: me } = useMe()
   const navigate = useNavigate()
@@ -57,13 +57,23 @@ export default function Topbar() {
   }
 
   const nomeExibido = me?.nomeServidor || user?.username || '?'
-  const fotoExibida = me?.avatarServidor || me?.avatar || null
+  const fotoExibida = me?.avatarAtual || null
   const initials = nomeExibido.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '?'
   const roleLabel = me?.admin ? 'Administrador' : 'Membro'
 
   return (
-    <header className="h-16 bg-bg border-b border-bdr flex items-center px-6 gap-4 shrink-0">
-      <p className="font-mono text-[11px] text-txt2 tracking-[0.25em] uppercase flex-1">
+    <header className="h-14 sm:h-16 bg-bg border-b border-bdr flex items-center px-3 sm:px-6 gap-2 sm:gap-4 shrink-0">
+      {onAbrirMenu && (
+        <button
+          type="button"
+          onClick={onAbrirMenu}
+          className="lg:hidden -ml-1 w-10 h-10 shrink-0 flex items-center justify-center rounded-md text-txt2 hover:text-txt hover:bg-white/[0.05]"
+          aria-label="Abrir menu"
+        >
+          <Menu size={20} />
+        </button>
+      )}
+      <p className="font-mono text-[10px] sm:text-[11px] text-txt2 tracking-[0.18em] sm:tracking-[0.25em] uppercase flex-1 min-w-0 truncate">
         {title}
       </p>
 
@@ -73,9 +83,9 @@ export default function Topbar() {
         <div className="relative" ref={ref}>
           <button
             onClick={() => setOpen(o => !o)}
-            className="flex items-center gap-3 group"
+            className="flex items-center gap-2 sm:gap-3 group min-h-10"
           >
-            <div className="text-right leading-tight">
+            <div className="hidden sm:block text-right leading-tight">
               <p className="text-sm font-medium text-txt max-w-[180px] truncate">{nomeExibido}</p>
               <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase">
                 {roleLabel}

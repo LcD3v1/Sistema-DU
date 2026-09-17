@@ -47,7 +47,7 @@ export default function MemberProfile({ id, period, publicView, onClose }: {
             {[
               ['Discord ID', publicView ? 'Disponível no painel' : member.discordId || 'Não vinculado'],
               ['ID interno', publicView ? member.badge || '—' : member.internalId || member.badge || '—'],
-              ['Nível', member.level], ['Entrada', formatDate(member.joinedAt)], ['Status', member.status],
+              ['Nível', member.level > 0 ? member.level : '—'], ['Entrada', formatDate(member.joinedAt)], ['Status', member.status],
               ['Posição', member.rank ? `${member.rank}º` : 'Sem classificação'],
             ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-txt2 text-xs mb-1">{label}</dt><dd className="text-txt break-words">{value}</dd></div>)}
           </dl>

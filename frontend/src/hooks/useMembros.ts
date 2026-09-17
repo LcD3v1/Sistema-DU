@@ -43,7 +43,7 @@ export function useUpdateMembro() {
 
 export function useDeleteMembro() {
   return useMutation({
-    mutationFn: (id: number) => api.delete(`/membros/${id}`),
+    mutationFn: (id: number) => api.delete<{ ok: boolean; exonerado?: boolean }>(`/membros/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['membros'] }),
   })
 }

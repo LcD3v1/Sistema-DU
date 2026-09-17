@@ -22,6 +22,7 @@ export interface Membro {
   discordThreadId?: string   // postagem no fórum de Registro
   advertencias?: Advertencia[]
   historicoCargos?: MudancaCargo[]
+  nivel?: number                      // nível informado pelo próprio membro (fonte única)
 }
 
 export interface MudancaCargo {
@@ -87,6 +88,8 @@ export interface Conta {
   cargoPermId?: number
   nomeServidor?: string      // apelido no servidor do Discord da unidade
   avatarServidor?: string    // foto no servidor (URL do CDN do Discord)
+  avatarServidorEm?: string  // quando a foto do servidor mudou
+  avatarEm?: string          // quando a foto enviada no perfil mudou
   exonerado?: boolean        // perde o acesso e vê o aviso de exoneração ao entrar
   exoneradoEm?: string
   exoneradoMotivo?: string
@@ -194,7 +197,7 @@ export interface Notificacao {
   criadaEm: string
 }
 
-export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteNPD' | 'patenteInterna'
+export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteNPD' | 'patenteInterna' | 'nivel'
 
 export interface SolicitacaoPerfil {
   id: number

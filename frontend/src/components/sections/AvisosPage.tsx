@@ -45,10 +45,10 @@ export default function AvisosPage() {
   const avisos = data?.avisos ?? []
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-3 sm:p-6 max-w-[1400px]">
       <div className="mb-6">
         <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Painel</p>
-        <h1 className="text-3xl font-bold text-txt flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-txt flex items-center gap-2">
           <Megaphone size={26} className="text-gold" /> Avisos
         </h1>
         <p className="text-sm text-txt2 mt-1">Mural de comunicados da unidade.</p>

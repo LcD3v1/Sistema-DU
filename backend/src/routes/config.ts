@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { requireArea, adminOnly } from '../middleware/roles'
+import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../middleware/roles'
 import { criticalLimiter } from '../middleware/rateLimiter'
 import {
   validateBody,
@@ -23,7 +23,7 @@ const router = Router()
 
 // ── QRUs ──────────────────────────────────────────────────────────────────────
 
-router.get('/qrus', requireAuth, (_req, res) => res.json(readData().qrus))
+router.get('/qrus', requireAuth, requireAprovado, (_req, res) => res.json(readData().qrus))
 
 router.post('/qrus', requireAuth, requireArea('configuracoes', 'editar'), validateBody(qruSchema), (req: Request, res: Response): void => {
   const { nome } = req.body as { nome: string }
@@ -64,7 +64,7 @@ router.delete('/qrus/:nome', requireAuth, requireArea('configuracoes', 'editar')
 
 // ── Patentes ──────────────────────────────────────────────────────────────────
 
-router.get('/patentes', requireAuth, (_req, res) => res.json(readData().patentes))
+router.get('/patentes', requireAuth, requireAprovado, (_req, res) => res.json(readData().patentes))
 
 router.post('/patentes', requireAuth, requireArea('configuracoes', 'editar'), validateBody(patenteSchema), (req: Request, res: Response): void => {
   const { nome } = req.body as { nome: string }
@@ -94,7 +94,7 @@ router.delete('/patentes/:nome', requireAuth, adminOnly, (req: Request, res: Res
 
 // ── Cargos ────────────────────────────────────────────────────────────────────
 
-router.get('/cargos', requireAuth, (_req, res) => res.json(readData().cargos))
+router.get('/cargos', requireAuth, requireAprovado, (_req, res) => res.json(readData().cargos))
 
 router.post('/cargos', requireAuth, requireArea('configuracoes', 'editar'), validateBody(cargoSchema), (req: Request, res: Response): void => {
   const { nome } = req.body as { nome: string }
@@ -116,7 +116,7 @@ router.delete('/cargos/:nome', requireAuth, adminOnly, (req: Request, res: Respo
 
 // ── Situações de anúncio ────────────────────────────────────────────────────────
 
-router.get('/anuncio-situacoes', requireAuth, (_req, res) => res.json(readData().anuncioSituacoes))
+router.get('/anuncio-situacoes', requireAuth, requireAprovado, (_req, res) => res.json(readData().anuncioSituacoes))
 
 router.post('/anuncio-situacoes', requireAuth, requireArea('configuracoes', 'editar'), validateBody(situacaoAnuncioSchema), (req: Request, res: Response): void => {
   const { label, titulo, texto } = req.body as { label: string; titulo: string; texto: string }
@@ -387,7 +387,7 @@ router.delete('/logo', requireAuth, requireArea('configuracoes', 'editar'), (_re
 
 // ── Recrutamento ──────────────────────────────────────────────────────────────
 
-router.get('/recrutamento', requireAuth, (_req, res) => res.json(readData().recCfg))
+router.get('/recrutamento', requireAuth, requireAlgumaArea(['recrutamento', 'configuracoes'], 'ver'), (_req, res) => res.json(readData().recCfg))
 
 router.put('/recrutamento', requireAuth, requireArea('configuracoes', 'editar'), validateBody(recCfgSchema), (req: Request, res: Response): void => {
   const data = readData()

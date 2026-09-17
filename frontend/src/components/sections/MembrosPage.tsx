@@ -241,10 +241,10 @@ export default function MembrosPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!(await confirmar({ titulo: 'Remover membro', mensagem: 'Remover este membro? Esta operação não pode ser desfeita.', tom: 'perigo', textoConfirmar: 'Remover' }))) return
+    if (!(await confirmar({ titulo: 'Remover membro', mensagem: 'Remover este membro? Se ele tiver conta vinculada, é exonerado: perde todo o acesso e os dados ficam guardados para uma readmissão.', tom: 'perigo', textoConfirmar: 'Remover' }))) return
     try {
-      await deleteMembro.mutateAsync(id)
-      addToast('success', 'Membro removido.')
+      const r = await deleteMembro.mutateAsync(id)
+      addToast('success', (r.data as { exonerado?: boolean })?.exonerado ? 'Membro exonerado — acesso bloqueado.' : 'Membro removido.')
     } catch {
       addToast('error', 'Erro ao remover membro.')
     }
@@ -292,7 +292,7 @@ export default function MembrosPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4">
       <button type="button" onClick={() => setDirectoryOpen(v => !v)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gold/30 text-sm text-gold3 bg-gold/10">
         <Users size={16} /> {directoryOpen ? 'Fechar diretório de membros' : 'Abrir diretório e perfis'}
       </button>
@@ -461,7 +461,7 @@ export default function MembrosPage() {
 
       {/* Modal Novo Membro */}
       <ModalOverlay open={modalOpen} onClose={() => setModalOpen(false)} title="NOVO MEMBRO" maxWidth="max-w-2xl">
-        <form onSubmit={handleSubmit(onCreateMembro)} className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit(onCreateMembro)} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">BADGE *</label>
             <input {...register('badge', { required: true })} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt" />

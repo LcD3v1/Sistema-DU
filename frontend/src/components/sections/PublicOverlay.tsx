@@ -229,7 +229,7 @@ function PainelMembros({ aberto, onClose }: { aberto: boolean; onClose: () => vo
                         {m.badge && <span className="directory-member-id">{m.badge}</span>}
                         <span className="directory-member-name">{m.name}</span>
                       </span>
-                      <span className="directory-member-level">NV.{m.level}</span>
+                      <span className="directory-member-level">NV.{m.level > 0 ? m.level : '—'}</span>
                       <span className="directory-member-police" title={m.role}>{m.role}</span>
                       <span className="directory-member-since"><small>Desde</small>{dataBR(m.joinedAt)}</span>
                     </article>

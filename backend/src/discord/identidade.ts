@@ -1,5 +1,5 @@
 import { Conta } from '../types'
-import { botConfigurado } from './forum'
+import { botConfigurado, discordFetch } from './forum'
 
 /**
  * Identidade do usuário NO SERVIDOR da unidade: apelido e foto do servidor
@@ -29,10 +29,7 @@ export function nomeDoMembro(m: MembroServidor): string {
 /** Busca o membro no servidor pelo bot (REST). Retorna undefined se não estiver no servidor. */
 export async function buscarMembroServidor(discordId: string): Promise<MembroServidor | undefined> {
   if (!botConfigurado()) return undefined
-  const res = await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${discordId}`, {
-    signal: AbortSignal.timeout(10_000),
-    headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
-  })
+  const res = await discordFetch('GET', `/guilds/${process.env.DISCORD_GUILD_ID}/members/${discordId}`)
   if (res.status === 404) return undefined
   if (!res.ok) throw new Error(`Discord membro ${discordId} → ${res.status}`)
   return await res.json() as MembroServidor
@@ -45,6 +42,7 @@ export function aplicarIdentidade(conta: Conta, m: MembroServidor): boolean {
   const roles = m.roles ? [...m.roles].sort() : conta.discordRoleIds
   if (conta.nomeServidor === nome && conta.avatarServidor === avatar && JSON.stringify(conta.discordRoleIds) === JSON.stringify(roles)) return false
   conta.nomeServidor = nome
+  if (conta.avatarServidor !== avatar) conta.avatarServidorEm = new Date().toISOString()
   conta.avatarServidor = avatar
   if (roles) conta.discordRoleIds = roles
   return true

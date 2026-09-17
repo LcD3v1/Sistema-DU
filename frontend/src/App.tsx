@@ -1,35 +1,50 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/queryClient'
+import { useSincronizacaoTempoReal } from '@/lib/sincronizacao'
 import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
 import type { AreaId } from '@/lib/permAreas'
+import { Suspense } from 'react'
+import { MotionConfig } from 'framer-motion'
 import AppShell from '@/components/layout/AppShell'
-import LoginPage from '@/components/sections/LoginPage'
-import DashboardPage from '@/components/sections/DashboardPage'
-import RegistrarAcaoPage from '@/components/sections/RegistrarAcaoPage'
-import HistoricoPage from '@/components/sections/HistoricoPage'
-import EstatisticasPage from '@/components/sections/EstatisticasPage'
-import RecrutamentoPage from '@/components/sections/RecrutamentoPage'
-import FardamentoPage from '@/components/sections/FardamentoPage'
-import RecrutaCandidatoPage from '@/components/sections/RecrutaCandidatoPage'
-import MembrosPage from '@/components/sections/MembrosPage'
-import ConfiguracoesPage from '@/components/sections/ConfiguracoesPage'
-import EmBreve from '@/components/sections/EmBreve'
 import DiscordCallback from '@/components/sections/DiscordCallback'
-import RegistrarAusenciaPage from '@/components/sections/RegistrarAusenciaPage'
-import AusenciasPage from '@/components/sections/AusenciasPage'
-import GerarAnuncioPage from '@/components/sections/GerarAnuncioPage'
-import GerarBoletimPage from '@/components/sections/GerarBoletimPage'
-import RankingPage from '@/components/sections/RankingPage'
-import ProtocoloPage from '@/components/sections/ProtocoloPage'
-import PendentesPage from '@/components/sections/PendentesPage'
-import PromocoesPage from '@/components/sections/PromocoesPage'
-import AvisosPage from '@/components/sections/AvisosPage'
-import GerarCarteiraPage from '@/components/sections/GerarCarteiraPage'
-import ProfilePage from '@/components/sections/ProfilePage'
-import PerfilPublicoPage from '@/components/sections/PerfilPublicoPage'
+import LoadingHud from '@/components/ui/LoadingHud'
+import { paginaLazy } from '@/lib/rotas'
 import FaixaAmbiente from '@/components/ui/FaixaAmbiente'
+import LimiteErro from '@/components/ui/LimiteErro'
+
+// Páginas sob demanda: cada rota baixa só o próprio código (recharts, jspdf, dnd-kit…)
+const LoginPage = paginaLazy('/login')
+const PerfilPublicoPage = paginaLazy('/perfil-publico')
+const DashboardPage = paginaLazy('/dashboard')
+const AvisosPage = paginaLazy('/avisos')
+const ProfilePage = paginaLazy('/perfil')
+const RegistrarAcaoPage = paginaLazy('/acoes/nova')
+const HistoricoPage = paginaLazy('/acoes/historico')
+const PendentesPage = paginaLazy('/acoes/pendentes')
+const EstatisticasPage = paginaLazy('/estatisticas')
+const RankingPage = paginaLazy('/ranking')
+const RegistrarAusenciaPage = paginaLazy('/ausencias/nova')
+const AusenciasPage = paginaLazy('/ausencias')
+const PromocoesPage = paginaLazy('/promocoes')
+const FardamentoPage = paginaLazy('/fardamento')
+const GerarAnuncioPage = paginaLazy('/anuncio')
+const GerarBoletimPage = paginaLazy('/boletim')
+const ProtocoloPage = paginaLazy('/protocolo')
+const GerarCarteiraPage = paginaLazy('/carteira')
+const EmBreve = paginaLazy('/cursos')
+const RecrutamentoPage = paginaLazy('/recrutamento')
+const RecrutaCandidatoPage = paginaLazy('/recrutamento/:id')
+const MembrosPage = paginaLazy('/membros')
+const ConfiguracoesPage = paginaLazy('/configuracoes')
+
+// Recarregou a página: tenta recuperar a sessão pelo cookie httpOnly (uma vez)
+void useAuthStore.getState().restaurarSessao()
+
+function TelaCarregando() {
+  return <div className="min-h-screen w-full flex items-center justify-center bg-bg"><LoadingHud /></div>
+}
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -38,8 +53,9 @@ interface ProtectedRouteProps {
 }
 
 function ProtectedRoute({ children, area, adminOnly = false }: ProtectedRouteProps) {
-  const { token, user } = useAuthStore()
+  const { token, user, restaurando } = useAuthStore()
   const { data: me } = useMe()
+  if (!token && restaurando) return <TelaCarregando />
   if (!token || !user) return <Navigate to="/login" replace />
 
   // Enquanto o /me carrega, renderiza (evita piscar). Quando carregado, aplica o cargo.
@@ -50,8 +66,14 @@ function ProtectedRoute({ children, area, adminOnly = false }: ProtectedRoutePro
   return <>{children}</>
 }
 
+function SincronizacaoTempoReal() {
+  useSincronizacaoTempoReal()
+  return null
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuthStore()
+  const { token, restaurando } = useAuthStore()
+  if (!token && restaurando) return <TelaCarregando />
   if (token) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
@@ -63,8 +85,13 @@ function RootRedirect() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Respeita "reduzir movimento" do sistema: efeitos de transform viram só fade */}
+      <MotionConfig reducedMotion="user">
       <FaixaAmbiente />
+      <SincronizacaoTempoReal />
       <BrowserRouter>
+        <LimiteErro telaCheia>
+        <Suspense fallback={<TelaCarregando />}>
         <Routes>
           <Route path="/login" element={
             <PublicRoute><LoginPage /></PublicRoute>
@@ -137,7 +164,10 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </Suspense>
+        </LimiteErro>
       </BrowserRouter>
+      </MotionConfig>
     </QueryClientProvider>
   )
 }

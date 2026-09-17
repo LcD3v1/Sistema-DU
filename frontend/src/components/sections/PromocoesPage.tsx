@@ -52,10 +52,10 @@ export default function PromocoesPage() {
   if (lm || la) return <LoadingHud />
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-3 sm:p-6 max-w-[1400px]">
       <div className="mb-6">
         <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Efetivo</p>
-        <h1 className="text-3xl font-bold text-txt flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-txt flex items-center gap-2">
           <ArrowUpNarrowWide size={26} className="text-gold" /> Promoções
         </h1>
         <p className="text-sm text-txt2 mt-1">Analise o desempenho do efetivo e promova quem merece.</p>
@@ -67,7 +67,8 @@ export default function PromocoesPage() {
           <p className="text-txt2 text-sm">Nenhum membro cadastrado.</p>
         </div>
       ) : (
-        <div className="bg-card border border-bdr rounded-xl overflow-hidden">
+        <div className="bg-card border border-bdr rounded-xl overflow-x-auto">
+          <div className="min-w-[760px]">
           {/* Header */}
           <div className="grid grid-cols-[1.6fr_1fr_0.6fr_0.6fr_0.9fr_auto] gap-3 px-4 py-2.5 border-b border-bdr font-mono text-[10px] text-txt3 tracking-wider uppercase">
             <span>Membro</span>
@@ -118,6 +119,7 @@ export default function PromocoesPage() {
               </div>
             </motion.div>
           ))}
+          </div>
         </div>
       )}
 

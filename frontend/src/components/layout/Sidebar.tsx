@@ -3,13 +3,14 @@ import {
   LayoutGrid, FilePlus2, ClipboardCheck, History,
   Users, Trophy, CalendarPlus, CalendarDays, ArrowUpNarrowWide, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
-  Settings, ArrowUpRight, Code2, Bell,
+  Settings, ArrowUpRight, Code2, Bell, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAcoes } from '@/hooks/useAcoes'
 import { useAvisos } from '@/hooks/useAvisos'
 import { usePerms } from '@/hooks/usePerms'
 import Brand from '@/components/ui/Brand'
+import { precarregarRota } from '@/lib/rotas'
 import type { Nivel } from '@/types'
 import type { AreaId } from '@/lib/permAreas'
 
@@ -74,7 +75,13 @@ const GROUPS: NavGroup[] = [
   },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  /** Gaveta aberta (só tem efeito abaixo de lg) */
+  aberto?: boolean
+  onFechar?: () => void
+}
+
+export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
   const { data: pend } = useAcoes({ status: 'pendente', limit: 1 })
   const pendingCount = pend?.total ?? 0
   const { data: avisosData } = useAvisos()
@@ -96,7 +103,28 @@ export default function Sidebar() {
     .filter(g => g.items.length > 0)
 
   return (
-    <nav className="w-60 bg-sb border-r border-bdr flex flex-col shrink-0 overflow-hidden">
+    <>
+    {/* Fundo escurecido da gaveta (celular/tablet) */}
+    <div
+      aria-hidden
+      onClick={onFechar}
+      className={`lg:hidden fixed inset-0 z-[800] bg-black/60 transition-opacity duration-200 ${aberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+    />
+    <nav
+      className={`w-[min(15rem,82vw)] lg:w-60 bg-sb border-r border-bdr flex flex-col shrink-0 overflow-hidden
+        fixed inset-y-0 left-0 z-[810] transition-transform duration-200 ease-out
+        lg:static lg:z-auto lg:translate-x-0 lg:transition-none
+        ${aberto ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}
+      aria-label="Menu principal"
+    >
+      <button
+        type="button"
+        onClick={onFechar}
+        className="lg:hidden absolute top-2 right-2 z-10 w-10 h-10 flex items-center justify-center rounded-md text-txt2 hover:text-txt hover:bg-white/[0.05]"
+        aria-label="Fechar menu"
+      >
+        <X size={18} />
+      </button>
       {/* Logo + nome */}
       <div className="flex flex-col items-center pt-6 pb-5 px-3 gap-2 border-b border-bdr/60">
         <div className="relative flex items-center justify-center" style={{ width: 86, height: 86 }}>
@@ -129,8 +157,12 @@ export default function Sidebar() {
                   key={item.to}
                   to={item.to}
                   end
+                  onClick={onFechar}
+                  onMouseEnter={() => precarregarRota(item.to)}
+                  onFocus={() => precarregarRota(item.to)}
+                  onTouchStart={() => precarregarRota(item.to)}
                   className={({ isActive }) =>
-                    `group relative flex items-center gap-3 pl-3 pr-2 py-2 rounded-md text-sm transition-colors
+                    `group relative flex items-center gap-3 pl-3 pr-2 py-2.5 lg:py-2 rounded-md text-sm transition-colors
                     ${isActive
                       ? 'bg-gold/10 text-txt font-medium'
                       : 'text-txt2 hover:text-txt hover:bg-white/[0.03]'
@@ -182,5 +214,6 @@ export default function Sidebar() {
         </div>
       </div>
     </nav>
+    </>
   )
 }

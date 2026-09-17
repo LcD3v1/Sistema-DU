@@ -6,3 +6,17 @@ dist/
 .git/
 .vscode/
 .claude/
+.env
+**/.env
+.env.*
+**/.env.*
+!frontend/.env.production
+**/data.json
+**/data.json.*
+**/*.bak
+**/*.bak-*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/serviceAccountKey.json

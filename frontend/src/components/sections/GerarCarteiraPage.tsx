@@ -129,17 +129,17 @@ export default function GerarCarteiraPage() {
   const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-3 sm:p-6 max-w-[1400px]">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-txt2 hover:text-txt text-xs font-mono tracking-wider mb-4 transition-colors">
         <ChevronLeft size={14} /> VOLTAR
       </button>
       <div className="mb-6">
         <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Ferramenta interna</p>
-        <h1 className="text-3xl font-bold text-txt flex items-center gap-2"><CreditCard size={26} className="text-gold" /> Gerar carteira</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-txt flex items-center gap-2"><CreditCard size={26} className="text-gold" /> Gerar carteira</h1>
         <p className="text-sm text-txt2 mt-1">Preencha os dados sobre o modelo oficial e baixe a carteira pronta.</p>
       </div>
 
-      <div className="grid grid-cols-[380px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 sm:gap-6 items-start">
         {/* Formulário */}
         <div className="bg-card border border-bdr rounded-xl p-5 space-y-4">
           <h2 className="text-base font-semibold text-txt">Dados da carteira</h2>

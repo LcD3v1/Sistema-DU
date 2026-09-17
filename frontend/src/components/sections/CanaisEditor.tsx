@@ -69,7 +69,7 @@ export default function CanaisEditor() {
           return (
             <div key={mod.chave} className="flex flex-wrap items-center gap-3 px-4 py-3 bg-card2 border border-bdr rounded-lg">
               <MessagesSquare size={16} className="text-gold3 shrink-0" />
-              <div className="flex-1 min-w-[200px]">
+              <div className="flex-1 min-w-0 sm:min-w-[200px]">
                 <p className="text-sm text-txt font-medium">{mod.titulo}</p>
                 <p className="text-[11px] text-txt3">{mod.descricao}</p>
               </div>
@@ -77,7 +77,7 @@ export default function CanaisEditor() {
                 value={atual}
                 disabled={!data.botConfigurado || update.isPending}
                 onChange={e => salvar(mod.chave, e.target.value)}
-                className="bg-card border border-bdr2 rounded px-2 py-1.5 text-xs font-mono text-txt min-w-[200px] disabled:opacity-50"
+                className="bg-card border border-bdr2 rounded px-2 py-1.5 text-xs font-mono text-txt w-full sm:w-auto sm:min-w-[200px] disabled:opacity-50"
               >
                 <option value="">— nenhum canal —</option>
                 {perdido && <option value={atual}>⚠ canal indisponível ({atual})</option>}

@@ -86,14 +86,14 @@ export default function GerarBoletimPage() {
   const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-3 sm:p-6 max-w-[1400px]">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-txt2 hover:text-txt text-xs font-mono tracking-wider mb-4 transition-colors">
         <ChevronLeft size={14} /> VOLTAR
       </button>
       <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div>
           <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Ferramenta interna</p>
-          <h1 className="text-3xl font-bold text-txt">Gerar boletim</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-txt">Gerar boletim</h1>
           <p className="text-sm text-txt2 mt-1">Monte o boletim de ocorrência, confira a prévia e copie tudo de uma vez.</p>
         </div>
         <div className="flex items-center gap-2 text-txt2">
@@ -102,7 +102,7 @@ export default function GerarBoletimPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
         {/* ── Formulário ─────────────────────────────────────── */}
         <div className="bg-card border border-bdr rounded-xl p-5">
           <div className="flex items-center justify-between mb-1">
@@ -142,7 +142,7 @@ export default function GerarBoletimPage() {
                 placeholder="Descreva o que aconteceu na ocorrência..." className={`${inputCls} resize-none leading-relaxed`} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Objetos apreendidos</label>
                 <input value={objetos} onChange={e => setObjetos(e.target.value)} placeholder="N/A" className={inputCls} />
@@ -158,7 +158,7 @@ export default function GerarBoletimPage() {
               <input value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="N/A" className={inputCls} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Data *</label>
                 <input type="date" value={data} onChange={e => setData(e.target.value)} className={inputCls} />

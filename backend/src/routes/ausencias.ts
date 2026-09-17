@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import { canArea } from '../access'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, ausenciaSchema, recusarSchema } from '../middleware/validate'
@@ -33,13 +34,17 @@ function carregar(req: Request, res: Response): { data: FastData; aus: Ausencia 
   const data = readData()
   const aus = data.ausencias.find(a => a.id === id)
   if (!aus) { res.status(404).json({ error: 'Ausência não encontrada' }); return undefined }
+  const membro = data.membros.find(m => m.id === aus.memberId)
+  const negado = membro && podeGerenciar(data, req.user!.contaId, membro)
+  if (negado) { res.status(403).json({ error: negado }); return undefined }
   return { data, aus }
 }
 
 // GET /api/ausencias — lista todas (mais recentes primeiro)
-router.get('/', requireAuth, (_req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const data = readData()
-  const sorted = [...data.ausencias]
+  const conta = data.contas.find(c => c.id === req.user!.contaId)!
+  const sorted = data.ausencias.filter(a => canArea(conta, data, 'ausencias', 'ver') || a.memberId === conta.membroId || a.solicitadoPor === conta.username)
     .map(a => ({ ...a, status: statusAusencia(a) }))
     .sort((a, b) => b.dataInicio.localeCompare(a.dataInicio))
   res.json(sorted)
@@ -52,6 +57,14 @@ router.post('/', requireAuth, validateBody(ausenciaSchema), (req: Request, res: 
 
   const membro = data.membros.find(m => m.id === body.memberId)
   if (!membro) { res.status(400).json({ error: 'Selecione um membro da unidade.' }); return }
+  // Para outra pessoa só quem gerencia ausências e está acima dela na hierarquia
+  const solicitante = data.contas.find(c => c.id === req.user!.contaId)
+  if (!solicitante) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  if (membro.id !== solicitante.membroId) {
+    if (!canArea(solicitante, data, 'ausencias', 'editar')) { res.status(403).json({ error: 'Você só pode solicitar ausência para si mesmo.' }); return }
+    const negado = podeGerenciar(data, solicitante.id, membro)
+    if (negado) { res.status(403).json({ error: negado }); return }
+  }
 
   const nova: Ausencia = {
     id: data.nextAusId,
@@ -76,7 +89,9 @@ router.post('/', requireAuth, validateBody(ausenciaSchema), (req: Request, res: 
       `${req.user!.username} solicitou uma ausência em seu nome (${periodo}). Aguardando aprovação.`, '/ausencias')
   }
   notificarAprovadores(data, 'ausencias', membro.id, req.user!.contaId, 'pendente_aprovacao', 'Ausência aguardando aprovação',
-    `${membro.policial} solicitou ausência (${periodo}).`, '/ausencias')
+    membro.id === solicitante.membroId
+      ? `${membro.policial} solicitou ausência (${periodo}).`
+      : `${req.user!.username} solicitou ausência para ${membro.policial} (${periodo}).`, '/ausencias')
   writeData(data)
 
   audit('AUSENCIA_CREATED', req, `${nova.nome} | ${nova.dataInicio} → ${nova.dataFim} | pendente`)
@@ -91,10 +106,6 @@ router.put('/:id/aprovar', requireAuth, requireArea('ausencias', 'editar'), (req
   if (aus.dataFim < hoje()) { res.status(400).json({ error: 'O período desta ausência já terminou.' }); return }
 
   const membro = data.membros.find(m => m.id === aus.memberId)
-  if (membro) {
-    const negado = podeGerenciar(data, req.user!.contaId, membro)
-    if (negado) { res.status(403).json({ error: negado }); return }
-  }
 
   aus.status = 'aprovada'
   aus.decididoPor = req.user!.username

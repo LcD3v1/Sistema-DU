@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
-import { User, CreditCard, Hash, Shield, Star, Check } from 'lucide-react'
+import { User, CreditCard, Hash, Shield, Star, Check, Gauge } from 'lucide-react'
 import Brand from '@/components/ui/Brand'
 import { useOnboarding, type OnboardingData } from '@/hooks/useMe'
 import { useAuthStore } from '@/store/authStore'
@@ -30,7 +30,7 @@ export default function OnboardingPage() {
       {/* fundo */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 grain-noise opacity-[0.05]" />
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full"
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[min(520px,100vw)] h-[min(520px,100vw)] rounded-full"
              style={{ background: 'radial-gradient(circle, rgba(58,114,196,0.16), transparent 70%)' }} />
       </div>
 
@@ -60,12 +60,22 @@ export default function OnboardingPage() {
         <form onSubmit={handleSubmit(onSubmit)}
           className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-5">
 
-          <Field label="NOME DO POLICIAL" icon={<User size={14} />} error={errors.policial?.message}>
-            <input {...register('policial', { required: 'Nome obrigatório' })}
-              className="fld" placeholder="Ex.: Peter Wolf" />
-          </Field>
+          <div className="grid grid-cols-[1fr_120px] gap-4">
+            <Field label="NOME DO POLICIAL" icon={<User size={14} />} error={errors.policial?.message}>
+              <input {...register('policial', { required: 'Nome obrigatório' })}
+                className="fld" placeholder="Ex.: Peter Wolf" />
+            </Field>
+            <Field label="NÍVEL *" icon={<Gauge size={14} />} error={errors.nivel?.message}>
+              <input type="number" inputMode="numeric" min={1} max={999}
+                {...register('nivel', {
+                  required: 'Nível obrigatório', valueAsNumber: true,
+                  validate: v => (Number.isInteger(v) && v >= 1 && v <= 999) || 'Entre 1 e 999',
+                })}
+                className="fld" placeholder="Ex.: 48" />
+            </Field>
+          </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="BADGE" icon={<Shield size={14} />}>
               <input {...register('badge')} className="fld" placeholder="Ex.: 4521" />
             </Field>
@@ -74,7 +84,7 @@ export default function OnboardingPage() {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="PATENTE NPD" icon={<Star size={14} />}>
               <input {...register('patenteNPD')} className="fld" placeholder="Ex.: Soldado" />
             </Field>

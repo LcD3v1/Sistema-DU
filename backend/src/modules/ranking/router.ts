@@ -3,8 +3,9 @@ import rateLimit from 'express-rate-limit'
 import { readData, dataRevision, rankingPersistenceReady } from '../../data'
 import { requireAuth } from '../../middleware/auth'
 import { requireArea } from '../../middleware/roles'
+import { LojaLimitada } from '../../middleware/rateLimiter'
 import { audit } from '../../security/audit'
-import { isAdmin } from '../../access'
+import { isAdmin, canArea } from '../../access'
 import { belongsToScope, configuredScope, scopeKey } from './scope'
 import { buildSnapshot, filtersSchema, listPage, publicMember, type Filters, type Snapshot } from './service'
 
@@ -12,10 +13,12 @@ let revision = -1
 let cacheDay = ''
 let cacheScope = ''
 const snapshots = new Map<string, Snapshot>()
+// Formatter reaproveitado: toLocaleDateString cria um Intl novo a cada chamada.
+const fmtDia = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' })
 export function snapshot(period: Filters['period']): Snapshot {
   const scope = configuredScope()!
   const key = scopeKey(scope)
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+  const today = fmtDia.format(new Date())
   if (revision !== dataRevision() || cacheDay !== today || key !== cacheScope) {
     snapshots.clear(); revision = dataRevision(); cacheDay = today; cacheScope = key
   }
@@ -46,9 +49,17 @@ export function requireRankingScope(req: Request, res: Response, next: NextFunct
   }
   next()
 }
+/** Discord ID, passaporte e cargos do Discord: só quem edita membros (igual a /api/membros). */
+function podeVerIds(req: Request): boolean {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user?.contaId)
+  return !!conta && canArea(conta, data, 'membros', 'editar')
+}
+const ocultarIds = <T extends object>(m: T): T => ({ ...m, discordId: null, internalId: '', discordRoles: [] })
+
 export function createRankingRouter(publicView = false): Router {
   const router = Router()
-  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false,
+  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false, store: new LojaLimitada(),
     message: { error: 'Muitas consultas. Aguarde um momento.' } }))
   router.use(available)
   if (!publicView) router.use(requireAuth, requireRankingScope)
@@ -72,14 +83,15 @@ export function createRankingRouter(publicView = false): Router {
   router.get('/members', memberPermission, (req, res) => {
     const value = snapshot(res.locals.filters.period)
     const page = listPage(value.members, res.locals.filters, publicView)
-    res.json({ ...page, items: publicView ? page.items.map(publicMember) : page.items, roles: value.roles })
+    const semIds = !publicView && !podeVerIds(req)
+    res.json({ ...page, items: publicView ? page.items.map(publicMember) : semIds ? page.items.map(ocultarIds) : page.items, roles: value.roles })
     audit('MEMBER_VIEW', req, `directory; scope=${scopeKey(configuredScope()!)}`)
   })
   router.get('/members/:id', memberPermission, (req, res) => {
     if (!/^\d{1,10}$/.test(String(req.params.id))) { res.status(400).json({ error: 'Membro inválido.' }); return }
     const row = snapshot(res.locals.filters.period).members.find(m => m.id === Number(req.params.id))
     if (!row) { res.status(404).json({ error: 'Membro não encontrado.' }); return }
-    res.json(publicView ? publicMember(row) : row)
+    res.json(publicView ? publicMember(row) : podeVerIds(req) ? row : ocultarIds(row))
     audit('MEMBER_VIEW', req, `member=${row.id}; scope=${scopeKey(configuredScope()!)}`)
   })
   router.get('/', (req, res) => {
@@ -87,7 +99,7 @@ export function createRankingRouter(publicView = false): Router {
     const page = listPage(value.ranking, res.locals.filters, publicView)
     // Ranking cards expose only the fields authorized for a ranking viewer. Profiles use member permission.
     const account = !publicView ? readData().contas.find(c => c.id === req.user?.contaId) : undefined
-    res.json({ ...page, items: publicView ? page.items.map(publicMember) : page.items.map(m => ({ ...m, activity: [], discordRoles: [] })),
+    res.json({ ...page, items: publicView ? page.items.map(publicMember) : page.items.map(m => ({ ...m, discordId: null, internalId: '', activity: [], discordRoles: [] })),
       stats: { ...value.stats, position: value.members.find(m => m.id === account?.membroId)?.rank ?? null },
       roles: value.roles, period: res.locals.filters.period, revision: `${cacheDay}:${revision}` })
     audit('RANKING_VIEW', req, `scope=${scopeKey(configuredScope()!)}; period=${res.locals.filters.period}`)

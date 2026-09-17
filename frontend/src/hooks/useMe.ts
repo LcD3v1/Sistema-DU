@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/store/authStore'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
@@ -12,6 +13,8 @@ export interface Me {
   discordUsername: string | null
   nomeServidor: string
   avatarServidor: string | null
+  avatarAtual: string | null
+  nivelMembro: number | null
   avatar: string | null
   banner: string | null
   onboarded: boolean
@@ -21,13 +24,16 @@ export interface Me {
 }
 
 export function useMe() {
+  const token = useAuthStore(s => s.token)
   return useQuery<Me>({
     queryKey: ['me'],
     queryFn: async () => (await api.get<Me>('/auth/me')).data,
+    enabled: !!token,
   })
 }
 
 export interface OnboardingData {
+  nivel: number
   policial: string
   badge?: string
   passaporte?: string
@@ -92,5 +98,16 @@ export function useSetBanner() {
   return useMutation({
     mutationFn: (banner: string | null) => api.put('/auth/me/banner', { banner }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+  })
+}
+
+/** Informa o nível pela primeira vez (obrigatório). */
+export function useInformarNivel() {
+  return useMutation({
+    mutationFn: (nivel: number) => api.post('/auth/me/nivel', { nivel }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      queryClient.invalidateQueries({ queryKey: ['membros'] })
+    },
   })
 }

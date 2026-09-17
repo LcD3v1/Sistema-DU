@@ -119,7 +119,7 @@ export default function MusicPlayer() {
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: EASE, delay: 0.4 }}
-      className="fixed bottom-6 left-6 z-40"
+      className="fixed bottom-14 left-4 sm:bottom-6 sm:left-6 z-40"
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >

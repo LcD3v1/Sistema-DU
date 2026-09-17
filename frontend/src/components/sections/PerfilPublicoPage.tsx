@@ -12,7 +12,7 @@ import './perfil-publico.css'
  */
 
 interface Apreensao { id: number; data: string; tipo: string; local: string; resultado: string; imagem: string | null }
-interface MudancaCargo { data: string; tipo: 'promocao' | 'rebaixamento'; de: string; para: string; por: string }
+interface MudancaCargo { data: string; tipo: 'promocao' | 'rebaixamento'; de: string; para: string; por?: string }
 interface Perfil {
   slug: string; nome: string; avatar: string | null; badge: string; nivel: number
   cargo: string; patente: string; membroDesde: string; status: string
@@ -58,7 +58,7 @@ export default function PerfilPublicoPage() {
             <div className="perfil-id">
               <div className="perfil-id-top">
                 <h1>{p.nome}</h1>
-                <span className="perfil-nivel">Nv. {p.nivel}</span>
+                <span className="perfil-nivel">Nv. {p.nivel > 0 ? p.nivel : '—'}</span>
               </div>
               <p className="perfil-meta">
                 {p.badge && <>ID {p.badge}<span className="perfil-sep">·</span></>}
@@ -135,7 +135,7 @@ export default function PerfilPublicoPage() {
                       <span className="perfil-linha-data">{dataBR(h.data)}</span>
                       <span className="perfil-linha-mov">
                         <span>{h.de} → {h.para}</span>
-                        <em>por {h.por}</em>
+                        {h.por && <em>por {h.por}</em>}
                       </span>
                       <span className="perfil-linha-status">
                         <span className={`perfil-badge ${h.tipo === 'promocao' ? 'perfil-badge--win' : 'perfil-badge--loss'}`}><span />{h.tipo === 'promocao' ? 'Promoção' : 'Rebaixamento'}</span>
