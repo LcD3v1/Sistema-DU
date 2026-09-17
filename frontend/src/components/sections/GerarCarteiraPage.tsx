@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Download, Upload, CreditCard, Send, RefreshCw, MessagesSquare, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Download, Upload, CreditCard, Send, RefreshCw, MessagesSquare, AlertTriangle, AtSign, X, Search } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
 import { usePerms } from '@/hooks/usePerms'
-import { useCarteiraForum, usePostarCarteira } from '@/hooks/useCarteira'
+import { useCarteiraForum, useMembrosDiscord, usePostarCarteira, type MembroDiscord } from '@/hooks/useCarteira'
 
 const erroApi = (e: unknown, padrao: string) =>
   (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? padrao
@@ -37,6 +37,66 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: numb
 }
 
 
+
+/** Escolha de quem marcar no post — busca sobre todos os membros do servidor. */
+function EscolherMembro({ valor, onChange, membros, carregando }: {
+  valor: MembroDiscord | null
+  onChange: (m: MembroDiscord | null) => void
+  membros: MembroDiscord[]
+  carregando: boolean
+}) {
+  const [busca, setBusca] = useState('')
+  const [aberto, setAberto] = useState(false)
+
+  const termo = busca.trim().toLowerCase()
+  const filtrados = (termo
+    ? membros.filter(m => m.nome.toLowerCase().includes(termo) || m.usuario.toLowerCase().includes(termo))
+    : membros).slice(0, 50)
+
+  if (valor) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gold/40 bg-gold/10">
+        <img src={valor.avatar} alt="" className="w-6 h-6 rounded-full" />
+        <span className="flex-1 min-w-0 truncate text-sm text-txt">
+          {valor.nome} <span className="text-gold3 font-mono text-xs">@{valor.usuario}</span>
+        </span>
+        <button type="button" onClick={() => { onChange(null); setBusca(''); setAberto(false) }}
+          className="text-txt3 hover:text-txt" aria-label="Remover marcação"><X size={14} /></button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2 bg-card2 border border-bdr2 rounded-lg px-3">
+        <Search size={14} className="text-txt3 shrink-0" />
+        <input
+          value={busca}
+          onChange={e => { setBusca(e.target.value); setAberto(true) }}
+          onFocus={() => setAberto(true)}
+          placeholder={carregando ? 'Carregando membros...' : 'Buscar por nome ou @...'}
+          disabled={carregando}
+          className="flex-1 bg-transparent py-2.5 text-sm font-mono text-txt placeholder-txt3 outline-none disabled:opacity-50"
+        />
+      </div>
+      {aberto && !carregando && (
+        <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-card border border-bdr2 rounded-lg shadow-2xl">
+          {filtrados.length === 0 && <p className="px-3 py-2.5 text-[11px] text-txt3">Nenhum membro encontrado.</p>}
+          {filtrados.map(m => (
+            <button key={m.usuario} type="button"
+              onClick={() => { onChange(m); setAberto(false) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5">
+              <img src={m.avatar} alt="" className="w-6 h-6 rounded-full shrink-0" />
+              <span className="min-w-0 truncate text-sm text-txt">{m.nome}</span>
+              <span className="ml-auto shrink-0 font-mono text-[11px] text-txt3">@{m.usuario}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * Postagem no Discord: o FÓRUM vem de Configurações → Canais (fica salvo e só muda
  * lá); o TÓPICO dentro dele é escolhido a cada envio.
@@ -46,10 +106,12 @@ function PostarNoForum({ gerarPng }: { gerarPng: () => Promise<string | null> })
   const { canEdit } = usePerms()
   const podePostar = canEdit('carteira')
   const { data, isLoading, refetch, isFetching } = useCarteiraForum(podePostar)
+  const { data: membrosData, isLoading: carregandoMembros } = useMembrosDiscord(podePostar)
   const postar = usePostarCarteira()
 
   const [topicoId, setTopicoId] = useState('')
   const [mensagem, setMensagem] = useState('')
+  const [marcado, setMarcado] = useState<MembroDiscord | null>(null)
 
   if (!podePostar) return null
 
@@ -57,8 +119,11 @@ function PostarNoForum({ gerarPng }: { gerarPng: () => Promise<string | null> })
     if (!topicoId) { addToast('error', 'Escolha o tópico de destino.'); return }
     const imagem = await gerarPng()
     if (!imagem) { addToast('error', 'Falha ao gerar a imagem da carteira.'); return }
-    postar.mutate({ topicoId, imagem, mensagem: mensagem.trim() || undefined }, {
-      onSuccess: () => { addToast('success', 'Carteira postada no fórum!'); setMensagem('') },
+    postar.mutate({ topicoId, imagem, mensagem: mensagem.trim() || undefined, mencionarUsuario: marcado?.usuario ?? null }, {
+      onSuccess: () => {
+        addToast('success', marcado ? `Carteira postada e @${marcado.usuario} marcado!` : 'Carteira postada no fórum!')
+        setMensagem(''); setMarcado(null)
+      },
       onError: e => addToast('error', erroApi(e, 'Erro ao postar a carteira.')),
     })
   }
@@ -113,6 +178,21 @@ function PostarNoForum({ gerarPng }: { gerarPng: () => Promise<string | null> })
             {data.topicos.length === 0 && !isFetching && (
               <p className="text-[11px] text-txt3 mt-1.5">Nenhum tópico encontrado nesse fórum.</p>
             )}
+          </div>
+
+          <div>
+            <label className={labelCls}><AtSign size={11} className="inline mr-1" />Marcar membro (opcional)</label>
+            <EscolherMembro
+              valor={marcado}
+              onChange={setMarcado}
+              membros={membrosData?.membros ?? []}
+              carregando={carregandoMembros}
+            />
+            <p className="text-[11px] text-txt3 mt-1.5">
+              {membrosData?.membros.length
+                ? `${membrosData.membros.length} membros detectados no servidor.`
+                : 'A pessoa marcada recebe notificação do Discord.'}
+            </p>
           </div>
 
           <div>

@@ -486,12 +486,16 @@ export async function postarImagemNoTopico(
   arquivo: string,
   png: Buffer,
   conteudo?: string,
+  mencionarId?: string,
 ): Promise<void> {
+  // `allowed_mentions` com parse: [] é a trava: só o usuário escolhido é notificado.
+  // Um @everyone/@here digitado na mensagem vira texto puro e não marca ninguém.
+  const texto = [mencionarId ? `<@${mencionarId}>` : '', conteudo ?? ''].filter(Boolean).join(' ').trim()
   const form = new FormData()
   form.append('payload_json', JSON.stringify({
-    ...(conteudo ? { content: cut(conteudo, 1900) } : {}),
+    ...(texto ? { content: cut(texto, 1900) } : {}),
     attachments: [{ id: 0, filename: arquivo }],
-    allowed_mentions: allowedMentions(),
+    allowed_mentions: allowedMentions(mencionarId ? [mencionarId] : []),
   }))
   form.append('files[0]', new Blob([new Uint8Array(png)], { type: 'image/png' }), arquivo)
 

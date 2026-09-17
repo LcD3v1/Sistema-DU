@@ -325,6 +325,22 @@ check(!/err\.message/.test(cartTs.replace(/console\.error[^\n]*/g, '')),
   'carteira devolve erro genérico ao cliente', 'carteira vaza err.message na resposta')
 check(/audit\('CARTEIRA_POSTADA'/.test(cartTs), 'postagem da carteira auditada', 'postagem da carteira sem auditoria')
 
+// Menção de membro do Discord na carteira
+const identTs = ler('src/discord/identidade.ts')
+check(/router\.get\('\/membros', requireAuth, requireArea\('carteira', 'editar'\)/.test(cartTs),
+  'lista de membros do Discord exige permissão de editar', 'lista de membros exposta sem exigir editar')
+// O painel recebe só o @; o discordId de terceiros fica no servidor
+check(/export interface MembroMencionavel \{ usuario: string; nome: string; avatar: string \}/.test(identTs),
+  'DTO de membro não tem discordId', 'DTO de membro do Discord expõe id')
+check(/\.map\(semId\)/.test(cartTs), 'rota de membros filtra o id com semId', 'rota de membros devolve objeto cru')
+check(/mencionarUsuario/.test(cartTs) && !/mencionarId/.test(cartTs),
+  'menção referenciada pelo @, não pelo id', 'menção ainda usa discordId vindo do cliente')
+// parse: [] impede @everyone/@here e menção de cargo
+check(/return users\.length > 0 \? \{ parse: \[\], users \} : \{ parse: \[\] \}/.test(formTs),
+  'allowed_mentions bloqueia everyone/here e cargos', 'allowed_mentions permite menção ampla')
+check(/allowed_mentions: allowedMentions\(mencionarId \? \[mencionarId\] : \[\]\)/.test(formTs),
+  'postagem da carteira só menciona o usuário escolhido', 'postagem da carteira sem trava de menção')
+
 // Resultado
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

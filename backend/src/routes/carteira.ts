@@ -7,6 +7,7 @@ import { readData } from '../data'
 import {
   botConfigurado, listarForuns, listarTopicosForum, topicoPertenceAoForum, postarImagemNoTopico,
 } from '../discord/forum'
+import { listarMembrosServidor, semId } from '../discord/identidade'
 
 /**
  * Postagem da carteirinha no Discord.
@@ -43,10 +44,24 @@ router.get('/forum', requireAuth, requireArea('carteira', 'ver'), async (_req: R
   }
 })
 
+// GET /api/carteira/membros — membros do servidor para escolher quem marcar.
+// Exige 'editar': a lista traz discordId de terceiros (regra do CLAUDE.md).
+router.get('/membros', requireAuth, requireArea('carteira', 'editar'), async (_req: Request, res: Response): Promise<void> => {
+  if (!botConfigurado()) { res.json({ configurado: false, membros: [] }); return }
+  try {
+    // semId: o painel recebe o @ e o nome, nunca o discordId de terceiros
+    res.json({ configurado: true, membros: (await listarMembrosServidor()).map(semId) })
+  } catch (err) {
+    console.error('[FAST][CARTEIRA] listar membros:', err instanceof Error ? err.message : err)
+    res.status(502).json({ error: 'Não foi possível consultar os membros do Discord agora.' })
+  }
+})
+
 // POST /api/carteira/postar — publica a carteira gerada no tópico escolhido
 router.post('/postar', requireAuth, requireArea('carteira', 'editar'), validateBody(carteiraPostSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { topicoId, imagem, mensagem } = req.body as { topicoId: string; imagem: string; mensagem?: string }
+    const { topicoId, imagem, mensagem, mencionarUsuario } = req.body as
+      { topicoId: string; imagem: string; mensagem?: string; mencionarUsuario?: string | null }
 
     const forumId = readData().canais?.carteira
     if (!botConfigurado() || !forumId) {
@@ -69,13 +84,22 @@ router.post('/postar', requireAuth, requireArea('carteira', 'editar'), validateB
         audit('PRIVILEGE_ESCALATION_ATTEMPT', req, 'Tentativa de postar carteira fora do fórum configurado')
         res.status(400).json({ error: 'Tópico indisponível no fórum configurado.' }); return
       }
-      await postarImagemNoTopico(topicoId, `carteira-${Date.now()}.png`, png, mensagem)
+      // Resolve o @ para o discordId aqui dentro: só marca quem está mesmo no
+      // servidor, e o painel nunca precisou conhecer o id.
+      let marcar: string | undefined
+      if (mencionarUsuario) {
+        const alvo = (await listarMembrosServidor())
+          .find(m => m.usuario.toLowerCase() === mencionarUsuario.toLowerCase())
+        if (!alvo) { res.status(400).json({ error: 'Membro indisponível no servidor.' }); return }
+        marcar = alvo.id
+      }
+      await postarImagemNoTopico(topicoId, `carteira-${Date.now()}.png`, png, mensagem, marcar)
     } catch (err) {
       console.error('[FAST][CARTEIRA] postar:', err instanceof Error ? err.message : err)
       res.status(502).json({ error: 'Não foi possível postar no Discord agora.' }); return
     }
 
-    audit('CARTEIRA_POSTADA', req, 'Carteira postada no Discord')
+    audit('CARTEIRA_POSTADA', req, `Carteira postada no Discord${mencionarUsuario ? ' com menção' : ''}`)
     res.json({ ok: true })
   })
 

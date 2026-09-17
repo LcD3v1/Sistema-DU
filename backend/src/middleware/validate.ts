@@ -239,6 +239,8 @@ export const carteiraPostSchema = z.object({
   // O corpo desta rota é limitado a 5mb em index.ts; o teto aqui acompanha.
   imagem:   z.string().max(5_000_000).refine(ehImagemEnviada, 'Envie a imagem gerada da carteira'),
   mensagem: safeStrOpt(300).optional(),
+  // @ do Discord de quem marcar (nunca o discordId — o backend resolve)
+  mencionarUsuario: z.string().max(32).regex(/^[a-z0-9._]+$/i, 'Usuário inválido').nullable().optional(),
 })
 
 const discordMessageBlockSchema = z.discriminatedUnion('tipo', [
