@@ -5,7 +5,7 @@ import { queryClient } from '@/lib/queryClient'
 export type TipoNotificacao =
   | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
   | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
-  | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro'
+  | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro' | 'curso'
 
 export interface Notificacao {
   id: number

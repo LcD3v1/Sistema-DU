@@ -349,7 +349,7 @@ export default function GerarCarteiraPage() {
             <div><label className={labelCls}>Passport</label>
               <input value={passaporte} onChange={e => setPassaporte(e.target.value)} placeholder="Ex: 12345" className={inputCls} /></div>
             <div><label className={labelCls}>Registration</label>
-              <input value={registro} onChange={e => setRegistro(e.target.value)} placeholder="Ex: 216F" className={inputCls} /></div>
+              <input value={registro} onChange={e => setRegistro(e.target.value)} placeholder="Ex: 2163" className={inputCls} /></div>
             <div><label className={labelCls}>Date of issue</label>
               <input value={data} onChange={e => setData(e.target.value)} placeholder="Ex: 14/09/2026" className={inputCls} /></div>
             <div><label className={labelCls}>Assinatura do comandante</label>

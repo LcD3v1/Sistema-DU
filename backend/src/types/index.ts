@@ -111,6 +111,20 @@ export interface LinkPerfil {
   emoji?: string
 }
 
+/** Livro da biblioteca de Cursos Internos: um link (PDF, Drive, Docs, site…). */
+export interface Livro {
+  id: number
+  titulo: string
+  autor: string
+  descricao: string
+  categoria: string
+  url: string        // só http/https (security/perfil.ts → ehLinkPerfil)
+  capa: string       // link http/https de imagem ou '' (capa gerada com título + cor)
+  cor: string        // cor da capa gerada (#rrggbb)
+  criadoEm: string
+  criadoPor: string  // interno (auditoria) — não sai da API
+}
+
 export interface PermArea {
   ver: boolean
   editar: boolean
@@ -203,7 +217,7 @@ export interface SituacaoAnuncio {
 export type TipoNotificacao =
   | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
   | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
-  | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro'
+  | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro' | 'curso'
 
 export interface Notificacao {
   id: number
@@ -292,6 +306,8 @@ export interface FastData {
   nextNotifId: number
   solicitacoesPerfil: SolicitacaoPerfil[]
   nextSolPerfilId: number
+  livros?: Livro[]          // Cursos Internos: biblioteca (guardada no documento de configuração)
+  nextLivroId?: number
   painelApreensoes?: PainelApreensoes
   historicoRankings?: RankingArquivado[]
   cargosAdv?: CargosAdv

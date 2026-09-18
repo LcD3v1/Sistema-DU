@@ -2,7 +2,7 @@ import { z, ZodSchema } from 'zod'
 import { Request, Response, NextFunction } from 'express'
 import type { CanaisDiscord } from '../types'
 import { imagemValida, ehImagemEnviada, ehLinkImagem, MAX_URL_IMAGEM } from '../security/imagem'
-import { ehEmoji, ehLinkPerfil, MAX_LINKS_PERFIL, MAX_EMOJIS_PERFIL, MAX_URL_LINK } from '../security/perfil'
+import { ehEmoji, ehLinkPerfil, MAX_LINKS_PERFIL, MAX_EMOJIS_PERFIL, MAX_URL_LINK, MAX_URL_LIVRO } from '../security/perfil'
 
 export function validateBody<T>(schema: ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -182,6 +182,34 @@ export const fardamentoSchema = z.object({
   observacoes: safeStrOpt(500).default(''),
 })
 
+// Cursos Internos (biblioteca de livros por link)
+const linkLivro = z.string().max(MAX_URL_LIVRO).transform(s => s.trim()).refine(s => ehLinkPerfil(s, MAX_URL_LIVRO), 'Link inválido (use http:// ou https://)')
+const capaLivro = z.string().max(MAX_URL_IMAGEM).transform(s => s.trim()).refine(s => s === '' || ehLinkImagem(s), 'Capa deve ser um link de imagem http/https')
+const corLivro = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor inválida')
+const camposLivro = {
+  titulo:    safeStr(1, 120),
+  autor:     safeStrOpt(80),
+  descricao: safeStrOpt(600),
+  categoria: safeStrOpt(40),
+  url:       linkLivro,
+  capa:      capaLivro,
+  cor:       corLivro,
+}
+export const livroSchema = z.object({
+  ...camposLivro,
+  autor:     camposLivro.autor.default(''),
+  descricao: camposLivro.descricao.default(''),
+  categoria: camposLivro.categoria.default(''),
+  capa:      camposLivro.capa.default(''),
+  cor:       camposLivro.cor.default('#3a72c4'),
+}).strict()
+// Edição: só os campos enviados (sem valores padrão, para não apagar o que não veio)
+export const livroUpdateSchema = z.object({
+  titulo: camposLivro.titulo.optional(), autor: camposLivro.autor.optional(), descricao: camposLivro.descricao.optional(),
+  categoria: camposLivro.categoria.optional(), url: camposLivro.url.optional(), capa: camposLivro.capa.optional(),
+  cor: camposLivro.cor.optional(),
+}).strict().refine(b => Object.values(b).some(v => v !== undefined), { message: 'Nenhum campo fornecido' })
+
 export const fardamentoUpdateSchema = z.object({
   patente:     safeStr(1, 50).optional(),
   titulo:      safeStrOpt(100).optional(),
@@ -342,7 +370,7 @@ export const personalizacaoSchema = z.object({
   links: z.array(z.object({
     rotulo: z.string().max(30).transform(s => s.replace(/[\u0000-\u001f\u007f]/g, '').trim())
       .refine(s => s.length > 0, 'Dê um nome ao link'),
-    url: z.string().max(MAX_URL_LINK).transform(s => s.trim()).refine(ehLinkPerfil, 'Link inválido (use http:// ou https://)'),
+    url: z.string().max(MAX_URL_LINK).transform(s => s.trim()).refine(s => ehLinkPerfil(s), 'Link inválido (use http:// ou https://)'),
     emoji: emojiSchema.optional(),
   }).strict()).max(MAX_LINKS_PERFIL, `No máximo ${MAX_LINKS_PERFIL} links`),
   emojis: z.array(emojiSchema).max(MAX_EMOJIS_PERFIL, `No máximo ${MAX_EMOJIS_PERFIL} emojis`),

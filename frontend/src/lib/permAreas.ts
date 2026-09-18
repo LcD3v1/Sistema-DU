@@ -13,6 +13,7 @@ export const PERM_AREAS = [
   { id: 'ausencias',      label: 'Ausências' },
   { id: 'promocoes',      label: 'Promoções' },
   { id: 'fardamento',     label: 'Fardamento' },
+  { id: 'cursos',         label: 'Cursos Internos' },
   { id: 'recrutamento',   label: 'Recrutamento' },
   { id: 'anuncio',        label: 'Gerar Anúncio' },
   { id: 'boletim',        label: 'Gerar Boletim' },

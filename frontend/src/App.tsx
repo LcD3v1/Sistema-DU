@@ -37,7 +37,7 @@ const GerarBoletimPage = paginaLazy('/boletim')
 const ProtocoloPage = paginaLazy('/protocolo')
 const GerarCarteiraPage = paginaLazy('/carteira')
 const EnviarMensagemPage = paginaLazy('/mensagens')
-const EmBreve = paginaLazy('/cursos')
+const CursosPage = paginaLazy('/cursos')
 const RecrutamentoPage = paginaLazy('/recrutamento')
 const RecrutaCandidatoPage = paginaLazy('/recrutamento/:id')
 const MembrosPage = paginaLazy('/membros')
@@ -157,7 +157,7 @@ export default function App() {
               <ProtectedRoute area="mensagens"><EnviarMensagemPage /></ProtectedRoute>
             } />
             <Route path="cursos" element={
-              <ProtectedRoute><EmBreve /></ProtectedRoute>
+              <ProtectedRoute area="cursos"><CursosPage /></ProtectedRoute>
             } />
             <Route path="recrutamento" element={
               <ProtectedRoute area="recrutamento"><RecrutamentoPage /></ProtectedRoute>

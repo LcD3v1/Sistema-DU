@@ -178,6 +178,18 @@ check(/router\.get\('\/me\/qrus', requireAuth/.test(authRoutes) && /some\(p => p
   check(back.length > 0 && front.length === back.length && front.every(c => back.includes(c)),
     `logos de plataforma: backend e frontend iguais (${back.length})`, 'lista de logos de plataforma diferente entre backend e frontend')
 }
+{
+  // Cursos Internos (biblioteca): ver para ler, editar para mudar, Zod estrito, saída sem criadoPor
+  const cursos = ler('src/routes/cursos.ts')
+  check(/router\.get\('\/livros', requireAuth, requireArea\('cursos', 'ver'\)/.test(cursos)
+    && (cursos.match(/requireArea\('cursos', 'editar'\)/g) || []).length === 3
+    && /validateBody\(livroSchema\)/.test(cursos) && /validateBody\(livroUpdateSchema\)/.test(cursos),
+    'Cursos Internos: requireArea ver/editar + Zod', 'Cursos Internos sem permissão por área ou sem Zod')
+  const dto = cursos.slice(cursos.indexOf('function livroPublico'), cursos.indexOf('function idDaRota'))
+  check(cursos.includes('res.json(livros.map(livroPublico))') && dto.length > 0 && !dto.includes('criadoPor'),
+    'Cursos Internos: saída em lista branca (sem criadoPor)', 'Cursos Internos devolve o autor interno do cadastro')
+  check(/ehLinkPerfil\(s, MAX_URL_LIVRO\)/.test(ler('src/middleware/validate.ts')), 'links de livro só http/https', 'links de livro sem validação de protocolo')
+}
 check(/router\.post\('\/restore',[^\n]*criticalLimiter/.test(ler('src/routes/config.ts')), 'criticalLimiter no restore', 'restore sem criticalLimiter')
 check(ler('src/middleware/rateLimiter.ts').includes('registrarInfracao'), 'rate limit alimenta o firewall', 'rate limit não pontua no firewall')
 

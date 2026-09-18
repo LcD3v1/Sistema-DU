@@ -65,7 +65,7 @@ const GROUPS: NavGroup[] = [
       { to: '/protocolo', icon: BookOpen,     label: 'Protocolo',        minNivel: 'membro', viewOnly: true, area: 'protocolo' },
       { to: '/carteira',  icon: CreditCard,   label: 'Gerar carteira',   minNivel: 'membro', area: 'carteira' },
       { to: '/mensagens', icon: Send,         label: 'Enviar mensagem',  minNivel: 'membro', area: 'mensagens' },
-      { to: '/cursos',   icon: GraduationCap, label: 'Cursos Internos',  minNivel: 'membro', external: true },
+      { to: '/cursos',   icon: GraduationCap, label: 'Cursos Internos',  minNivel: 'membro', area: 'cursos' },
     ],
   },
   {

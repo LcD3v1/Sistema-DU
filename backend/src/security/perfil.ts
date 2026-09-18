@@ -8,8 +8,10 @@ export const MAX_LINKS_PERFIL = 8
 export const MAX_EMOJIS_PERFIL = 6
 export const MAX_URL_LINK = 300
 
-export function ehLinkPerfil(valor: string): boolean {
-  if (valor.length > MAX_URL_LINK || /[\s<>"'`]/.test(valor)) return false
+export const MAX_URL_LIVRO = 2048
+
+export function ehLinkPerfil(valor: string, max = MAX_URL_LINK): boolean {
+  if (valor.length > max || /[\s<>"'`]/.test(valor)) return false
   try {
     const url = new URL(valor)
     return (url.protocol === 'https:' || url.protocol === 'http:') && Boolean(url.hostname)

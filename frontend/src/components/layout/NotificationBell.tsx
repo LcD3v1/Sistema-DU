@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, Send, CheckCircle2, XCircle, Hourglass, ChevronsUp, ChevronsDown,
-  AlertTriangle, CalendarDays, UserCheck, X, CheckCheck, Megaphone, Shirt, UserPlus, ClipboardCheck, UserX, Users,
+  AlertTriangle, CalendarDays, UserCheck, X, CheckCheck, Megaphone, Shirt, UserPlus, ClipboardCheck, UserX, Users, BookOpen,
 } from 'lucide-react'
 import {
   useNotificacoes, useMarcarTodasLidas, useMarcarLida, useApagarNotificacao,
@@ -26,6 +26,7 @@ const ICONE: Record<TipoNotificacao, { icon: typeof Bell; cor: string }> = {
   apreensao:          { icon: ClipboardCheck, cor: '#5865f2' },
   exoneracao:         { icon: UserX,         cor: '#e74c3c' },
   membro:             { icon: Users,         cor: '#2ecc71' },
+  curso:              { icon: BookOpen,      cor: '#b8860b' },
 }
 
 function tempoRelativo(iso: string): string {
