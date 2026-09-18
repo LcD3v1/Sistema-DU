@@ -54,7 +54,7 @@ router.get('/perfil/:slug', (req, res) => {
     cargo: row.hierarchy.replace(/^\(FAST\)\s*/i, ''), patente: row.role, membroDesde: row.joinedAt, status: row.status,
     apreensoes: { d7: contar(7), d15: contar(15), d30: contar(30), total: minhas.length },
     ultimasApreensoes: minhas.slice(0, 10).map(a => ({
-      id: a.id, data: a.data.slice(0, 10), tipo: a.qru, local: '', resultado: a.resultado, imagem: null,
+      id: a.id, data: a.data.slice(0, 10), tipo: a.qru, local: '', resultado: a.resultado ?? 'Convencional', imagem: null,
     })),
     historicoCargos: [...(membro?.historicoCargos ?? [])].reverse().slice(0, 20)
       .map(({ data, tipo, de, para }) => ({ data, tipo, de, para })),

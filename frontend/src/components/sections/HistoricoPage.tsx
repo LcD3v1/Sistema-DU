@@ -19,6 +19,7 @@ const RESULTADO_COLORS: Record<string, string> = {
   'Vitória':      '#27ae60',
   'Derrota':      '#b8433a',
   'Empate': '#2980b9',
+  'Convencional': '#c9a227',   // QRU convencional (apreensão) não tem vitória/derrota
 }
 
 const PAGE_SIZE = 20
@@ -143,12 +144,12 @@ export default function HistoricoPage() {
                       <span
                         className="font-mono text-xs px-2 py-0.5 rounded border"
                         style={{
-                          color: RESULTADO_COLORS[acao.resultado],
-                          borderColor: RESULTADO_COLORS[acao.resultado] + '40',
-                          background: RESULTADO_COLORS[acao.resultado] + '12',
+                          color: RESULTADO_COLORS[acao.resultado ?? 'Convencional'],
+                          borderColor: RESULTADO_COLORS[acao.resultado ?? 'Convencional'] + '40',
+                          background: RESULTADO_COLORS[acao.resultado ?? 'Convencional'] + '12',
                         }}
                       >
-                        {acao.resultado}
+                        {acao.resultado ?? 'Convencional'}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-txt2">

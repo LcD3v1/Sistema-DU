@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, X, Send, UserX, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw } from 'lucide-react'
+import { Plus, X, Send, UserX, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw, Search } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useCreateAcao } from '@/hooks/useAcoes'
-import { useQrus } from '@/hooks/useConfig'
+import { useQrus, useQrusTipos } from '@/hooks/useConfig'
 import { useMembros } from '@/hooks/useMembros'
 import { useMe } from '@/hooks/useMe'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
 import LoadingHud from '@/components/ui/LoadingHud'
-import type { ResultadoAcao, Membro, Acao } from '@/types'
+import type { ResultadoAcao, Membro, Acao, TipoQru } from '@/types'
 
 function normalizarBusca(valor: string) {
   return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
@@ -46,6 +46,11 @@ interface ExtraParticipante {
   patente: string
 }
 
+const TIPO_OPTIONS: { value: TipoQru; titulo: string; desc: string }[] = [
+  { value: 'convencional', titulo: 'QRU CONVENCIONAL', desc: 'Apreensão' },
+  { value: 'fechado',      titulo: 'QRU FECHADO',      desc: 'Ação · vitória ou derrota' },
+]
+
 const RESULTADO_OPTIONS: { value: ResultadoAcao; color: string }[] = [
   { value: 'Vitória',      color: 'border-green text-green bg-green/10'   },
   { value: 'Derrota',      color: 'border-red text-red bg-red/10'         },
@@ -55,6 +60,9 @@ export default function RegistrarAcaoPage() {
   const navigate = useNavigate()
   const { addToast } = useUIStore()
   const { data: qrus, isLoading: qrusLoading } = useQrus()
+  const { data: qrusTipos, isLoading: tiposLoading } = useQrusTipos()
+  const [tipo, setTipo] = useState<TipoQru | null>(null)
+  const [listaAberta, setListaAberta] = useState(false)
   const { data: membros, isLoading: membrosLoading } = useMembros()
   const createAcao = useCreateAcao()
 
@@ -80,6 +88,13 @@ export default function RegistrarAcaoPage() {
   })
 
   const resultado = watch('resultado')
+  const tipoDe = (q: string): TipoQru => qrusTipos?.find(t => t.nome === q)?.tipo ?? 'convencional'
+  const qrusDoTipo = tipo ? (qrus ?? []).filter(q => tipoDe(q) === tipo) : []
+
+  function escolherTipo(t: TipoQru) {
+    setTipo(t)
+    setValue('qru', '')   // QRU do outro tipo não vale
+  }
 
   const filteredMembros = (membros ?? []).filter((m: Membro) =>
     !selectedMembros.some(s => s.memberId === m.id) &&
@@ -89,7 +104,7 @@ export default function RegistrarAcaoPage() {
 
   function addMembro(m: Membro) {
     setSelectedMembros(prev => [...prev, { memberId: m.id, patenteUnidade: m.patenteInterna || m.patenteNPD }])
-    setMembroSearch('')
+    setMembroSearch('')   // lista segue aberta para adicionar vários
   }
 
   function removeMembro(id: number) {
@@ -109,11 +124,13 @@ export default function RegistrarAcaoPage() {
   }
 
   async function onSubmit(data: FormData) {
+    if (!tipo) { addToast('error', 'Escolha QRU convencional ou QRU fechado.'); return }
     try {
       const res = await createAcao.mutateAsync({
         data: data.data,
         qru: data.qru,
-        resultado: data.resultado,
+        tipo,
+        ...(tipo === 'fechado' ? { resultado: data.resultado } : {}),
         local: local.trim() || undefined,
         imagem: imagem.trim() || undefined,
         participants: selectedMembros,
@@ -133,13 +150,13 @@ export default function RegistrarAcaoPage() {
     navigator.clipboard.writeText(txt).then(() => addToast('success', msg)).catch(() => addToast('error', 'Falha ao copiar.'))
   }
 
-  if (qrusLoading || membrosLoading || meLoading) return <LoadingHud />
+  if (qrusLoading || tiposLoading || membrosLoading || meLoading) return <LoadingHud />
 
   // ── Painel de resultado (após registrar) ──────────────────────
   if (registrado) {
     const modelo = buildBoletimModelo(registrado)
     function resetForm() {
-      setRegistrado(null); setLocal(''); setImagem('')
+      setRegistrado(null); setLocal(''); setImagem(''); setTipo(null); setValue('qru', '')
       setSelectedMembros([]); setParticipantesExtras([])
     }
     return (
@@ -219,18 +236,44 @@ export default function RegistrarAcaoPage() {
               {errors.data && <p className="text-red text-xs font-mono mt-1">{errors.data.message}</p>}
             </div>
 
+            {/* Tipo: convencional (apreensão) × fechado (ação) */}
+            <div>
+              <label className="font-mono text-xs text-txt2 tracking-wider block mb-2">TIPO DE QRU</label>
+              <div className="grid grid-cols-2 gap-3">
+                {TIPO_OPTIONS.map(opt => (
+                  <motion.button
+                    key={opt.value}
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => escolherTipo(opt.value)}
+                    className={`py-3 px-2 border rounded-lg text-center transition-all ${
+                      tipo === opt.value ? 'border-gold text-txt bg-gold/10' : 'border-bdr text-txt3 hover:border-bdrg hover:text-txt2'
+                    }`}
+                  >
+                    <span className="block font-medium text-xs tracking-wider">{opt.titulo}</span>
+                    <span className="block font-mono text-[10px] text-txt3 mt-0.5">{opt.desc}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
             {/* QRU */}
             <div>
               <label className="font-mono text-xs text-txt2 tracking-wider block mb-1.5">QRU</label>
               <select
                 {...register('qru', { required: 'QRU obrigatório' })}
-                className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt"
+                disabled={!tipo}
+                className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt disabled:opacity-50"
               >
-                <option value="">Selecione...</option>
-                {(qrus ?? []).map(q => (
+                <option value="">{tipo ? 'Selecione...' : 'Escolha o tipo acima primeiro'}</option>
+                {qrusDoTipo.map(q => (
                   <option key={q} value={q}>{q}</option>
                 ))}
               </select>
+              {tipo && qrusDoTipo.length === 0 && (
+                <p className="font-mono text-[10px] text-txt3 mt-1.5">Nenhum QRU desse tipo cadastrado em Configurações.</p>
+              )}
               {errors.qru && <p className="text-red text-xs font-mono mt-1">{errors.qru.message}</p>}
             </div>
 
@@ -262,8 +305,8 @@ export default function RegistrarAcaoPage() {
               </div>
             </div>
 
-            {/* Resultado */}
-            <div>
+            {/* Resultado — só em QRU fechado (ação) */}
+            {tipo === 'fechado' && <div>
               <label className="font-mono text-xs text-txt2 tracking-wider block mb-2">RESULTADO</label>
               <div className="flex gap-3">
                 {RESULTADO_OPTIONS.map(opt => (
@@ -281,7 +324,7 @@ export default function RegistrarAcaoPage() {
                   </motion.button>
                 ))}
               </div>
-            </div>
+            </div>}
 
             {/* Responsável identificado pela sessão */}
             <div>
@@ -320,18 +363,26 @@ export default function RegistrarAcaoPage() {
               )}
 
               <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt3 pointer-events-none" />
                 <input
                   value={membroSearch}
-                  onChange={e => setMembroSearch(e.target.value)}
-                  placeholder="Buscar por nome no servidor, nome ou badge..."
-                  className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt placeholder-txt3"
+                  onChange={e => { setMembroSearch(e.target.value); setListaAberta(true) }}
+                  onFocus={() => setListaAberta(true)}
+                  onBlur={() => setListaAberta(false)}
+                  onKeyDown={e => { if (e.key === 'Escape') setListaAberta(false) }}
+                  placeholder="Pesquisar pelo nome ou rolar a lista..."
+                  className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 pl-9 text-sm font-mono text-txt placeholder-txt3"
                 />
-                {membroSearch && filteredMembros.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-50 bg-card border border-bdr rounded-b-lg shadow-xl max-h-48 overflow-y-auto">
-                    {filteredMembros.slice(0, 8).map((m: Membro) => (
+                {listaAberta && (
+                  <div className="absolute top-full left-0 right-0 z-50 bg-card border border-bdr rounded-b-lg shadow-xl max-h-60 overflow-y-auto">
+                    {filteredMembros.length === 0 && (
+                      <p className="px-3 py-2 text-xs font-mono text-txt3">Nenhum membro encontrado.</p>
+                    )}
+                    {filteredMembros.map((m: Membro) => (
                       <button
                         key={m.id}
                         type="button"
+                        onMouseDown={e => e.preventDefault()}   // mantém o foco: a lista não fecha antes do clique
                         onClick={() => addMembro(m)}
                         className="w-full text-left px-3 py-2 text-xs font-mono text-txt2 hover:bg-bdr hover:text-txt transition-colors flex items-center gap-2"
                       >

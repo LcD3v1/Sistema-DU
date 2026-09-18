@@ -90,7 +90,8 @@ export const membroUpdateSchema = z.object({
 export const acaoSchema = z.object({
   data:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida'),
   qru:          safeStr(1, 50),
-  resultado:    z.enum(['Vitória', 'Derrota', 'Empate']),
+  tipo:         z.enum(['convencional', 'fechado']),
+  resultado:    z.enum(['Vitória', 'Derrota']).optional(),
   comandante:   z.string().max(100).optional(),
   local:        safeStrOpt(120).optional(),
   imagem:       z.string().max(MAX_URL_IMAGEM).refine(s => s === '' || ehLinkImagem(s), 'Imagem deve ser um link http/https').optional(),
@@ -102,6 +103,9 @@ export const acaoSchema = z.object({
     nome:    safeStr(1, 100),
     patente: z.string().max(50).optional(),
   })).default([]),
+}).refine(b => (b.tipo === 'fechado') === (b.resultado !== undefined), {
+  message: 'Resultado (vitória/derrota) só em QRU fechado — e obrigatório nele',
+  path: ['resultado'],
 })
 
 export const recrutaCreateSchema = z.object({
@@ -185,7 +189,12 @@ export const fardamentoUpdateSchema = z.object({
 
 export const qruSchema = z.object({
   nome: z.string().min(1).max(50).regex(/^[\w\s\-]+$/, 'Nome do QRU contém caracteres inválidos').transform((s: string) => s.trim()),
-})
+  tipo: z.enum(['convencional', 'fechado']).default('convencional'),
+}).strict()
+
+export const tipoQruSchema = z.object({
+  tipo: z.enum(['convencional', 'fechado']),
+}).strict()
 
 export const patenteSchema = z.object({
   nome: safeStr(1, 50),

@@ -10,6 +10,7 @@ import { postarApreensao, emSegundoPlano } from '../discord/forum'
 import { atualizarPainelEmSegundoPlano } from '../discord/painelApreensoes'
 import { notificar, notificarAprovadores } from '../notificacoes'
 import { contaDoMembro } from '../efetivo'
+import { tipoDoQru } from '../qrus'
 
 const router = Router()
 
@@ -38,7 +39,7 @@ router.get('/export/csv', requireAuth, requireArea('historico', 'ver'), (_req: R
       if (/^[\s]*[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text
       return '"' + text.replace(/"/g, '""') + '"'
     }
-    rows.push([acao.id, acao.data, acao.qru, acao.resultado, participantes].map(cell).join(','))
+    rows.push([acao.id, acao.data, acao.qru, acao.resultado ?? 'Convencional', participantes].map(cell).join(','))
   }
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
@@ -76,6 +77,11 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
   const body = req.body as Omit<Acao, 'id'>
   const data = readData()
 
+  // QRU precisa existir e ser do tipo escolhido (convencional × fechado)
+  if (!data.qrus.includes(body.qru) || tipoDoQru(data, body.qru) !== body.tipo) {
+    res.status(400).json({ error: 'QRU inválido para o tipo selecionado.' }); return
+  }
+
   // Validar que participantes existem
   const existingIds = new Set(data.membros.map(m => m.id))
   const invalidParticipants = body.participants.filter(p => !existingIds.has(p.memberId))
@@ -90,7 +96,8 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     id: data.nextAcId,
     data: body.data,
     qru: body.qru,
-    resultado: body.resultado,
+    tipo: body.tipo,
+    ...(body.tipo === 'fechado' ? { resultado: body.resultado } : {}),
     participants: body.participants,
     participantesExtras: body.participantesExtras ?? [],
     comandante: responsavel,
@@ -108,7 +115,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     `${req.user!.username} registrou uma apreensão (${novaAcao.qru}).`, '/acoes/pendentes')
   writeData(data)
 
-  audit('ACAO_CREATED', req, `ID: ${novaAcao.id} | QRU: ${novaAcao.qru} | ${novaAcao.resultado} | PENDENTE`)
+  audit('ACAO_CREATED', req, `ID: ${novaAcao.id} | QRU: ${novaAcao.qru} | ${novaAcao.resultado ?? 'convencional'} | PENDENTE`)
   res.status(201).json(novaAcao)
 })
 
@@ -135,7 +142,7 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
       if (!contaId || avisados.has(contaId)) continue
       avisados.add(contaId)
       notificar(data, contaId, 'apreensao', `Apreensão registrada · BO Nº ${acao.id}`,
-        `Você participou da apreensão ${acao.qru} (${acao.resultado}), aprovada por ${req.user!.username}.`, '/acoes/historico')
+        `Você participou da apreensão ${acao.qru}${acao.resultado ? ` (${acao.resultado})` : ''}, aprovada por ${req.user!.username}.`, '/acoes/historico')
     }
   }
   writeData(data)

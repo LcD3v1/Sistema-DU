@@ -424,6 +424,20 @@ console.log('\n[Registro] Tópico/canal do registro no Discord')
     'registro não duplica (trava por membro e marca de canal)', 'registro pode ser repostado em duplicidade')
 }
 
+console.log('\n[QRU] Tipo convencional × fechado')
+{
+  const cfg = ler('src/routes/config.ts')
+  check(/router\.put\('\/qrus\/:nome\/tipo', requireAuth, requireArea\('configuracoes', 'editar'\), validateBody\(tipoQruSchema\)/.test(cfg),
+    'trocar tipo do QRU exige editar configurações + Zod', 'troca de tipo do QRU sem permissão/Zod')
+  check(/router\.get\('\/qrus\/tipos', requireAuth, requireAprovado/.test(cfg),
+    'tipos de QRU só para conta aprovada', 'tipos de QRU sem autenticação')
+  check(/qrusFechados\?\.includes\(nome\)/.test(ler('src/qrus.ts')),
+    'tipo guardado em lista (sem objeto indexado pelo nome → sem __proto__)', 'tipo de QRU indexado pelo nome')
+  const ac = ler('src/routes/acoes.ts')
+  check(/tipoDoQru\(data, body\.qru\) !== body\.tipo/.test(ac) && /comandante: responsavel/.test(ac),
+    'apreensão só com QRU existente do tipo certo; responsável = conta logada', 'apreensão aceita QRU/responsável de fora')
+}
+
 console.log('\n[Termos] Aceite dos termos de uso')
 const authTs = ler('src/routes/auth.ts')
 check(/router\.post\('\/me\/termos', requireAuth, validateBody\(termosAceiteSchema\)/.test(authTs),

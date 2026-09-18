@@ -2,7 +2,7 @@ import { useMe } from '@/hooks/useMe'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
-import type { RecCfg } from '@/types'
+import type { RecCfg, TipoQru } from '@/types'
 
 export function useQrus() {
   const { data: me } = useMe()
@@ -14,9 +14,27 @@ export function useQrus() {
   })
 }
 
+/** Tipo de cada QRU (convencional × fechado). Invalida junto com ['config','qrus']. */
+export function useQrusTipos() {
+  const { data: me } = useMe()
+  return useQuery<{ nome: string; tipo: TipoQru }[]>({
+    queryKey: ['config', 'qrus', 'tipos'],
+    queryFn: async () => (await api.get<{ nome: string; tipo: TipoQru }[]>('/config/qrus/tipos')).data,
+    enabled: !!me && (me.admin || !!me.cargoPermId),
+  })
+}
+
+export function useTipoQru() {
+  return useMutation({
+    mutationFn: ({ nome, tipo }: { nome: string; tipo: TipoQru }) =>
+      api.put(`/config/qrus/${encodeURIComponent(nome)}/tipo`, { tipo }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'qrus'] }),
+  })
+}
+
 export function useAddQru() {
   return useMutation({
-    mutationFn: (nome: string) => api.post('/config/qrus', { nome }),
+    mutationFn: ({ nome, tipo }: { nome: string; tipo: TipoQru }) => api.post('/config/qrus', { nome, tipo }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'qrus'] }),
   })
 }

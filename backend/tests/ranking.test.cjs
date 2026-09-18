@@ -121,6 +121,15 @@ test('não conta ações pendentes, futuras ou resultados inválidos; legado apr
     action(3, [1], { resultado: '???' }), action(4, [1], { status: undefined })]
   assert.equal(build(data).stats.records, 1)
 })
+test('QRU convencional (sem resultado) pontua, mas não conta vitória nem derrota', () => {
+  const data = makeData()
+  const conv = action(1, [1]); delete conv.resultado; conv.tipo = 'convencional'
+  const semTipo = action(2, [1]); delete semTipo.resultado   // registro antigo sem resultado → fora
+  data.acoes = [conv, semTipo]
+  const row = build(data).members.find(m => m.id === 1)
+  assert.equal(row.points, 1); assert.equal(row.wins, 0); assert.equal(row.losses, 0)
+  assert.equal(row.activity[0].result, 'Convencional')
+})
 test('participante duplicado não duplica pontuação', () => {
   const data = makeData(); data.acoes = [action(1, [1, 1, 1])]
   assert.equal(build(data).ranking[0].points, 1)
@@ -271,15 +280,28 @@ test('responsável da apreensão vem da sessão, nunca do nome enviado pelo clie
   try {
     data.nextAcId = 900
     data.contas[0].nomeServidor = 'Oficial do servidor'
-    const response = await fetch(base + '/api/acoes', {
+    data.qrus = ['QRU-1', 'Registradora']
+    data.qrusFechados = ['QRU-1']
+    const postar = body => fetch(base + '/api/acoes', {
       method: 'POST', headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: '2026-09-17', qru: 'QRU-1', resultado: 'Vitória', participants: [], comandante: 'Outra pessoa' }),
+      body: JSON.stringify({ data: '2026-09-17', participants: [], ...body }),
     })
+    // Tipo tem que bater com o QRU; convencional não tem resultado; fechado exige
+    assert.equal((await postar({ qru: 'QRU-1', tipo: 'convencional' })).status, 400)
+    assert.equal((await postar({ qru: 'Registradora', tipo: 'convencional', resultado: 'Vitória' })).status, 400)
+    assert.equal((await postar({ qru: 'QRU-1', tipo: 'fechado' })).status, 400)
+    assert.equal((await postar({ qru: 'Inexistente', tipo: 'convencional' })).status, 400)
+    const response = await postar({ qru: 'QRU-1', tipo: 'fechado', resultado: 'Vitória', comandante: 'Outra pessoa' })
     assert.equal(response.status, 201)
     const created = await response.json()
     assert.equal(created.comandante, 'Oficial do servidor')
     assert.equal(created.criadoPorContaId, 1)
     assert.equal(data.acoes.find(a => a.id === 900).comandante, 'Oficial do servidor')
+    const conv = await postar({ qru: 'Registradora', tipo: 'convencional' })
+    assert.equal(conv.status, 201)
+    const convBody = await conv.json()
+    assert.equal(convBody.tipo, 'convencional')
+    assert.equal(convBody.resultado, undefined)
     data.cargosPermissao.find(c => c.id === 20).permissoes = { registrar_acao: { ver: true, editar: true } }
     const members = await get('/api/membros', token(2))
     assert.equal(members.status, 200)

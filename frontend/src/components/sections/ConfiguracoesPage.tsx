@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
@@ -14,7 +14,7 @@ import {
   Plus, Trash2, Megaphone, Inbox, Clock, ShieldCheck, MessagesSquare, Scale,
 } from 'lucide-react'
 import {
-  useQrus, useAddQru, useDeleteQru, useReorderQrus,
+  useQrus, useQrusTipos, useTipoQru, useAddQru, useDeleteQru, useReorderQrus,
   usePatentes, useAddPatente, useDeletePatente,
   useCargos, useAddCargo, useDeleteCargo,
   useLogo,
@@ -35,7 +35,7 @@ import LoadingHud from '@/components/ui/LoadingHud'
 import LogoUploader from '@/components/ui/LogoUploader'
 import DragHandle from '@/components/ui/DragHandle'
 import { usePerms } from '@/hooks/usePerms'
-import type { CategoriaRecrutamento } from '@/types'
+import type { CategoriaRecrutamento, TipoQru } from '@/types'
 import { confirmar, decidir } from '@/lib/dialogo'
 
 const TABS = [
@@ -52,12 +52,13 @@ const TABS = [
 ] as const
 
 function SortableListItem({
-  item, canEdit, onDelete, canReorder,
+  item, canEdit, onDelete, canReorder, extra,
 }: {
   item: string
   canEdit: boolean
   onDelete: (v: string) => void
   canReorder: boolean
+  extra?: (item: string) => ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item })
 
@@ -78,6 +79,7 @@ function SortableListItem({
         />
       )}
       <span className="font-mono text-xs text-txt flex-1">{item}</span>
+      {extra?.(item)}
       {canEdit && (
         <button onClick={() => onDelete(item)} className="opacity-0 group-hover:opacity-100 text-txt3 hover:text-red transition-all">
           <Trash2 size={12} />
@@ -88,11 +90,13 @@ function SortableListItem({
 }
 
 function ListEditor({
-  items, onAdd, onDelete, onReorder, placeholder, canEdit,
+  items, onAdd, onDelete, onReorder, placeholder, canEdit, semAdicionar, extra,
 }: {
   items: string[]; onAdd: (v: string) => void; onDelete: (v: string) => void
   onReorder?: (items: string[]) => void
   placeholder: string; canEdit: boolean
+  semAdicionar?: boolean                    // o campo de adicionar fica fora (ex.: QRUs escolhem o tipo antes)
+  extra?: (item: string) => ReactNode       // ação extra por item
 }) {
   const [val, setVal] = useState('')
   const [localItems, setLocalItems] = useState(items)
@@ -122,7 +126,7 @@ function ListEditor({
 
   return (
     <div className="space-y-3">
-      {canEdit && (
+      {canEdit && !semAdicionar && (
         <div className="flex gap-2">
           <input
             value={val}
@@ -148,6 +152,7 @@ function ListEditor({
                     canEdit={canEdit}
                     canReorder={canReorder}
                     onDelete={onDelete}
+                    extra={extra}
                   />
                 ))}
               </div>
@@ -156,7 +161,8 @@ function ListEditor({
         ) : (
           localItems.map(item => (
             <div key={item} className="flex items-center justify-between px-3 py-2 bg-card2 border border-bdr rounded group">
-              <span className="font-mono text-xs text-txt">{item}</span>
+              <span className="font-mono text-xs text-txt flex-1">{item}</span>
+              {extra?.(item)}
               {canEdit && (
                 <button onClick={() => onDelete(item)} className="opacity-0 group-hover:opacity-100 text-txt3 hover:text-red transition-all">
                   <Trash2 size={12} />
@@ -169,6 +175,95 @@ function ListEditor({
           <p className="font-mono text-xs text-txt3 text-center py-4">Nenhum item cadastrado</p>
         )}
       </div>
+    </div>
+  )
+}
+
+const TIPOS_QRU: { tipo: TipoQru; titulo: string; desc: string }[] = [
+  { tipo: 'convencional', titulo: 'QRU CONVENCIONAL', desc: 'Apreensão — sem vitória/derrota (ex.: registradora, ATM)' },
+  { tipo: 'fechado',      titulo: 'QRU FECHADO',      desc: 'Ação — com vitória ou derrota' },
+]
+
+/** QRUs separados por tipo: ao criar, escolhe convencional ou fechado primeiro. */
+function QrusEditor() {
+  const { addToast } = useUIStore()
+  const { data: qrus = [] } = useQrus()
+  const { data: tipos = [] } = useQrusTipos()
+  const addQru = useAddQru()
+  const deleteQru = useDeleteQru()
+  const reorderQrus = useReorderQrus()
+  const tipoQru = useTipoQru()
+  const [novoTipo, setNovoTipo] = useState<TipoQru | null>(null)
+  const [nome, setNome] = useState('')
+
+  const tipoDe = (q: string): TipoQru => tipos.find(t => t.nome === q)?.tipo ?? 'convencional'
+  const porTipo = (t: TipoQru) => qrus.filter(q => tipoDe(q) === t)
+
+  function adicionar() {
+    const v = nome.trim()
+    if (!v || !novoTipo) return
+    addQru.mutate({ nome: v, tipo: novoTipo }, {
+      onSuccess: () => { setNome(''); addToast('success', `QRU ${v} criado.`) },
+      onError: () => addToast('error', 'Não foi possível criar o QRU (nome repetido ou inválido).'),
+    })
+  }
+
+  // Reordena dentro do tipo; a lista completa fica convencionais → fechados
+  function reordenar(t: TipoQru, itens: string[]) {
+    const outros = porTipo(t === 'convencional' ? 'fechado' : 'convencional')
+    reorderQrus.mutate(t === 'convencional' ? [...itens, ...outros] : [...outros, ...itens])
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-bdr2 bg-card2/40 p-3 space-y-3">
+        <p className="font-mono text-[11px] text-txt2 tracking-wider">NOVO QRU — QUAL O TIPO?</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {TIPOS_QRU.map(o => (
+            <button key={o.tipo} type="button" onClick={() => setNovoTipo(o.tipo)}
+              className={`text-left rounded-lg border px-3 py-2.5 transition-colors ${novoTipo === o.tipo ? 'border-gold bg-gold/10 text-txt' : 'border-bdr2 text-txt2 hover:border-bdrg'}`}>
+              <span className="block font-mono text-xs tracking-wider">{o.titulo}</span>
+              <span className="block text-[11px] text-txt3 mt-0.5">{o.desc}</span>
+            </button>
+          ))}
+        </div>
+        {novoTipo && (
+          <div className="flex gap-2">
+            <input
+              value={nome}
+              onChange={e => setNome(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') adicionar() }}
+              placeholder={novoTipo === 'convencional' ? 'Ex.: QRU Registradora' : 'Ex.: Ação Banco Central'}
+              className="input-gold flex-1 bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt"
+            />
+            <HudButton size="sm" onClick={adicionar} loading={addQru.isPending}>
+              <Plus size={14} />
+            </HudButton>
+          </div>
+        )}
+      </div>
+
+      {TIPOS_QRU.map(o => (
+        <div key={o.tipo}>
+          <p className="font-mono text-[11px] text-gold3 tracking-wider mb-2">{o.titulo} · {porTipo(o.tipo).length}</p>
+          <ListEditor
+            items={porTipo(o.tipo)}
+            onAdd={() => {}}
+            semAdicionar
+            onDelete={v => deleteQru.mutate(v)}
+            onReorder={itens => reordenar(o.tipo, itens)}
+            placeholder=""
+            canEdit={true}
+            extra={q => (
+              <button type="button"
+                onClick={() => tipoQru.mutate({ nome: q, tipo: o.tipo === 'convencional' ? 'fechado' : 'convencional' })}
+                className="font-mono text-[10px] text-txt3 hover:text-gold border border-bdr2 rounded px-1.5 py-0.5 transition-colors">
+                mover p/ {o.tipo === 'convencional' ? 'fechado' : 'convencional'}
+              </button>
+            )}
+          />
+        </div>
+      ))}
     </div>
   )
 }
@@ -268,11 +363,6 @@ export default function ConfiguracoesPage() {
 
   // A página inteira é admin-only (protegida na rota) — todas as abas ficam visíveis.
   const visibleTabs = TABS
-
-  const { data: qrus = [] } = useQrus()
-  const addQru = useAddQru()
-  const deleteQru = useDeleteQru()
-  const reorderQrus = useReorderQrus()
 
   const { data: patentes = [] } = usePatentes()
   const addPatente = useAddPatente()
@@ -395,14 +485,7 @@ export default function ConfiguracoesPage() {
           {activeTab === 'qrus' && (
             <div>
               <h3 className="font-orbitron text-xs text-gold tracking-wider mb-4">GERENCIAR QRUs</h3>
-              <ListEditor
-                items={qrus}
-                onAdd={v => addQru.mutate(v)}
-                onDelete={v => deleteQru.mutate(v)}
-                onReorder={items => reorderQrus.mutate(items)}
-                placeholder="Novo QRU..."
-                canEdit={true}
-              />
+              <QrusEditor />
             </div>
           )}
 

@@ -1,6 +1,8 @@
 export type Nivel = 'admin' | 'moderador' | 'membro' | 'view_only'
 export type StatusMembro = 'Ativo' | 'Inativo' | 'Ausência'
 export type ResultadoAcao = 'Vitória' | 'Derrota' | 'Empate'
+/** convencional = apreensão (sem vitória/derrota); fechado = ação (com vitória/derrota) */
+export type TipoQru = 'convencional' | 'fechado'
 export type ResultadoRecruita = 'Aprovado' | 'Reprovado'
 
 export interface Membro {
@@ -58,7 +60,8 @@ export interface Acao {
   id: number
   data: string
   qru: string
-  resultado: ResultadoAcao
+  tipo?: TipoQru
+  resultado?: ResultadoAcao   // só em QRU fechado
   participants: ParticipanteAcao[]
   participantesExtras?: ParticipanteExterno[]
   comandante?: string

@@ -89,7 +89,7 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
   const today = day(now)
   let wins = 0, losses = 0, records = 0
   const activities = data.acoes.filter(a => belongsToScope(a, scope) && (a.status ?? 'aprovada') === 'aprovada'
-    && RESULTADOS.has(a.resultado) && Array.isArray(a.participants)
+    && (a.tipo === 'convencional' || RESULTADOS.has(a.resultado ?? '')) && Array.isArray(a.participants)
     && validDate(a.data) && a.data.slice(0, 10) <= today)
     .sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id)
   for (const action of activities) {
@@ -107,7 +107,7 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
       if (action.resultado === 'Vitória') row.wins++
       if (action.resultado === 'Derrota') row.losses++
       row.achievedAt = action.data
-      row.activity.unshift({ id: action.id, date: action.data, type: action.qru, result: action.resultado, points: 1 })
+      row.activity.unshift({ id: action.id, date: action.data, type: action.qru, result: action.resultado ?? 'Convencional', points: 1 })
       if (row.activity.length > 20) row.activity.pop()
       if (row.records === 1) row.achievements.push({ id: 'first-record', name: 'Primeiro registro', earnedAt: action.data })
       if (row.wins === 10 && action.resultado === 'Vitória') row.achievements.push({ id: 'ten-wins', name: '10 vitórias', earnedAt: action.data })

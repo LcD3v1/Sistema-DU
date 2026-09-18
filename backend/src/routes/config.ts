@@ -4,7 +4,7 @@ import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../m
 import { criticalLimiter, cargosDiscordLimiter } from '../middleware/rateLimiter'
 import {
   validateBody,
-  qruSchema, patenteSchema, cargoSchema,
+  qruSchema, tipoQruSchema, patenteSchema, cargoSchema,
   updateContaSchema,
   logoSchema, recCfgSchema,
   reorderPatenteSchema, reorderQruSchema,
@@ -14,7 +14,8 @@ import {
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
-import { Conta, FastData, CargoPermissao, CanaisDiscord } from '../types'
+import { Conta, FastData, CargoPermissao, CanaisDiscord, TipoQru } from '../types'
+import { tipoDoQru, definirTipoQru } from '../qrus'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
 import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, postarAprovacao, emSegundoPlano, repararRegistros } from '../discord/forum'
@@ -50,14 +51,32 @@ function souDev(req: Request, data: FastData): boolean {
 
 router.get('/qrus', requireAuth, requireAprovado, (_req, res) => res.json(readData().qrus))
 
+// Tipo de cada QRU (convencional = apreensão; fechado = ação com vitória/derrota)
+router.get('/qrus/tipos', requireAuth, requireAprovado, (_req, res) => {
+  const data = readData()
+  res.json(data.qrus.map(nome => ({ nome, tipo: tipoDoQru(data, nome) })))
+})
+
 router.post('/qrus', requireAuth, requireArea('configuracoes', 'editar'), validateBody(qruSchema), (req: Request, res: Response): void => {
-  const { nome } = req.body as { nome: string }
+  const { nome, tipo } = req.body as { nome: string; tipo: TipoQru }
   const data = readData()
   if (data.qrus.includes(nome)) { res.status(409).json({ error: 'QRU já existe' }); return }
   data.qrus.push(nome)
+  definirTipoQru(data, nome, tipo)
   writeData(data)
-  audit('CONFIG_UPDATED', req, `QRU criado: ${nome}`)
+  audit('CONFIG_UPDATED', req, `QRU criado: ${nome} (${tipo})`)
   res.status(201).json(data.qrus)
+})
+
+router.put('/qrus/:nome/tipo', requireAuth, requireArea('configuracoes', 'editar'), validateBody(tipoQruSchema), (req: Request, res: Response): void => {
+  const nome = String(req.params.nome).slice(0, 50)
+  const { tipo } = req.body as { tipo: TipoQru }
+  const data = readData()
+  if (!data.qrus.includes(nome)) { res.status(404).json({ error: 'QRU não encontrado' }); return }
+  definirTipoQru(data, nome, tipo)
+  writeData(data)
+  audit('CONFIG_UPDATED', req, `QRU ${nome} → ${tipo}`)
+  res.json({ nome, tipo })
 })
 
 router.put('/qrus/reorder', requireAuth, requireArea('configuracoes', 'editar'), validateBody(reorderQruSchema), (req: Request, res: Response): void => {
@@ -82,6 +101,7 @@ router.delete('/qrus/:nome', requireAuth, requireArea('configuracoes', 'editar')
   const nome = String(req.params.nome).slice(0, 50)
   const data = readData()
   data.qrus = data.qrus.filter(q => q !== nome)
+  definirTipoQru(data, nome, 'convencional')   // tira da lista de fechados
   writeData(data)
   audit('CONFIG_UPDATED', req, `QRU removido: ${nome}`)
   res.json(data.qrus)

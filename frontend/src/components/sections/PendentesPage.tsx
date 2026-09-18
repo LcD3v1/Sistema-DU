@@ -12,6 +12,7 @@ const RESULTADO_CLS: Record<string, string> = {
   'Vitória': 'text-green border-green/40 bg-green/10',
   'Derrota': 'text-red border-red/40 bg-red/10',
   'Empate':  'text-blue border-blue/40 bg-blue/10',
+  'Convencional': 'text-gold3 border-gold/40 bg-gold/10',   // QRU convencional (apreensão)
 }
 
 function fmt(d: string) {
@@ -71,8 +72,8 @@ export default function PendentesPage() {
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="font-mono text-[11px] text-txt3">BO Nº {a.id}</span>
                     <span className="text-txt font-semibold">{a.qru}</span>
-                    <span className={`px-2 py-0.5 rounded-full border text-[10px] font-mono tracking-wider uppercase ${RESULTADO_CLS[a.resultado] ?? 'text-txt2 border-bdr2'}`}>
-                      {a.resultado}
+                    <span className={`px-2 py-0.5 rounded-full border text-[10px] font-mono tracking-wider uppercase ${RESULTADO_CLS[a.resultado ?? 'Convencional'] ?? 'text-txt2 border-bdr2'}`}>
+                      {a.resultado ?? 'Convencional'}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-txt2 flex-wrap">
@@ -98,7 +99,7 @@ export default function PendentesPage() {
                         detalhes: [
                           { label: 'QRU', valor: a.qru },
                           { label: 'Data', valor: fmt(a.data) },
-                          { label: 'Resultado', valor: a.resultado },
+                          { label: a.resultado ? 'Resultado' : 'Tipo', valor: a.resultado ?? 'QRU convencional' },
                           ...(a.local ? [{ label: 'Local', valor: a.local }] : []),
                           { label: 'Participantes', valor: a.participants.map(p => membrosMap.get(p.memberId)?.policial ?? `#${p.memberId}`).join(', ') || '—' },
                         ],

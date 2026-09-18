@@ -9,9 +9,8 @@ import {
   useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, RotateCcw, Trash2, UserX, Users } from 'lucide-react'
-import { useForm } from 'react-hook-form'
-import { useMembros, useCreateMembro, useUpdateMembro, useDeleteMembro, useReorderMembros, useMembrosExonerados, useRetirarExoneracao } from '@/hooks/useMembros'
+import { RotateCcw, Search, Trash2, UserX, Users, X } from 'lucide-react'
+import { useMembros, useUpdateMembro, useDeleteMembro, useReorderMembros, useMembrosExonerados, useRetirarExoneracao } from '@/hooks/useMembros'
 import { usePatentes, useCargos } from '@/hooks/useConfig'
 import { usePerms } from '@/hooks/usePerms'
 import { useAlternarAdv } from '@/hooks/useAlternarAdv'
@@ -22,7 +21,6 @@ import HudButton from '@/components/ui/HudButton'
 import StatusBadge from '@/components/ui/StatusBadge'
 import AdvBox from '@/components/ui/AdvBox'
 import DragHandle from '@/components/ui/DragHandle'
-import ModalOverlay from '@/components/ui/ModalOverlay'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { MembroNomeMenu } from '@/components/sections/MembroGestao'
 import AprovacoesPerfil from '@/components/sections/AprovacoesPerfil'
@@ -31,11 +29,8 @@ import { confirmar } from '@/lib/dialogo'
 import { discordNome, nomeComDiscord } from '@/lib/discordDisplay'
 import RankingModule from '@/modules/ranking/RankingModule'
 
-interface NovoMembroForm {
-  badge: string; passaporte: string; policial: string
-  patenteNPD: string; patenteInterna: string
-  status: StatusMembro; entrada: string; promocao: string
-  adv1: boolean; adv2: boolean; adv3: boolean
+function normalizarBusca(valor: string) {
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 }
 
 interface InlineCellProps {
@@ -189,11 +184,10 @@ export default function MembrosPage() {
   const updateMembro = useUpdateMembro()
   const deleteMembro = useDeleteMembro()
   const reorderMembros = useReorderMembros()
-  const createMembro = useCreateMembro()
 
   const [modo, setModo] = useState<'ativos' | 'exonerados'>('ativos')
   const [statusFilter, setStatusFilter] = useState<string>('')
-  const [modalOpen, setModalOpen] = useState(false)
+  const [busca, setBusca] = useState('')
   const [localOrder, setLocalOrder] = useState<number[] | null>(null)
   const [exoneradoSelecionado, setExoneradoSelecionado] = useState<number | null>(null)
 
@@ -222,12 +216,17 @@ export default function MembrosPage() {
       })
     }
     if (statusFilter) list = list.filter(m => m.status === statusFilter)
+    const termo = normalizarBusca(busca)
+    if (termo) list = list.filter(m => [m.nomeServidor, m.discordUsername, m.policial, m.badge, m.passaporte]
+      .some(v => normalizarBusca(v ?? '').includes(termo)))
     return list
-  }, [membros, localOrder, statusFilter])
+  }, [membros, localOrder, statusFilter, busca])
+  // Com filtro/busca a lista é parcial → reordenar enviaria uma ordem incompleta
+  const podeReordenar = !statusFilter && !busca.trim()
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    if (!over || active.id === over.id || !podeReordenar) return
     const ids = orderedMembros.map(m => m.id)
     const oldIndex = ids.indexOf(active.id as number)
     const newIndex = ids.indexOf(over.id as number)
@@ -270,26 +269,6 @@ export default function MembrosPage() {
       addToast('success', 'Exoneração retirada. A pessoa já pode pedir set de novo.')
     } catch {
       addToast('error', 'Não foi possível retirar a exoneração.')
-    }
-  }
-
-  const { register, handleSubmit, reset } = useForm<NovoMembroForm>({
-    defaultValues: {
-      status: 'Ativo',
-      entrada: new Date().toISOString().slice(0, 10),
-      promocao: new Date().toISOString().slice(0, 10),
-      adv1: false, adv2: false, adv3: false,
-    },
-  })
-
-  async function onCreateMembro(data: NovoMembroForm) {
-    try {
-      await createMembro.mutateAsync(data)
-      addToast('success', 'Membro adicionado!')
-      setModalOpen(false)
-      reset()
-    } catch {
-      addToast('error', 'Erro ao adicionar membro.')
     }
   }
 
@@ -344,11 +323,23 @@ export default function MembrosPage() {
             {modo === 'ativos' ? `${orderedMembros.length} membros` : `${exonerados.length} exonerados`}
           </span>
 
-          {canEdit && modo === 'ativos' && (
-            <HudButton size="sm" onClick={() => setModalOpen(true)}>
-              <Plus size={14} className="inline mr-1.5" />
-              Novo Membro
-            </HudButton>
+          {modo === 'ativos' && (
+            <div className="relative w-full sm:w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt3 pointer-events-none" />
+              <input
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+                placeholder="Pesquisar pelo nome..."
+                aria-label="Pesquisar membro pelo nome"
+                className="input-gold w-full bg-card2 border border-bdr2 rounded-lg pl-9 pr-8 py-1.5 text-sm font-mono text-txt placeholder-txt3"
+              />
+              {busca && (
+                <button type="button" onClick={() => setBusca('')} aria-label="Limpar pesquisa"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-txt3 hover:text-txt">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           )}
         </div>
       </GlowCard>
@@ -463,72 +454,6 @@ export default function MembrosPage() {
         </GlowCard>
       )}
 
-      {/* Modal Novo Membro */}
-      <ModalOverlay open={modalOpen} onClose={() => setModalOpen(false)} title="NOVO MEMBRO" maxWidth="max-w-2xl">
-        <form onSubmit={handleSubmit(onCreateMembro)} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">BADGE *</label>
-            <input {...register('badge', { required: true })} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt" />
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">PASSAPORTE / ID</label>
-            <input {...register('passaporte')} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt" />
-          </div>
-          <div className="col-span-2">
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">NOME *</label>
-            <input {...register('policial', { required: true })} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt" />
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">PATENTE</label>
-            <select {...register('patenteNPD')} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt">
-              <option value="">—</option>
-              {patentes.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">CARGO INTERNO</label>
-            <select {...register('patenteInterna')} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt">
-              <option value="">—</option>
-              {cargos.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">STATUS</label>
-            <select {...register('status')} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt">
-              <option>Ativo</option>
-              <option>Inativo</option>
-              <option>Ausência</option>
-            </select>
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">ENTRADA</label>
-            <input type="date" {...register('entrada')} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt" />
-          </div>
-          <div>
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-1">PROMOÇÃO</label>
-            <input type="date" {...register('promocao')} className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt" />
-          </div>
-          <div className="col-span-2">
-            <label className="font-mono text-xs text-txt2 tracking-wider block mb-2">ADVERTÊNCIAS</label>
-            <div className="flex gap-6">
-              {([1, 2, 3] as const).map(i => (
-                <label key={i} className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" {...register(`adv${i}` as 'adv1' | 'adv2' | 'adv3')} className="accent-gold w-4 h-4" />
-                  <span className="font-mono text-xs text-txt2">Advertência {i}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="col-span-2 flex gap-3 pt-2">
-            <HudButton type="submit" loading={createMembro.isPending} className="flex-1">
-              ADICIONAR MEMBRO
-            </HudButton>
-            <HudButton type="button" variant="ghost" onClick={() => setModalOpen(false)} className="flex-1">
-              CANCELAR
-            </HudButton>
-          </div>
-        </form>
-      </ModalOverlay>
     </div>
   )
 }
