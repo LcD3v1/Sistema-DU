@@ -436,6 +436,10 @@ console.log('\n[QRU] Tipo convencional × fechado')
   const ac = ler('src/routes/acoes.ts')
   check(/tipoDoQru\(data, body\.qru\) !== body\.tipo/.test(ac) && /comandante: responsavel/.test(ac),
     'apreensão só com QRU existente do tipo certo; responsável = conta logada', 'apreensão aceita QRU/responsável de fora')
+  check(/router\.get\('\/participantes', requireAuth, requireArea\('registrar_acao', 'editar'\)/.test(ac) && /\.map\(semId\)/.test(ac),
+    'lista do servidor para participantes exige editar e não traz discordId', 'lista de participantes expõe discordId ou sem permissão')
+  check(/function acaoPublica/.test(ac) && !/res\.(status\(\d+\)\.)?json\((novaAcao|acao)\)/.test(ac),
+    'apreensões saem da API sem discordId dos participantes', 'apreensão devolvida crua (discordId de participante)')
 }
 
 console.log('\n[Termos] Aceite dos termos de uso')

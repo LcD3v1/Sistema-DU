@@ -54,6 +54,7 @@ export interface ParticipanteAcao {
 export interface ParticipanteExterno {
   nome: string
   patente?: string
+  discordId?: string   // pessoa do servidor do Discord sem cadastro na unidade (só para mencionar; nunca sai da API)
 }
 
 export interface Acao {

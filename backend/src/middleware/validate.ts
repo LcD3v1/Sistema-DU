@@ -103,6 +103,9 @@ export const acaoSchema = z.object({
     nome:    safeStr(1, 100),
     patente: z.string().max(50).optional(),
   })).default([]),
+  // @ (nome de usuário) de pessoas do servidor do Discord; o ID é resolvido no servidor
+  participantesDiscord: z.array(z.string().min(2).max(32).regex(/^[a-z0-9_.]+$/i, 'Usuário do Discord inválido'))
+    .max(50).default([]),
 }).refine(b => (b.tipo === 'fechado') === (b.resultado !== undefined), {
   message: 'Resultado (vitória/derrota) só em QRU fechado — e obrigatório nele',
   path: ['resultado'],

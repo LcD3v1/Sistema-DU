@@ -5,12 +5,20 @@ import { requireArea } from '../middleware/roles'
 import { validateBody, acaoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { Acao } from '../types'
+import { Acao, ParticipanteAcao, ParticipanteExterno } from '../types'
 import { postarApreensao, emSegundoPlano } from '../discord/forum'
 import { atualizarPainelEmSegundoPlano } from '../discord/painelApreensoes'
 import { notificar, notificarAprovadores } from '../notificacoes'
 import { contaDoMembro } from '../efetivo'
 import { tipoDoQru } from '../qrus'
+import { botConfigurado } from '../discord/forum'
+import { listarMembrosServidor, semId } from '../discord/identidade'
+
+/** Saída da API: sem IDs de servidor/bot/tópico e sem discordId dos participantes. */
+function acaoPublica(acao: Acao) {
+  const { guildId: _g, botId: _b, discordThreadId: _t, participantesExtras, ...resto } = acao
+  return { ...resto, participantesExtras: (participantesExtras ?? []).map(e => ({ nome: e.nome, ...(e.patente ? { patente: e.patente } : {}) })) }
+}
 
 const router = Router()
 
@@ -68,13 +76,43 @@ router.get('/', requireAuth, (req: Request, res: Response): void => {
   const total = acoes.length
   const paginated = acoes.slice((pageNum - 1) * limitNum, pageNum * limitNum)
 
-  // IDs de servidor/bot/tópico do Discord nunca saem da API
-  const semIds = paginated.map(({ guildId: _g, botId: _b, discordThreadId: _t, ...acao }) => acao)
-  res.json({ acoes: semIds, total, page: pageNum, limit: limitNum })
+  // IDs de servidor/bot/tópico/participantes do Discord nunca saem da API
+  res.json({ acoes: paginated.map(acaoPublica), total, page: pageNum, limit: limitNum })
 })
 
-router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateBody(acaoSchema), (req: Request, res: Response): void => {
-  const body = req.body as Omit<Acao, 'id'>
+// GET /api/acoes/participantes — todos do servidor do Discord (mesmo sem cadastro
+// na unidade) para marcar como participante. Só @ e nome: nunca o discordId.
+router.get('/participantes', requireAuth, requireArea('registrar_acao', 'editar'), async (_req: Request, res: Response): Promise<void> => {
+  if (!botConfigurado()) { res.json({ configurado: false, membros: [] }); return }
+  try {
+    res.json({ configurado: true, membros: (await listarMembrosServidor()).map(semId) })
+  } catch (err) {
+    console.error('[FAST][ACOES] listar membros do servidor:', err instanceof Error ? err.message : err)
+    res.status(502).json({ error: 'Não foi possível consultar os membros do Discord agora.' })
+  }
+})
+
+router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateBody(acaoSchema), async (req: Request, res: Response): Promise<void> => {
+  const body = req.body as Omit<Acao, 'id'> & { participantesDiscord: string[] }
+
+  // Participantes do Discord: o @ vira ID aqui (só quem está mesmo no servidor).
+  // Com cadastro na unidade → participante normal (pontua no ranking); sem → só mencionado.
+  let doServidor: { id: string; usuario: string; nome: string }[] = []
+  const usuarios = [...new Set(body.participantesDiscord.map(u => u.toLowerCase()))]
+  if (usuarios.length > 0) {
+    if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado.' }); return }
+    try {
+      const lista = await listarMembrosServidor()
+      const porUsuario = new Map(lista.map(m => [m.usuario.toLowerCase(), m]))
+      const achados = usuarios.map(u => porUsuario.get(u))
+      if (achados.some(m => !m)) { res.status(400).json({ error: 'Participante indisponível no servidor do Discord.' }); return }
+      doServidor = achados as typeof doServidor
+    } catch (err) {
+      console.error('[FAST][ACOES] resolver participantes:', err instanceof Error ? err.message : err)
+      res.status(502).json({ error: 'Não foi possível consultar os membros do Discord agora.' }); return
+    }
+  }
+
   const data = readData()
 
   // QRU precisa existir e ser do tipo escolhido (convencional × fechado)
@@ -90,6 +128,18 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     return
   }
 
+  const participants: ParticipanteAcao[] = [...body.participants]
+  const externos: ParticipanteExterno[] = []
+  for (const m of doServidor) {
+    const conta = data.contas.find(c => c.discordId === m.id && c.membroId && !c.exonerado)
+    const membro = conta ? data.membros.find(x => x.id === conta.membroId) : undefined
+    if (membro) {
+      if (!participants.some(p => p.memberId === membro.id)) {
+        participants.push({ memberId: membro.id, patenteUnidade: membro.patenteInterna || membro.patenteNPD })
+      }
+    } else externos.push({ nome: m.nome, discordId: m.id })
+  }
+
   const autor = data.contas.find(c => c.id === req.user!.contaId)!
   const responsavel = autor.nomeServidor || autor.discordUsername || autor.username
   const novaAcao: Acao = {
@@ -98,8 +148,8 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     qru: body.qru,
     tipo: body.tipo,
     ...(body.tipo === 'fechado' ? { resultado: body.resultado } : {}),
-    participants: body.participants,
-    participantesExtras: body.participantesExtras ?? [],
+    participants,
+    participantesExtras: [...(body.participantesExtras ?? []), ...externos],
     comandante: responsavel,
     local: body.local,
     imagem: body.imagem,
@@ -116,7 +166,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
   writeData(data)
 
   audit('ACAO_CREATED', req, `ID: ${novaAcao.id} | QRU: ${novaAcao.qru} | ${novaAcao.resultado ?? 'convencional'} | PENDENTE`)
-  res.status(201).json(novaAcao)
+  res.status(201).json(acaoPublica(novaAcao))
 })
 
 router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req: Request, res: Response): void => {
@@ -160,8 +210,7 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
       if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
     })
   }
-  const { guildId: _g, botId: _b, discordThreadId: _t, ...acaoPublica } = acao
-  res.json(acaoPublica)
+  res.json(acaoPublica(acao))
 })
 
 router.delete('/:id', requireAuth, requireArea('pendentes', 'editar'), (req: Request, res: Response): void => {

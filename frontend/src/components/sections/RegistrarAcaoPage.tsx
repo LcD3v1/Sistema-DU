@@ -3,15 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, X, Send, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw, Search } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { useCreateAcao } from '@/hooks/useAcoes'
+import { useCreateAcao, useParticipantesServidor } from '@/hooks/useAcoes'
+import type { MembroDiscord } from '@/hooks/useCarteira'
 import { useQrus, useQrusTipos } from '@/hooks/useConfig'
-import { useMembros } from '@/hooks/useMembros'
 import { useMe } from '@/hooks/useMe'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
 import LoadingHud from '@/components/ui/LoadingHud'
-import type { ResultadoAcao, Membro, Acao, TipoQru } from '@/types'
+import type { ResultadoAcao, Acao, TipoQru } from '@/types'
 
 function normalizarBusca(valor: string) {
   return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
@@ -58,7 +58,7 @@ export default function RegistrarAcaoPage() {
   const { data: qrusTipos, isLoading: tiposLoading } = useQrusTipos()
   const [tipo, setTipo] = useState<TipoQru | null>(null)
   const [listaAberta, setListaAberta] = useState(false)
-  const { data: membros, isLoading: membrosLoading } = useMembros()
+  const { data: servidor, isLoading: membrosLoading, isError: servidorErro } = useParticipantesServidor()
   const createAcao = useCreateAcao()
 
   const { data: me, isLoading: meLoading } = useMe()
@@ -68,7 +68,7 @@ export default function RegistrarAcaoPage() {
   const [imagem, setImagem] = useState('')
   const [registrado, setRegistrado] = useState<Acao | null>(null)
 
-  const [selectedMembros, setSelectedMembros] = useState<Array<{ memberId: number; patenteUnidade: string }>>([])
+  const [selectedMembros, setSelectedMembros] = useState<MembroDiscord[]>([])
   const [membroSearch, setMembroSearch] = useState('')
 
 
@@ -88,19 +88,20 @@ export default function RegistrarAcaoPage() {
     setValue('qru', '')   // QRU do outro tipo não vale
   }
 
-  const filteredMembros = (membros ?? []).filter((m: Membro) =>
-    !selectedMembros.some(s => s.memberId === m.id) &&
-    [m.nomeServidor, m.discordUsername, m.policial, m.badge].some(nome =>
-      normalizarBusca(nome ?? '').includes(normalizarBusca(membroSearch)))
+  // Máximo exibido de uma vez: servidor grande → pesquisar filtra o resto
+  const LIMITE_LISTA = 100
+  const filteredMembros = (servidor?.membros ?? []).filter(m =>
+    !selectedMembros.some(s => s.usuario === m.usuario) &&
+    [m.nome, m.usuario].some(v => normalizarBusca(v).includes(normalizarBusca(membroSearch)))
   )
 
-  function addMembro(m: Membro) {
-    setSelectedMembros(prev => [...prev, { memberId: m.id, patenteUnidade: m.patenteInterna || m.patenteNPD }])
+  function addMembro(m: MembroDiscord) {
+    setSelectedMembros(prev => [...prev, m])
     setMembroSearch('')   // lista segue aberta para adicionar vários
   }
 
-  function removeMembro(id: number) {
-    setSelectedMembros(prev => prev.filter(s => s.memberId !== id))
+  function removeMembro(usuario: string) {
+    setSelectedMembros(prev => prev.filter(s => s.usuario !== usuario))
   }
 
 
@@ -114,7 +115,9 @@ export default function RegistrarAcaoPage() {
         ...(tipo === 'fechado' ? { resultado: data.resultado } : {}),
         local: local.trim() || undefined,
         imagem: imagem.trim() || undefined,
-        participants: selectedMembros,
+        participants: [],
+        // O servidor resolve o @: quem tem cadastro na unidade pontua; os demais só são mencionados
+        participantesDiscord: selectedMembros.map(m => m.usuario),
       })
       addToast('success', 'Apreensão registrada!')
       setRegistrado(res.data)
@@ -311,31 +314,29 @@ export default function RegistrarAcaoPage() {
               <p className="font-mono text-[10px] text-txt3 mt-1.5">Identificado automaticamente pela sua conta.</p>
             </div>
 
-            {/* Participantes da Unidade */}
+            {/* Participantes: qualquer pessoa do servidor do Discord */}
             <div>
               <label className="font-mono text-xs text-txt2 tracking-wider block mb-2">
-                PARTICIPANTES DA UNIDADE ({selectedMembros.length})
+                PARTICIPANTES ({selectedMembros.length})
               </label>
 
               {selectedMembros.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {selectedMembros.map(s => {
-                    const m = (membros ?? []).find((m: Membro) => m.id === s.memberId)
-                    return (
-                      <motion.span
-                        key={s.memberId}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="flex items-center gap-1.5 bg-bdr border border-bdr2 rounded-lg px-2 py-1 text-xs font-mono text-txt"
-                      >
-                        {m?.nomeServidor || m?.policial || `ID:${s.memberId}`}
-                        <button type="button" onClick={() => removeMembro(s.memberId)}
-                          className="text-txt3 hover:text-red transition-colors">
-                          <X size={12} />
-                        </button>
-                      </motion.span>
-                    )
-                  })}
+                  {selectedMembros.map(m => (
+                    <motion.span
+                      key={m.usuario}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="flex items-center gap-1.5 bg-bdr border border-bdr2 rounded-lg px-2 py-1 text-xs font-mono text-txt"
+                    >
+                      <img src={m.avatar} alt="" className="w-4 h-4 rounded-full" referrerPolicy="no-referrer" />
+                      {m.nome}
+                      <button type="button" onClick={() => removeMembro(m.usuario)} aria-label={`Remover ${m.nome}`}
+                        className="text-txt3 hover:text-red transition-colors">
+                        <X size={12} />
+                      </button>
+                    </motion.span>
+                  ))}
                 </div>
               )}
 
@@ -353,24 +354,36 @@ export default function RegistrarAcaoPage() {
                 {listaAberta && (
                   <div className="absolute top-full left-0 right-0 z-50 bg-card border border-bdr rounded-b-lg shadow-xl max-h-60 overflow-y-auto">
                     {filteredMembros.length === 0 && (
-                      <p className="px-3 py-2 text-xs font-mono text-txt3">Nenhum membro encontrado.</p>
+                      <p className="px-3 py-2 text-xs font-mono text-txt3">
+                        {servidorErro ? 'Não foi possível consultar o Discord agora.'
+                          : servidor && !servidor.configurado ? 'Bot do Discord não configurado.'
+                          : 'Ninguém encontrado no servidor.'}
+                      </p>
                     )}
-                    {filteredMembros.map((m: Membro) => (
+                    {filteredMembros.slice(0, LIMITE_LISTA).map(m => (
                       <button
-                        key={m.id}
+                        key={m.usuario}
                         type="button"
                         onMouseDown={e => e.preventDefault()}   // mantém o foco: a lista não fecha antes do clique
                         onClick={() => addMembro(m)}
                         className="w-full text-left px-3 py-2 text-xs font-mono text-txt2 hover:bg-bdr hover:text-txt transition-colors flex items-center gap-2"
                       >
-                        <Plus size={12} className="text-gold" />
-                        <span>{m.nomeServidor || m.policial}{m.nomeServidor && m.nomeServidor !== m.policial && <small className="block text-txt3">{m.policial}</small>}</span>
-                        <span className="text-txt3 ml-auto">{m.badge}</span>
+                        <img src={m.avatar} alt="" className="w-5 h-5 rounded-full shrink-0" referrerPolicy="no-referrer" loading="lazy" />
+                        <span className="truncate">{m.nome}</span>
+                        <span className="text-txt3 ml-auto truncate">@{m.usuario}</span>
                       </button>
                     ))}
+                    {filteredMembros.length > LIMITE_LISTA && (
+                      <p className="px-3 py-2 text-[10px] font-mono text-txt3">
+                        Mostrando {LIMITE_LISTA} de {filteredMembros.length} — digite para filtrar.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
+              <p className="font-mono text-[10px] text-txt3 mt-1.5">
+                Qualquer pessoa do servidor do Discord. Quem não é da unidade só é mencionado — não ganha acesso ao painel.
+              </p>
             </div>
 
             {/* Submit */}

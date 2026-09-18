@@ -297,6 +297,15 @@ test('responsável da apreensão vem da sessão, nunca do nome enviado pelo clie
     assert.equal(created.comandante, 'Oficial do servidor')
     assert.equal(created.criadoPorContaId, 1)
     assert.equal(data.acoes.find(a => a.id === 900).comandante, 'Oficial do servidor')
+    // Participante do Discord sem bot configurado → recusado (não salva @ sem resolver)
+    assert.equal((await postar({ qru: 'Registradora', tipo: 'convencional', participantesDiscord: ['alguem'] })).status, 400)
+    assert.equal((await get('/api/acoes/participantes')).body.configurado, false)
+    // discordId de participante do servidor nunca sai da API
+    data.acoes.find(a => a.id === 900).participantesExtras = [{ nome: 'Visitante', discordId: '123456789012345678' }]
+    const lista = await get('/api/acoes?limit=200')
+    assert.equal(lista.status, 200)
+    assert.ok(!JSON.stringify(lista.body).includes('123456789012345678'))
+    assert.equal(lista.body.acoes.find(a => a.id === 900).participantesExtras[0].nome, 'Visitante')
     const conv = await postar({ qru: 'Registradora', tipo: 'convencional' })
     assert.equal(conv.status, 201)
     const convBody = await conv.json()

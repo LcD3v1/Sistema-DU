@@ -455,8 +455,14 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
       const m = membros.get(p.memberId)
       return m ? mencionarMembroQru(data, m) : `ID ${p.memberId}`
     }),
-    ...(acao.participantesExtras ?? []).map(e => `${[e.patente, e.nome].filter(Boolean).join(' ')} (externo)`),
+    // Do servidor sem cadastro na unidade: só a menção
+    ...(acao.participantesExtras ?? []).map(e => e.discordId
+      ? `<@${e.discordId}>`
+      : `${[e.patente, e.nome].filter(Boolean).join(' ')} (externo)`),
   ].join('\n')
+  for (const e of acao.participantesExtras ?? []) {
+    if (e.discordId && !mentionIds.includes(e.discordId)) mentionIds.push(e.discordId)
+  }
   const [a, mes, d] = acao.data.split('-')
   const dataQru = d && mes && a ? `${d}/${mes}/${a}` : fmtData(acao.data)
 
