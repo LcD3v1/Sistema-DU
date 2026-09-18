@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, X, Send, UserX, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw, Search } from 'lucide-react'
+import { Plus, X, Send, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw, Search } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useCreateAcao } from '@/hooks/useAcoes'
 import { useQrus, useQrusTipos } from '@/hooks/useConfig'
@@ -41,11 +41,6 @@ interface FormData {
   resultado: ResultadoAcao
 }
 
-interface ExtraParticipante {
-  nome: string
-  patente: string
-}
-
 const TIPO_OPTIONS: { value: TipoQru; titulo: string; desc: string }[] = [
   { value: 'convencional', titulo: 'QRU CONVENCIONAL', desc: 'Apreensão' },
   { value: 'fechado',      titulo: 'QRU FECHADO',      desc: 'Ação · vitória ou derrota' },
@@ -76,9 +71,6 @@ export default function RegistrarAcaoPage() {
   const [selectedMembros, setSelectedMembros] = useState<Array<{ memberId: number; patenteUnidade: string }>>([])
   const [membroSearch, setMembroSearch] = useState('')
 
-  const [participantesExtras, setParticipantesExtras] = useState<ExtraParticipante[]>([])
-  const [extraNome, setExtraNome] = useState('')
-  const [extraPatente, setExtraPatente] = useState('')
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -111,17 +103,6 @@ export default function RegistrarAcaoPage() {
     setSelectedMembros(prev => prev.filter(s => s.memberId !== id))
   }
 
-  function addExtra() {
-    const nome = extraNome.trim()
-    if (!nome) return
-    setParticipantesExtras(prev => [...prev, { nome, patente: extraPatente.trim() }])
-    setExtraNome('')
-    setExtraPatente('')
-  }
-
-  function removeExtra(idx: number) {
-    setParticipantesExtras(prev => prev.filter((_, i) => i !== idx))
-  }
 
   async function onSubmit(data: FormData) {
     if (!tipo) { addToast('error', 'Escolha QRU convencional ou QRU fechado.'); return }
@@ -134,10 +115,6 @@ export default function RegistrarAcaoPage() {
         local: local.trim() || undefined,
         imagem: imagem.trim() || undefined,
         participants: selectedMembros,
-        participantesExtras: participantesExtras.map(e => ({
-          nome: e.nome,
-          patente: e.patente || undefined,
-        })),
       })
       addToast('success', 'Apreensão registrada!')
       setRegistrado(res.data)
@@ -157,7 +134,7 @@ export default function RegistrarAcaoPage() {
     const modelo = buildBoletimModelo(registrado)
     function resetForm() {
       setRegistrado(null); setLocal(''); setImagem(''); setTipo(null); setValue('qru', '')
-      setSelectedMembros([]); setParticipantesExtras([])
+      setSelectedMembros([])
     }
     return (
       <div className="p-3 sm:p-6 max-w-2xl mx-auto">
@@ -394,61 +371,6 @@ export default function RegistrarAcaoPage() {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Participantes Externos */}
-            <div>
-              <label className="font-mono text-xs text-txt2 tracking-wider block mb-2">
-                PARTICIPANTES EXTERNOS ({participantesExtras.length})
-              </label>
-
-              {participantesExtras.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {participantesExtras.map((e, i) => (
-                    <motion.span
-                      key={i}
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="flex items-center gap-1.5 bg-blue/10 border border-blue/30 rounded px-2 py-1 text-xs font-mono text-txt"
-                    >
-                      <UserX size={11} className="text-blue shrink-0" />
-                      {e.patente ? <span className="text-txt3">[{e.patente}]</span> : null}
-                      {e.nome}
-                      <button type="button" onClick={() => removeExtra(i)}
-                        className="text-txt3 hover:text-red transition-colors">
-                        <X size={12} />
-                      </button>
-                    </motion.span>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <input
-                  value={extraPatente}
-                  onChange={e => setExtraPatente(e.target.value)}
-                  placeholder="Patente (opcional)"
-                  className="input-gold w-36 bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt placeholder-txt3"
-                />
-                <input
-                  value={extraNome}
-                  onChange={e => setExtraNome(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra() } }}
-                  placeholder="Nome do participante externo..."
-                  className="input-gold flex-1 bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt placeholder-txt3"
-                />
-                <button
-                  type="button"
-                  onClick={addExtra}
-                  disabled={!extraNome.trim()}
-                  className="border border-bdr2 rounded-lg px-3 py-2 text-txt3 hover:text-txt hover:border-blue/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-              <p className="font-mono text-[10px] text-txt3 mt-1.5">
-                Participantes de fora da unidade — não constam no cadastro de membros
-              </p>
             </div>
 
             {/* Submit */}
