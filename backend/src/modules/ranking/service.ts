@@ -3,7 +3,8 @@ import type { FastData } from '../../types'
 import { belongsToScope, type RankingScope } from './scope'
 import { avatarAtual, nivelDoMembro } from '../../identidadeMembro'
 import { imagemValida } from '../../security/imagem'
-import { isAdmin, PROTECTED_OWNER_ID } from '../../access'
+import { isAdmin, isDev, PROTECTED_OWNER_ID } from '../../access'
+import { estaOnline } from '../../discord/presenca'
 
 export const filtersSchema = z.object({
   period: z.enum(['all', '7d', '15d', '30d']).default('all'),
@@ -53,12 +54,17 @@ export interface Snapshot {
   stats: { wins: number; losses: number; winRate: number; records: number; achievements: number; activeMembers: number; activity: number }
 }
 
-/** Ordered activities are aggregated on the backend; clients receive only bounded pages. */
-export function buildSnapshot(data: FastData, scope: RankingScope, period: Filters['period'], now = new Date()): Snapshot {
+/**
+ * Ordered activities are aggregated on the backend; clients receive only bounded pages.
+ * `ocultarDevs` (visão pública): o dev testa tudo, então some da lista, do ranking e dos
+ * totais — ações em que só devs participaram não contam.
+ */
+export function buildSnapshot(data: FastData, scope: RankingScope, period: Filters['period'], now = new Date(), ocultarDevs = false): Snapshot {
   const accounts = new Map(data.contas.filter(c => belongsToScope(c, scope) && c.membroId).map(c => [c.membroId!, c]))
   const foreignLinks = new Set(data.contas.filter(c => c.membroId && !belongsToScope(c, scope)).map(c => c.membroId))
   const roles = data.cargosPermissao.map((role, order) => ({ id: String(role.id), name: role.nome, order }))
   const rows = new Map<number, MemberRow>()
+  const devs = new Set<number>()
   const lifetime = new Map<number, number>()
   for (const m of data.membros) {
     if (!belongsToScope(m, scope)) continue
@@ -66,6 +72,7 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     // A record explicitly linked to a foreign account is not a local unlinked member.
     if (!account && foreignLinks.has(m.id)) continue
     if (m.status === 'Inativo' || account?.exonerado || account?.ativo === false) continue
+    if (ocultarDevs && account && isDev(account, data)) { devs.add(m.id); continue }
     // Conta ainda não aprovada (sem cargo ou cadastro incompleto) não aparece
     if (account && account.id !== PROTECTED_OWNER_ID && (account.onboarded === false || (!account.cargoPermId && !isAdmin(account, data)))) continue
     const configuredRole = roles.find(r => r.id === String(account?.cargoPermId))
@@ -94,6 +101,7 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     .sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id)
   for (const action of activities) {
     const ids = new Set(action.participants.map(p => p.memberId))
+    if (devs.size && [...ids].every(id => devs.has(id))) continue
     for (const id of ids) lifetime.set(id, (lifetime.get(id) ?? 0) + 1)
     if (action.data.slice(0, 10) < start) continue
     records++
@@ -157,5 +165,6 @@ export function publicMember(row: MemberRow) {
     joinedAt: row.joinedAt, status: row.status, rank: row.rank, points: row.points,
     wins: row.wins, losses: row.losses, records: row.records, winRate: row.winRate,
     achievements: row.achievements, achievedAt: row.achievedAt, slug: row.slug,
+    online: estaOnline(row.discordId),
     discordId: null, internalId: '', discordRoles: [], activity: [] }
 }

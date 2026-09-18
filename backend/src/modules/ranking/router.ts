@@ -15,17 +15,19 @@ let cacheScope = ''
 const snapshots = new Map<string, Snapshot>()
 // Formatter reaproveitado: toLocaleDateString cria um Intl novo a cada chamada.
 const fmtDia = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' })
-export function snapshot(period: Filters['period']): Snapshot {
+/** `publico`: visão da tela inicial e do perfil público (sem devs). */
+export function snapshot(period: Filters['period'], publico = false): Snapshot {
   const scope = configuredScope()!
   const key = scopeKey(scope)
   const today = fmtDia.format(new Date())
   if (revision !== dataRevision() || cacheDay !== today || key !== cacheScope) {
     snapshots.clear(); revision = dataRevision(); cacheDay = today; cacheScope = key
   }
-  let value = snapshots.get(period)
+  const chave = `${period}:${publico ? 'publico' : 'painel'}`
+  let value = snapshots.get(chave)
   if (!value) {
-    value = buildSnapshot(readData(), scope, period)
-    snapshots.set(period, value)
+    value = buildSnapshot(readData(), scope, period, new Date(), publico)
+    snapshots.set(chave, value)
     audit('RANKING_RECALCULATED', undefined, `scope=${key}; period=${period}; revision=${revision}`)
   }
   return value
@@ -70,18 +72,18 @@ export function createRankingRouter(publicView = false): Router {
     next()
   })
   const memberPermission = publicView ? (_req: Request, _res: Response, next: NextFunction) => next() : requireArea('membros')
-  router.get('/roles', (_req, res) => { res.json(snapshot(res.locals.filters.period).roles) })
+  router.get('/roles', (_req, res) => { res.json(snapshot(res.locals.filters.period, publicView).roles) })
   if (!publicView) router.get('/me', (req, res) => {
     const account = readData().contas.find(c => c.id === req.user?.contaId)
-    res.json(snapshot(res.locals.filters.period).members.find(m => m.id === account?.membroId) ?? null)
+    res.json(snapshot(res.locals.filters.period, publicView).members.find(m => m.id === account?.membroId) ?? null)
   })
   router.get('/stats', (req, res) => {
-    const value = snapshot(res.locals.filters.period)
+    const value = snapshot(res.locals.filters.period, publicView)
     const account = !publicView ? readData().contas.find(c => c.id === req.user?.contaId) : undefined
     res.json({ ...value.stats, position: value.members.find(m => m.id === account?.membroId)?.rank ?? null })
   })
   router.get('/members', memberPermission, (req, res) => {
-    const value = snapshot(res.locals.filters.period)
+    const value = snapshot(res.locals.filters.period, publicView)
     const page = listPage(value.members, res.locals.filters, publicView)
     const semIds = !publicView && !podeVerIds(req)
     res.json({ ...page, items: publicView ? page.items.map(publicMember) : semIds ? page.items.map(ocultarIds) : page.items, roles: value.roles })
@@ -89,13 +91,13 @@ export function createRankingRouter(publicView = false): Router {
   })
   router.get('/members/:id', memberPermission, (req, res) => {
     if (!/^\d{1,10}$/.test(String(req.params.id))) { res.status(400).json({ error: 'Membro inválido.' }); return }
-    const row = snapshot(res.locals.filters.period).members.find(m => m.id === Number(req.params.id))
+    const row = snapshot(res.locals.filters.period, publicView).members.find(m => m.id === Number(req.params.id))
     if (!row) { res.status(404).json({ error: 'Membro não encontrado.' }); return }
     res.json(publicView ? publicMember(row) : podeVerIds(req) ? row : ocultarIds(row))
     audit('MEMBER_VIEW', req, `member=${row.id}; scope=${scopeKey(configuredScope()!)}`)
   })
   router.get('/', (req, res) => {
-    const value = snapshot(res.locals.filters.period)
+    const value = snapshot(res.locals.filters.period, publicView)
     const page = listPage(value.ranking, res.locals.filters, publicView)
     // Ranking cards expose only the fields authorized for a ranking viewer. Profiles use member permission.
     const account = !publicView ? readData().contas.find(c => c.id === req.user?.contaId) : undefined

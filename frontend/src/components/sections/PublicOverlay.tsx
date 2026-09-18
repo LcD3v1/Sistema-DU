@@ -180,7 +180,9 @@ async function buscarTodosMembros(): Promise<{ items: Member[]; roles: Role[] }>
 function PainelMembros({ aberto, onClose }: { aberto: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const classes = useEstadoPainel(aberto)
-  const q = useQuery({ queryKey: ['publico', 'membros'], queryFn: buscarTodosMembros, staleTime: 30_000, enabled: aberto })
+  // Com o painel aberto, atualiza a cada 30 s para acompanhar o online/offline do Discord
+  const q = useQuery({ queryKey: ['publico', 'membros'], queryFn: buscarTodosMembros, staleTime: 30_000, enabled: aberto,
+    refetchInterval: aberto ? 30_000 : false })
 
   const grupos = useMemo(() => {
     const itens = q.data?.items ?? []
@@ -219,7 +221,12 @@ function PainelMembros({ aberto, onClose }: { aberto: boolean; onClose: () => vo
                     title={`${m.role} · desde ${dataBR(m.joinedAt)}`}
                     onClick={() => navigate(`/perfil/${m.slug}`)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/perfil/${m.slug}`) } }}>
-                    <Foto membro={m} className="directory-avatar directory-member-avatar" />
+                    <Foto membro={m} className="directory-avatar directory-member-avatar">
+                      {typeof m.online === 'boolean' && (
+                        <span className={`directory-member-presence${m.online ? ' is-online' : ''}`} role="img"
+                          aria-label={m.online ? 'Online no Discord' : 'Offline no Discord'} title={m.online ? 'Online' : 'Offline'} />
+                      )}
+                    </Foto>
                     <span className="directory-member-identity">
                       {m.badge && <span className="directory-member-id">{m.badge}</span>}
                       <span className="directory-member-name">{m.name}</span>

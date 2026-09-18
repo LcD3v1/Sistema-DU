@@ -16,7 +16,7 @@ router.get('/ranking', (req, res) => {
   if (!['all', '7', '15', '30'].includes(window) || Object.keys(req.query).some(k => k !== 'window')) {
     res.status(400).json({ error: 'Período inválido.' }); return
   }
-  const value = snapshot(window === 'all' ? 'all' : `${window}d` as '7d' | '15d' | '30d')
+  const value = snapshot(window === 'all' ? 'all' : `${window}d` as '7d' | '15d' | '30d', true)
   res.json({ window, winRate: value.stats.winRate, vitoriasTotais: value.stats.wins,
     acoesFechadas: value.stats.wins + value.stats.losses, totalApreensoes: value.stats.records,
     conquistas: value.stats.achievements,
@@ -24,7 +24,7 @@ router.get('/ranking', (req, res) => {
       role: m.role, patenteInterna: m.hierarchy, vitorias: m.wins, registros: m.records, rank: m.rank })) })
 })
 router.get('/membros', (_req, res) => {
-  const value = snapshot('all')
+  const value = snapshot('all', true)
   res.json({ total: value.members.length, grupos: value.roles.map(role => ({ patente: role.name,
     membros: value.members.filter(m => m.roleId === role.id).slice(0, 100).map(m => ({
       id: m.id, badge: m.badge, name: m.name, role: m.role, entrada: m.joinedAt, status: m.status,
@@ -54,7 +54,7 @@ router.get('/revisao', (_req, res) => { res.json({ revisao: dataRevision() }) })
 // GET /api/public/perfil/:slug — perfil público do membro (some quando exonerado/inativo)
 router.get('/perfil/:slug', (req, res) => {
   const slug = String(req.params.slug).toLowerCase().slice(0, 80)
-  const row = snapshot('all').members.find(m => m.slug === slug)
+  const row = snapshot('all', true).members.find(m => m.slug === slug)
   if (!row) { res.status(404).json({ error: 'Perfil não encontrado.' }); return }
 
   const data = readData()

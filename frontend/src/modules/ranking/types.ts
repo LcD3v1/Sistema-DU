@@ -7,6 +7,8 @@ export interface Member {
   achievements: { id: string; name: string; earnedAt: string }[]
   activity: { id: number; date: string; type: string; result: string; points: number }[]
   slug: string
+  /** Só na API pública: online no Discord; null quando o bot não acompanha presença. */
+  online?: boolean | null
 }
 export interface Role { id: string; name: string; order: number }
 export interface Stats { wins: number; losses: number; winRate: number; records: number; achievements: number; activeMembers: number; activity: number; position: number | null }

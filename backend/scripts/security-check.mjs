@@ -470,5 +470,16 @@ const termoFront =fs.existsSync(path.join(REPO, 'frontend/src/components/ui/Term
   ? fs.readFileSync(path.join(REPO, 'frontend/src/components/ui/TermoAceite.tsx'), 'utf8') : ''
 check(termoFront && !/localStorage\.setItem\([^)]*token/i.test(termoFront),
   'popup de termos não guarda token no navegador', 'popup de termos ausente ou guarda token')
+console.log('\n[Público] Devs e presença na tela inicial')
+const publicTs = ler('src/routes/public.ts')
+const rankingRouterTs = ler('src/modules/ranking/router.ts')
+const chamadasPublicas = publicTs.match(/snapshot\([^()]*\)/g) || []
+check(chamadasPublicas.length > 0 && chamadasPublicas.every(c => c.endsWith(', true)'))
+  && /createRankingRouter\(true\)/.test(index) && /snapshot\(res\.locals\.filters\.period, publicView\)/.test(rankingRouterTs)
+  && !/snapshot\(res\.locals\.filters\.period\)/.test(rankingRouterTs),
+  'rotas públicas usam o snapshot sem devs', 'rota pública usa o snapshot do painel (mostra devs)')
+const presencaTs = ler('src/discord/presenca.ts')
+check(presencaTs && !/writeData|readData|audit\(/.test(presencaTs) && /online: estaOnline\(row\.discordId\)/.test(ler('src/modules/ranking/service.ts')),
+  'presença só em memória e exposta como booleano', 'presença gravada no banco ou exposta com dados do Discord')
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

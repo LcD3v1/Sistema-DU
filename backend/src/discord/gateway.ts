@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js'
+import { Client, Events, GatewayCloseCodes, GatewayIntentBits, MessageFlags } from 'discord.js'
 import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
 import { PROTECTED_OWNER_ID, canArea, podeZerarRankings, discordIdsAcessoExterno } from '../access'
@@ -9,6 +9,7 @@ import { notificarArea } from '../notificacoes'
 import { aplicarIdentidade, MembroServidor } from './identidade'
 import { ID_BOTAO_ATUALIZAR, ID_BOTAO_RESETAR, atualizarPainel, resetarRanking } from './painelApreensoes'
 import { garantirCargosAdv, sincronizarTodosCargosAdv } from './cargosAdv'
+import { definirPresencaAtiva, registrarPresenca } from './presenca'
 
 /**
  * Conexão em tempo real com o Discord (gateway) para detectar quando alguém
@@ -17,6 +18,8 @@ import { garantirCargosAdv, sincronizarTodosCargosAdv } from './cargosAdv'
  *   2. o membro sai do efetivo do painel e a conta perde o acesso.
  *
  * Requer o "Server Members Intent" ativado no Developer Portal (aba Bot).
+ * Online/offline no site usa também o "Presence Intent"; se ele não estiver
+ * ligado, o bot reconecta sozinho sem presença (DISCORD_PRESENCA=off desliga).
  */
 
 const MOTIVO_SAIDA = 'Saiu do servidor do Discord'
@@ -73,8 +76,31 @@ export function iniciarGateway(): void {
     )
     return
   }
+  conectar(process.env.DISCORD_PRESENCA !== 'off')
+}
+
+function conectar(comPresenca: boolean): void {
   const guildId = process.env.DISCORD_GUILD_ID!
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] })
+  const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  if (comPresenca) intents.push(GatewayIntentBits.GuildPresences)
+  const client = new Client({ intents })
+  definirPresencaAtiva(false)
+
+  // Presence Intent desligado no Developer Portal: o Discord recusa a conexão
+  // inteira (4014). Reconecta uma vez sem presença para o resto do bot seguir.
+  let refeito = false
+  const semPresenca = () => {
+    if (!comPresenca || refeito) return
+    refeito = true
+    console.warn('[FAST][DISCORD] "Presence Intent" não está ativado no Developer Portal — reconectando sem online/offline.')
+    client.destroy().catch(() => {}).finally(() => conectar(false))
+  }
+  client.on(Events.ShardDisconnect, ev => { if (ev.code === GatewayCloseCodes.DisallowedIntents) semPresenca() })
+
+  // Online/offline dos membros (só em memória)
+  if (comPresenca) client.on(Events.PresenceUpdate, (_antes, depois) => {
+    if (depois.guild?.id === guildId) registrarPresenca(depois.userId, depois.status)
+  })
 
   // Presença do bot no servidor (libera/bloqueia o painel)
   client.on(Events.GuildCreate, g => { if (g.id === guildId) { definirBotNoServidor(true); console.log('[FAST][DISCORD] Bot adicionado ao servidor — painel liberado.'); prepararCargosAdv() } })
@@ -119,7 +145,11 @@ export function iniciarGateway(): void {
         throw err
       })
       definirBotNoServidor(true)
-      const membros = await guild.members.fetch()
+      const membros = await guild.members.fetch({ withPresences: comPresenca })
+      if (comPresenca) {
+        definirPresencaAtiva(true)
+        for (const [id, p] of guild.presences.cache) registrarPresenca(id, p.status)
+      }
 
       // Sincroniza apelido e foto do servidor de todas as contas
       const dados = readData()
@@ -187,6 +217,8 @@ export function iniciarGateway(): void {
   })
 
   client.on(Events.Error, err => console.error('[FAST][DISCORD] gateway:', err.message))
-  client.login(process.env.DISCORD_BOT_TOKEN).catch(err =>
-    console.error('[FAST][DISCORD] falha ao conectar o bot:', err instanceof Error ? err.message : err))
+  client.login(process.env.DISCORD_BOT_TOKEN).catch(err => {
+    if ((err as { code?: string })?.code === 'DisallowedIntents') { semPresenca(); return }
+    console.error('[FAST][DISCORD] falha ao conectar o bot:', err instanceof Error ? err.message : err)
+  })
 }
