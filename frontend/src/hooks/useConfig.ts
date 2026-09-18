@@ -27,7 +27,7 @@ export function useQrusTipos() {
 export function useTipoQru() {
   return useMutation({
     mutationFn: ({ nome, tipo }: { nome: string; tipo: TipoQru }) =>
-      api.put(`/config/qrus/${encodeURIComponent(nome)}/tipo`, { tipo }),
+      api.put('/config/qrus/tipo', { nome, tipo }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'qrus'] }),
   })
 }
@@ -41,7 +41,8 @@ export function useAddQru() {
 
 export function useDeleteQru() {
   return useMutation({
-    mutationFn: (nome: string) => api.delete(`/config/qrus/${encodeURIComponent(nome)}`),
+    // nome no corpo: aceita qualquer caractere; remove uma ocorrência (nomes podem repetir)
+    mutationFn: (nome: string) => api.post('/config/qrus/remover', { nome }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'qrus'] }),
   })
 }

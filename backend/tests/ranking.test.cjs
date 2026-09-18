@@ -592,3 +592,26 @@ test('avisos: listagem não expõe o vínculo com a mensagem do Discord', async 
   assert.equal(res.body.avisos[0].discord, undefined)
   assert.ok(!JSON.stringify(res.body).includes('666666666666666666'))
 })
+
+// ── QRUs: qualquer nome, inclusive repetido ───────────────────────────────────
+test('QRU: aceita acento, símbolos e nome repetido; remove uma ocorrência por vez', async () => {
+  const antigo = { qrus: data.qrus, fechados: data.qrusFechados }
+  data.qrus = []; data.qrusFechados = []
+  const req = (method, path, body) => fetch(base + '/api/config' + path, { method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token(1)}` }, body: JSON.stringify(body) })
+  try {
+    const nome = 'Tentativa de homicídio contra ofc / 2ª vez (#1)'
+    assert.equal((await req('POST', '/qrus', { nome, tipo: 'fechado' })).status, 201)
+    assert.equal((await req('POST', '/qrus', { nome, tipo: 'fechado' })).status, 201)   // repetido
+    assert.equal((await req('POST', '/qrus', { nome: 'Fuga', tipo: 'convencional' })).status, 201)
+    assert.deepEqual(data.qrus, [nome, nome, 'Fuga'])
+    assert.equal((await req('POST', '/qrus', { nome: '   ', tipo: 'convencional' })).status, 400)
+    assert.equal((await req('PUT', '/qrus/reorder', { qrus: ['Fuga', nome, nome] })).status, 200)
+    assert.equal((await req('PUT', '/qrus/reorder', { qrus: ['Fuga', 'Fuga', nome] })).status, 400)  // não troca itens
+    assert.equal((await req('POST', '/qrus/remover', { nome })).status, 200)
+    assert.deepEqual(data.qrus, ['Fuga', nome])
+    assert.ok(data.qrusFechados.includes(nome))                  // ainda sobra um → tipo mantido
+    assert.equal((await req('POST', '/qrus/remover', { nome })).status, 200)
+    assert.ok(!data.qrusFechados.includes(nome))
+  } finally { data.qrus = antigo.qrus; data.qrusFechados = antigo.fechados }
+})

@@ -4,7 +4,7 @@ import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../m
 import { criticalLimiter, cargosDiscordLimiter } from '../middleware/rateLimiter'
 import {
   validateBody,
-  qruSchema, tipoQruSchema, patenteSchema, cargoSchema,
+  qruSchema, tipoQruSchema, removerQruSchema, patenteSchema, cargoSchema,
   updateContaSchema,
   logoSchema, recCfgSchema,
   reorderPatenteSchema, reorderQruSchema,
@@ -61,7 +61,7 @@ router.get('/qrus/tipos', requireAuth, requireAprovado, (_req, res) => {
 router.post('/qrus', requireAuth, requireArea('configuracoes', 'editar'), validateBody(qruSchema), (req: Request, res: Response): void => {
   const { nome, tipo } = req.body as { nome: string; tipo: TipoQru }
   const data = readData()
-  if (data.qrus.includes(nome)) { res.status(409).json({ error: 'QRU já existe' }); return }
+  // Nome repetido é aceito; o tipo é por nome, então repetidos compartilham o mesmo tipo
   data.qrus.push(nome)
   definirTipoQru(data, nome, tipo)
   writeData(data)
@@ -69,9 +69,9 @@ router.post('/qrus', requireAuth, requireArea('configuracoes', 'editar'), valida
   res.status(201).json(data.qrus)
 })
 
-router.put('/qrus/:nome/tipo', requireAuth, requireArea('configuracoes', 'editar'), validateBody(tipoQruSchema), (req: Request, res: Response): void => {
-  const nome = String(req.params.nome).slice(0, 50)
-  const { tipo } = req.body as { tipo: TipoQru }
+// Nome no corpo (não na URL): aceita "/", "." e qualquer outro caractere
+router.put('/qrus/tipo', requireAuth, requireArea('configuracoes', 'editar'), validateBody(tipoQruSchema), (req: Request, res: Response): void => {
+  const { nome, tipo } = req.body as { nome: string; tipo: TipoQru }
   const data = readData()
   if (!data.qrus.includes(nome)) { res.status(404).json({ error: 'QRU não encontrado' }); return }
   definirTipoQru(data, nome, tipo)
@@ -83,11 +83,13 @@ router.put('/qrus/:nome/tipo', requireAuth, requireArea('configuracoes', 'editar
 router.put('/qrus/reorder', requireAuth, requireArea('configuracoes', 'editar'), validateBody(reorderQruSchema), (req: Request, res: Response): void => {
   const { qrus } = req.body as { qrus: string[] }
   const data = readData()
-  const current = new Set(data.qrus)
-  const next = qrus.map(q => String(q).slice(0, 50))
-  const uniqueNext = new Set(next)
+  // Mesma lista, só em outra ordem (repetidos contam: compara as contagens de cada nome)
+  const contagem = new Map<string, number>()
+  for (const q of data.qrus) contagem.set(q, (contagem.get(q) ?? 0) + 1)
+  for (const q of qrus) contagem.set(q, (contagem.get(q) ?? 0) - 1)
+  const next = [...qrus]
 
-  if (next.length !== data.qrus.length || uniqueNext.size !== next.length || !next.every(q => current.has(q))) {
+  if (next.length !== data.qrus.length || [...contagem.values()].some(n => n !== 0)) {
     res.status(400).json({ error: 'Lista de QRUs inválida para reordenação' })
     return
   }
@@ -98,11 +100,14 @@ router.put('/qrus/reorder', requireAuth, requireArea('configuracoes', 'editar'),
   res.json(data.qrus)
 })
 
-router.delete('/qrus/:nome', requireAuth, requireArea('configuracoes', 'editar'), (req: Request, res: Response): void => {
-  const nome = String(req.params.nome).slice(0, 50)
+// Remove UMA ocorrência (a última); o tipo só sai quando não sobra nenhuma com esse nome
+router.post('/qrus/remover', requireAuth, requireArea('configuracoes', 'editar'), validateBody(removerQruSchema), (req: Request, res: Response): void => {
+  const { nome } = req.body as { nome: string }
   const data = readData()
-  data.qrus = data.qrus.filter(q => q !== nome)
-  definirTipoQru(data, nome, 'convencional')   // tira da lista de fechados
+  const idx = data.qrus.lastIndexOf(nome)
+  if (idx === -1) { res.status(404).json({ error: 'QRU não encontrado' }); return }
+  data.qrus.splice(idx, 1)
+  if (!data.qrus.includes(nome)) definirTipoQru(data, nome, 'convencional')   // tira da lista de fechados
   writeData(data)
   audit('CONFIG_UPDATED', req, `QRU removido: ${nome}`)
   res.json(data.qrus)

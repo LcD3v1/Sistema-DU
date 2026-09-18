@@ -85,7 +85,7 @@ export default function HistoricoPage() {
             className="bg-card2 border border-bdr2 rounded px-3 py-1.5 text-sm font-mono text-txt"
           >
             <option value="">Todos QRUs</option>
-            {(qrus ?? []).map(q => <option key={q} value={q}>{q}</option>)}
+            {[...new Set(qrus ?? [])].map(q => <option key={q} value={q}>{q}</option>)}
           </select>
 
           <select

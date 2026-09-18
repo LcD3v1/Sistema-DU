@@ -89,7 +89,7 @@ export const membroUpdateSchema = z.object({
 
 export const acaoSchema = z.object({
   data:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida'),
-  qru:          safeStr(1, 50),
+  qru:          safeStr(1, 200),
   tipo:         z.enum(['convencional', 'fechado']),
   resultado:    z.enum(['Vitória', 'Derrota']).optional(),
   comandante:   z.string().max(100).optional(),
@@ -190,13 +190,29 @@ export const fardamentoUpdateSchema = z.object({
   message: 'Nenhum campo fornecido',
 })
 
+/**
+ * Nome de QRU: qualquer texto (acentos, símbolos, repetido). Só tira caracteres de
+ * controle e espaços das pontas; o teto de MAX_QRU existe apenas para não aceitar
+ * textos gigantes (o React escapa na tela e o Discord corta onde precisa).
+ */
+export const MAX_QRU = 200
+const nomeQru = z.string().max(MAX_QRU * 2)
+  .transform((s: string) => s.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, MAX_QRU))
+  .refine(s => s.length > 0, 'Informe o nome do QRU')
+
 export const qruSchema = z.object({
-  nome: z.string().min(1).max(50).regex(/^[\w\s\-]+$/, 'Nome do QRU contém caracteres inválidos').transform((s: string) => s.trim()),
+  nome: nomeQru,
   tipo: z.enum(['convencional', 'fechado']).default('convencional'),
 }).strict()
 
+/** Mudar o tipo / remover: o nome vai no corpo (não na URL), então aceita qualquer caractere. */
 export const tipoQruSchema = z.object({
+  nome: nomeQru,
   tipo: z.enum(['convencional', 'fechado']),
+}).strict()
+
+export const removerQruSchema = z.object({
+  nome: nomeQru,
 }).strict()
 
 export const patenteSchema = z.object({
@@ -235,8 +251,8 @@ export const reorderPatenteSchema = z.object({
 })
 
 export const reorderQruSchema = z.object({
-  qrus: z.array(z.string().min(1).max(50)),
-})
+  qrus: z.array(z.string().min(1).max(MAX_QRU)).max(2000),
+}).strict()
 
 const snowflake = z.string().regex(/^\d{17,20}$/, 'ID de canal inválido')
 

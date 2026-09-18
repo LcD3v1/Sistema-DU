@@ -92,7 +92,7 @@ export default function EstatisticasPage() {
 
   // Dados por QRU — unificado para gráfico e tabela
   const qruExtData = useMemo(() => {
-    return (qrus ?? []).map(q => {
+    return [...new Set(qrus ?? [])].map(q => {
       const qAcoes = filteredAcoes.filter(a => a.qru === q)
       const total = qAcoes.length
       const vitorias = qAcoes.filter(a => a.resultado === 'Vitória').length

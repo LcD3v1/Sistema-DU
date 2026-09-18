@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
@@ -52,15 +52,16 @@ const TABS = [
 ] as const
 
 function SortableListItem({
-  item, canEdit, onDelete, canReorder, extra,
+  id, item, canEdit, onDelete, canReorder, extra,
 }: {
+  id: string
   item: string
   canEdit: boolean
   onDelete: (v: string) => void
   canReorder: boolean
   extra?: (item: string) => ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
   return (
     <div
@@ -111,12 +112,18 @@ function ListEditor({
     setLocalItems(items)
   }, [items])
 
+  // ID por ocorrência (nome + nº da repetição): itens com o mesmo nome continuam distintos
+  const ids = useMemo(() => {
+    const vistos = new Map<string, number>()
+    return localItems.map(it => { const n = vistos.get(it) ?? 0; vistos.set(it, n + 1); return `${it}\u0000${n}` })
+  }, [localItems])
+
   function handleDragEnd(event: DragEndEvent) {
     if (!onReorder) return
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = localItems.indexOf(String(active.id))
-    const newIndex = localItems.indexOf(String(over.id))
+    const oldIndex = ids.indexOf(String(active.id))
+    const newIndex = ids.indexOf(String(over.id))
     if (oldIndex < 0 || newIndex < 0) return
 
     const next = arrayMove(localItems, oldIndex, newIndex)
@@ -143,11 +150,12 @@ function ListEditor({
       <div className="space-y-1 max-h-60 overflow-y-auto">
         {canReorder ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={localItems} strategy={verticalListSortingStrategy}>
+            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
               <div className="space-y-1">
-                {localItems.map(item => (
+                {localItems.map((item, i) => (
                   <SortableListItem
-                    key={item}
+                    key={ids[i]}
+                    id={ids[i]}
                     item={item}
                     canEdit={canEdit}
                     canReorder={canReorder}
@@ -159,8 +167,8 @@ function ListEditor({
             </SortableContext>
           </DndContext>
         ) : (
-          localItems.map(item => (
-            <div key={item} className="flex items-center justify-between px-3 py-2 bg-card2 border border-bdr rounded group">
+          localItems.map((item, i) => (
+            <div key={ids[i]} className="flex items-center justify-between px-3 py-2 bg-card2 border border-bdr rounded group">
               <span className="font-mono text-xs text-txt flex-1">{item}</span>
               {extra?.(item)}
               {canEdit && (
@@ -204,7 +212,7 @@ function QrusEditor() {
     if (!v || !novoTipo) return
     addQru.mutate({ nome: v, tipo: novoTipo }, {
       onSuccess: () => { setNome(''); addToast('success', `QRU ${v} criado.`) },
-      onError: () => addToast('error', 'Não foi possível criar o QRU (nome repetido ou inválido).'),
+      onError: () => addToast('error', 'Não foi possível criar o QRU. Tente novamente.'),
     })
   }
 
@@ -233,6 +241,7 @@ function QrusEditor() {
               value={nome}
               onChange={e => setNome(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') adicionar() }}
+              maxLength={200}
               placeholder={novoTipo === 'convencional' ? 'Ex.: QRU Registradora' : 'Ex.: Ação Banco Central'}
               className="input-gold flex-1 bg-card2 border border-bdr2 rounded px-3 py-2 text-sm font-mono text-txt"
             />

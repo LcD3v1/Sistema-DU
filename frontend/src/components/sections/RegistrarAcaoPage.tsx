@@ -247,7 +247,7 @@ export default function RegistrarAcaoPage() {
                 className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt disabled:opacity-50"
               >
                 <option value="">{tipo ? 'Selecione...' : 'Escolha o tipo acima primeiro'}</option>
-                {qrusDoTipo.map(q => (
+                {[...new Set(qrusDoTipo)].map(q => (
                   <option key={q} value={q}>{q}</option>
                 ))}
               </select>
