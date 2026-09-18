@@ -94,7 +94,6 @@ function PainelRanking({ aberto, onClose }: { aberto: boolean; onClose: () => vo
     enabled: aberto,
   })
   const itens = q.data?.items ?? []
-  const maxRegistros = Math.max(1, ...itens.map(m => m.records))
   const stats = q.data?.stats
   const fechadas = (stats?.wins ?? 0) + (stats?.losses ?? 0)
   const rotuloPeriodo = PERIODOS.find(p => p.id === periodo)!.label.toLowerCase()
@@ -145,8 +144,7 @@ function PainelRanking({ aberto, onClose }: { aberto: boolean; onClose: () => vo
                   const pos = m.rank ?? i + 1
                   return (
                     <a key={m.id} href={`/perfil/${m.slug}`} onClick={e => { e.preventDefault(); navigate(`/perfil/${m.slug}`) }}
-                      className={`directory-rank-row${pos === 1 ? ' directory-rank-row--leader' : ''}`}
-                      style={{ '--rank-width': `${(m.records / maxRegistros) * 100}%` } as React.CSSProperties}>
+                      className={`directory-rank-row${pos === 1 ? ' directory-rank-row--leader' : ''}`}>
                       <span className="directory-rank-place">{doisDigitos(pos)}</span>
                       <Foto membro={m} />
                       <span className="directory-rank-copy">
@@ -216,25 +214,19 @@ function PainelMembros({ aberto, onClose }: { aberto: boolean; onClose: () => vo
                 <h3 id={`grupo-${gi}`}>{semPrefixo(g.cargo)}</h3>
               </header>
               <div className="directory-member-grid">
-                {g.membros.map(m => {
-                  const presenca = m.status === 'Ativo' ? ' directory-member-presence--on' : m.status === 'Ausência' ? ' directory-member-presence--ausente' : ''
-                  return (
-                    <article key={m.id} className="directory-member-card" tabIndex={0} role="link" aria-label={`Abrir perfil de ${m.name}`}
-                      onClick={() => navigate(`/perfil/${m.slug}`)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/perfil/${m.slug}`) } }}>
-                      <Foto membro={m} className="directory-avatar directory-member-avatar">
-                        <span className={`directory-member-presence${presenca}`} role="img" aria-label={m.status} title={m.status} />
-                      </Foto>
-                      <span className="directory-member-identity">
-                        {m.badge && <span className="directory-member-id">{m.badge}</span>}
-                        <span className="directory-member-name">{m.name}</span>
-                      </span>
-                      <span className="directory-member-level">NV.{m.level > 0 ? m.level : '—'}</span>
-                      <span className="directory-member-police" title={m.role}>{m.role}</span>
-                      <span className="directory-member-since"><small>Desde</small>{dataBR(m.joinedAt)}</span>
-                    </article>
-                  )
-                })}
+                {g.membros.map(m => (
+                  <article key={m.id} className="directory-member-card" tabIndex={0} role="link" aria-label={`Abrir perfil de ${m.name}`}
+                    title={`${m.role} · desde ${dataBR(m.joinedAt)}`}
+                    onClick={() => navigate(`/perfil/${m.slug}`)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/perfil/${m.slug}`) } }}>
+                    <Foto membro={m} className="directory-avatar directory-member-avatar" />
+                    <span className="directory-member-identity">
+                      {m.badge && <span className="directory-member-id">{m.badge}</span>}
+                      <span className="directory-member-name">{m.name}</span>
+                    </span>
+                    <span className="directory-member-level">NV.{m.level > 0 ? m.level : '—'}</span>
+                  </article>
+                ))}
               </div>
             </section>
           ))}
