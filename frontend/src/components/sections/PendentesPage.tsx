@@ -35,7 +35,7 @@ export default function PendentesPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-3 sm:p-6 max-w-[1400px]">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
       <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
         <div>
           <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Apreensões</p>

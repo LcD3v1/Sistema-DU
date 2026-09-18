@@ -72,7 +72,7 @@ export default function HistoricoPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-3 sm:p-6 space-y-4">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-4">
       {/* Filtros */}
       <GlowCard>
         <div className="p-4 flex items-center gap-4 flex-wrap">

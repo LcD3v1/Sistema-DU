@@ -292,7 +292,7 @@ export default function MembrosPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-3 sm:p-6 space-y-4">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-4">
       <button type="button" onClick={() => setDirectoryOpen(v => !v)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gold/30 text-sm text-gold3 bg-gold/10">
         <Users size={16} /> {directoryOpen ? 'Fechar diretório de membros' : 'Abrir diretório e perfis'}
       </button>

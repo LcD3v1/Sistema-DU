@@ -205,7 +205,7 @@ export default function DashboardPage() {
   const pendentes = acoes.filter(a => a.resultado === 'Empate').length
 
   return (
-    <div className="p-3 sm:p-6 space-y-6 sm:space-y-8 max-w-[1600px]">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-6 sm:space-y-8">
       {/* ── Cabeçalho ──────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4 min-w-0">

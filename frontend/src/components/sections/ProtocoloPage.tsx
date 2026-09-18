@@ -14,7 +14,7 @@ export default function ProtocoloPage() {
   const [loaded, setLoaded] = useState(false)
 
   return (
-    <div className="p-3 sm:p-6 max-w-[1400px]">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
       {/* ── Banner ─────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-gold/25 mb-6"
            style={{ background: 'radial-gradient(120% 140% at 15% 0%, rgba(58,114,196,0.28), rgba(20,33,61,0.5) 40%, #070a12 80%)' }}>

@@ -72,7 +72,7 @@ export default function AusenciasPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-3 sm:p-6 max-w-[1400px]">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
       {/* Header */}
       <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
         <div>

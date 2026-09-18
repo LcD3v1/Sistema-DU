@@ -2,7 +2,7 @@ import { Trophy } from 'lucide-react'
 import RankingModule from '@/modules/ranking/RankingModule'
 
 export default function RankingPage() {
-  return <div className="ranking-page p-3 sm:p-6 max-w-[1400px]">
+  return <div className="ranking-page w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
     <div className="relative overflow-hidden rounded-2xl border border-bdr mb-6">
       <img src="/media/races/race-2.webp" alt="" decoding="async" fetchPriority="low" className="absolute inset-0 w-full h-full object-cover" />
       <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(5,5,5,0.95) 0%, rgba(5,7,12,0.75) 45%, rgba(58,114,196,0.25) 100%)' }} />

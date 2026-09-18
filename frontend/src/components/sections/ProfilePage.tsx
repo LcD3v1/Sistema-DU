@@ -107,7 +107,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-3 sm:p-6 max-w-[1200px]">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
       {/* ── Hero com banner ─────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-bdr mb-6">
         {banner.img

@@ -326,7 +326,7 @@ export default function GerarCarteiraPage() {
   const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
 
   return (
-    <div className="p-3 sm:p-6 max-w-[1400px]">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-txt2 hover:text-txt text-xs font-mono tracking-wider mb-4 transition-colors">
         <ChevronLeft size={14} /> VOLTAR
       </button>

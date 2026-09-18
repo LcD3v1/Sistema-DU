@@ -246,7 +246,7 @@ export default function EstatisticasPage() {
   if (acoesLoading || membrosLoading) return <LoadingHud />
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
+    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-4 sm:space-y-6">
       {/* Filtros e exportação */}
       <GlowCard>
         <div className="p-4 flex items-center gap-4 flex-wrap">
