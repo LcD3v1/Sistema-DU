@@ -412,6 +412,18 @@ console.log('\n[ADV] Cargos de advertência no Discord')
     'lista de cargos exclui @everyone e cargos gerenciados por integrações', 'lista de cargos inclui @everyone/cargos de integração')
 }
 
+console.log('\n[Registro] Tópico/canal do registro no Discord')
+{
+  const mem = ler('src/routes/membros.ts')
+  check(/discordThreadId: _t, registroCanal: _r, \.\.\.publico/.test(mem),
+    'lista de membros não expõe discordThreadId nem registroCanal', 'membros expõem IDs do Discord')
+  check(/discordThreadId: _t, registroCanal: _r, \.\.\.membroPublico/.test(ler('src/routes/auth.ts')),
+    'edição do próprio perfil não devolve IDs do Discord', 'perfil devolve IDs do Discord')
+  const fr = ler('src/discord/forum.ts')
+  check(/const garantindo = new Map/.test(fr) && /registroCanal === canal\) return undefined/.test(fr),
+    'registro não duplica (trava por membro e marca de canal)', 'registro pode ser repostado em duplicidade')
+}
+
 console.log('\n[Termos] Aceite dos termos de uso')
 const authTs = ler('src/routes/auth.ts')
 check(/router\.post\('\/me\/termos', requireAuth, validateBody\(termosAceiteSchema\)/.test(authTs),

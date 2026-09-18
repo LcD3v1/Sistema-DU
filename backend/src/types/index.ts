@@ -20,6 +20,7 @@ export interface Membro {
   adv3: boolean
   ordem?: number
   discordThreadId?: string   // postagem no fórum de Registro
+  registroCanal?: string     // canal de texto onde o cadastro foi postado sem tópico (evita repostar)
   advertencias?: Advertencia[]
   historicoCargos?: MudancaCargo[]
   nivel?: number                      // nível informado pelo próprio membro (fonte única)

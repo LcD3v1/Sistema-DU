@@ -106,8 +106,8 @@ function nomeServidorOuPolicial(data: FastData, m: Membro): string {
 
 function mencionarMembro(data: FastData, m: Membro): string {
   const conta = contaDoMembro(data, m.id)
-  const nome = nomeServidorOuPolicial(data, m)
-  return conta?.discordId ? `<@${conta.discordId}> ${nome}` : nome
+  // Com Discord vinculado: só a menção (o Discord já mostra o nome do servidor)
+  return conta?.discordId ? `<@${conta.discordId}>` : nomeServidorOuPolicial(data, m)
 }
 
 function mencionarMembroQru(data: FastData, m: Membro): string {
@@ -118,8 +118,8 @@ function mencionarConta(data: FastData, contaId: number | undefined, fallback: s
   const conta = data.contas.find(c => c.id === contaId)
   const membro = conta?.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
   if (membro) return mencionarMembroQru(data, membro)
-  const nome = conta?.nomeServidor || conta?.discordUsername || conta?.username || fallback
-  return conta?.discordId ? `<@${conta.discordId}> ${nome}` : nome
+  if (conta?.discordId) return `<@${conta.discordId}>`
+  return conta?.nomeServidor || conta?.discordUsername || conta?.username || fallback
 }
 
 function idsMencionaveis(data: FastData, ...membros: (Membro | undefined)[]): string[] {
@@ -244,13 +244,17 @@ async function topicoDeRegistroValido(data: FastData, threadId: string | undefin
   return canal.parent_id === forum
 }
 
-/** Grava o tópico no membro sem sobrescrever gravações concorrentes. */
-function salvarTopico(membroId: number, threadId: string | undefined): void {
+/**
+ * Grava onde o cadastro foi postado, sem sobrescrever gravações concorrentes.
+ * Sem tópico (canal de texto sem permissão de criar tópico) guarda o canal,
+ * para não repostar o cadastro a cada evento/reinício.
+ */
+function salvarTopico(membroId: number, threadId: string | undefined, canal: string): void {
   const fresco = readData()
   const alvo = fresco.membros.find(x => x.id === membroId)
-  if (!alvo || alvo.discordThreadId === threadId) return
-  if (threadId) alvo.discordThreadId = threadId
-  else delete alvo.discordThreadId
+  if (!alvo) return
+  if (threadId) { alvo.discordThreadId = threadId; delete alvo.registroCanal }
+  else { delete alvo.discordThreadId; alvo.registroCanal = canal }
   writeData(fresco)
 }
 
@@ -267,10 +271,14 @@ function garantirTopicoRegistro(membroId: number): Promise<string | undefined> {
     const data = readData()
     const atual = data.membros.find(x => x.id === membroId)
     if (!atual) return undefined
+    const canal = data.canais?.registro
+    if (!canal) return undefined
     if (await topicoDeRegistroValido(data, atual.discordThreadId)) return atual.discordThreadId
+    // Já postado direto neste canal (sem tópico) → não reposta
+    if (!atual.discordThreadId && atual.registroCanal === canal) return undefined
     const conta = contaDoMembro(data, atual.id)
     const threadId = await postarRegistro(data, atual, conta?.discordId)
-    salvarTopico(atual.id, threadId)
+    salvarTopico(atual.id, threadId, canal)
     return threadId
   })().finally(() => garantindo.delete(membroId))
   garantindo.set(membroId, p)
@@ -499,6 +507,34 @@ export function tentarPostarRegistro(contaId: number): void {
     if (!m) return
     await garantirTopicoRegistro(m.id)
   })
+}
+
+/**
+ * Aprovação (set liberado): posta NA HORA no canal de registro — cria o
+ * cadastro se faltar e registra a aprovação no tópico do membro. Quem chama
+ * aguarda (sem segundo plano), para o post sair junto com a aprovação.
+ * Devolve true se postou.
+ */
+export async function postarAprovacao(contaId: number, cargo: string, por: string): Promise<boolean> {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === contaId)
+  if (!botConfigurado() || !data.canais?.registro) return false
+  if (!conta?.membroId || conta.onboarded === false || conta.exonerado) return false
+  const m = data.membros.find(x => x.id === conta.membroId)
+  if (!m) return false
+  await postarNoTopico(data, m, {
+    title: '✅ APROVADO · Set liberado',
+    description: 'Cadastro aprovado pelo comando da Unidade FAST.',
+    color: COR_PROMOCAO,
+    fields: [
+      campo('Membro', mencionarMembro(data, m), false),
+      campo('Cargo', cargo),
+      campo('Aprovado por', por),
+    ],
+    footer: rodape(),
+    timestamp: agora(),
+  }, true)
+  return true
 }
 
 /**

@@ -392,7 +392,8 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   }
   writeData(data)
   audit('ONBOARDING_DONE', req, `Membro: ${membro.policial} (#${membro.id})`)
-  if (novo) tentarPostarRegistro(conta.id)
+  // Sempre: readmitido refazendo o cadastro também precisa do registro no canal
+  tentarPostarRegistro(conta.id)
   res.json({ ok: true, membroId: membro.id })
 })
 
@@ -432,7 +433,8 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
     for (const a of alteracoes) aplicarCampoPerfil(membro, a.campo, a.para)
     writeData(data)
     audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona)`)
-    res.json({ pendente: false, membro })
+    const { discordThreadId: _t, registroCanal: _r, ...membroPublico } = membro
+    res.json({ pendente: false, membro: membroPublico })
     return
   }
 

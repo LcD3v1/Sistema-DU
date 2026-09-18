@@ -48,7 +48,7 @@ function comVinculo(data: FastData, m: Membro) {
   const conta = contaDoMembro(data, m.id)
   const aus = ausenciaAtivaDoMembro(data, m.id)
   // IDs de servidor/bot/tópico do Discord nunca saem da API
-  const { guildId: _g, botId: _b, discordThreadId: _t, ...publico } = m
+  const { guildId: _g, botId: _b, discordThreadId: _t, registroCanal: _r, ...publico } = m
   return {
     ...publico,
     contaId: conta?.id ?? null,

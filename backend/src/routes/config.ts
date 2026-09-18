@@ -17,7 +17,7 @@ import { readData, writeData } from '../data'
 import { Conta, FastData, CargoPermissao, CanaisDiscord } from '../types'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
-import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, emSegundoPlano, repararRegistros } from '../discord/forum'
+import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, postarAprovacao, emSegundoPlano, repararRegistros } from '../discord/forum'
 import { publicarPainel } from '../discord/painelApreensoes'
 import { NIVEIS_ADV, infoCargosAdv, validarCargosEscolhidos, garantirCargosAdv, sincronizarTodosCargosAdv, retirarCargoDeTodos, type NivelAdvChave } from '../discord/cargosAdv'
 import { notificar } from '../notificacoes'
@@ -186,7 +186,7 @@ router.get('/contas', requireAuth, adminOnly, (_req, res) => {
   res.json(data.contas)
 })
 
-router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema), (req: Request, res: Response): void => {
+router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
 
@@ -210,6 +210,7 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
 
   const { nivel, ativo, cargoPermId } = req.body as { nivel?: string; ativo?: boolean; cargoPermId?: number | null }
   const changes: string[] = []
+  let aprovadoCom: string | undefined   // nome do cargo, se a conta foi aprovada agora
 
   if (nivel && ['admin', 'moderador', 'membro', 'view_only'].includes(nivel)) {
     changes.push(`nível: ${conta.nivel}→${nivel}`)
@@ -239,6 +240,7 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
         res.status(403).json({ error: 'Acesso negado' }); return
       }
       if (!conta.cargoPermId) {
+        aprovadoCom = data.cargosPermissao.find(c => c.id === cargoPermId)!.nome
         const nomeCargo = data.cargosPermissao.find(c => c.id === cargoPermId)!.nome
         notificar(data, conta.id, 'aprovada', 'Cadastro aprovado!',
           conta.onboarded === false
@@ -254,7 +256,12 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
 
   writeData(data)
   audit('ACCOUNT_UPDATED', req, `ID: ${id} | ${changes.join(', ')}`)
-  if (conta.cargoPermId) tentarPostarRegistro(conta.id)
+  if (aprovadoCom) {
+    // Aprovou agora → posta no canal de registro antes de responder (sem atraso)
+    try { await postarAprovacao(conta.id, aprovadoCom, req.user!.username) } catch (err) {
+      console.error('[FAST][DISCORD] postar aprovação:', err instanceof Error ? err.message : err)
+    }
+  } else if (conta.cargoPermId) tentarPostarRegistro(conta.id)
   res.json(conta)
 })
 
