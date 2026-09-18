@@ -1,5 +1,5 @@
 import { Acao, Membro, FastData } from '../types'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
 
 /**
  * Integração com fóruns do Discord via bot (API REST v10).
@@ -229,6 +229,55 @@ export async function postarRegistro(data: FastData, m: Membro, discordId?: stri
 type Embed = Record<string, unknown>
 
 /**
+ * O tópico salvo no membro ainda é válido? Só se existir e estiver no fórum de
+ * registro configurado AGORA. Tópico de outro servidor/fórum (ex.: após trocar
+ * de servidor) ou apagado → false. Falha temporária do Discord → lança (quem
+ * chama não recria, para não duplicar tópico).
+ */
+async function topicoDeRegistroValido(data: FastData, threadId: string | undefined): Promise<boolean> {
+  const forum = data.canais?.registro
+  if (!threadId || !forum) return false
+  const res = await discordFetch('GET', `/channels/${threadId}`)
+  if (res.status === 403 || res.status === 404) return false
+  if (!res.ok) throw new Error(`consultar tópico de registro: HTTP ${res.status}`)
+  const canal = await res.json() as { parent_id?: string | null }
+  return canal.parent_id === forum
+}
+
+/** Grava o tópico no membro sem sobrescrever gravações concorrentes. */
+function salvarTopico(membroId: number, threadId: string | undefined): void {
+  const fresco = readData()
+  const alvo = fresco.membros.find(x => x.id === membroId)
+  if (!alvo || alvo.discordThreadId === threadId) return
+  if (threadId) alvo.discordThreadId = threadId
+  else delete alvo.discordThreadId
+  writeData(fresco)
+}
+
+// Uma verificação/criação por membro de cada vez → chamadas simultâneas (evento +
+// reparo) esperam a mesma promessa em vez de criar dois tópicos.
+const garantindo = new Map<number, Promise<string | undefined>>()
+
+/** Garante o tópico de registro do membro no fórum atual; cria com o cadastro se faltar. */
+function garantirTopicoRegistro(membroId: number): Promise<string | undefined> {
+  const emAndamento = garantindo.get(membroId)
+  if (emAndamento) return emAndamento
+  const p = (async () => {
+    // Lê de novo: outra chamada pode ter acabado de gravar o tópico
+    const data = readData()
+    const atual = data.membros.find(x => x.id === membroId)
+    if (!atual) return undefined
+    if (await topicoDeRegistroValido(data, atual.discordThreadId)) return atual.discordThreadId
+    const conta = contaDoMembro(data, atual.id)
+    const threadId = await postarRegistro(data, atual, conta?.discordId)
+    salvarTopico(atual.id, threadId)
+    return threadId
+  })().finally(() => garantindo.delete(membroId))
+  garantindo.set(membroId, p)
+  return p
+}
+
+/**
  * Posta um embed no tópico (canal) PESSOAL do membro no fórum de Registro.
  * Se o membro ainda não tem tópico, cria um e grava o ID no membro.
  * `ativo` define o ✅/❌ do título. O tópico nunca é apagado.
@@ -237,23 +286,17 @@ async function postarNoTopico(data: FastData, m: Membro, embed: Embed, ativo: bo
   if (!botConfigurado()) return
   const mentionIds = idsMencionaveis(data, m)
   const message = { content: `👤 ${mencionarMembro(data, m)}`, allowed_mentions: allowedMentions(mentionIds), embeds: [embed] }
-  if (m.discordThreadId) {
-    // Mensagem e renomeação são independentes → em paralelo
-    const [msg, titulo] = await Promise.allSettled([
-      discord('POST', `/channels/${m.discordThreadId}/messages`, message),
-      discord('PATCH', `/channels/${m.discordThreadId}`, { name: tituloRegistro(m, ativo) }),
-    ])
-    if (msg.status === 'rejected') throw msg.reason
-    if (titulo.status === 'rejected') throw titulo.reason
-    return
-  }
-  const channelId = data.canais?.registro
-  if (!channelId) return
-  const threadId = await criarTopicoOuPostar(channelId, tituloRegistro(m, ativo), message)
+  if (!data.canais?.registro) return
+  // Tópico inválido (outro servidor/fórum ou apagado) → recria com o cadastro antes do evento
+  const threadId = await garantirTopicoRegistro(m.id)
   if (!threadId) return
-  const fresco = readData()
-  const alvo = fresco.membros.find(x => x.id === m.id)
-  if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
+  // Mensagem e renomeação são independentes → em paralelo
+  const [msg, titulo] = await Promise.allSettled([
+    discord('POST', `/channels/${threadId}/messages`, message),
+    discord('PATCH', `/channels/${threadId}`, { name: tituloRegistro(m, ativo) }),
+  ])
+  if (msg.status === 'rejected') throw msg.reason
+  if (titulo.status === 'rejected') throw titulo.reason
 }
 
 const fmtData = (iso: string) => { const [a, mes, d] = iso.slice(0, 10).split('-'); return `${d}/${mes}/${a}` }
@@ -443,22 +486,51 @@ export function emSegundoPlano(rotulo: string, fn: () => Promise<void>): void {
 /**
  * Posta o registro da conta quando ela está APROVADA (tem cargo, ou é a dona)
  * e já concluiu o cadastro. Chamado ao concluir o cadastro e ao aprovar.
- * Idempotente: não posta de novo se o membro já tiver tópico.
+ * Idempotente: não posta de novo se o membro já tiver tópico VÁLIDO no fórum atual.
  */
 export function tentarPostarRegistro(contaId: number): void {
   emSegundoPlano('postagem de registro', async () => {
     const data = readData()
     const conta = data.contas.find(c => c.id === contaId)
-    if (!conta?.membroId || conta.onboarded === false) return
-    if (conta.id !== 1 && !conta.cargoPermId) return
+    if (!botConfigurado() || !data.canais?.registro) return
+    if (!conta?.membroId || conta.onboarded === false || conta.exonerado) return
+    if (conta.id !== 1 && !conta.cargoPermId) return   // só depois de aprovado
     const m = data.membros.find(x => x.id === conta.membroId)
-    if (!m || m.discordThreadId) return
-    const threadId = await postarRegistro(data, m, conta.discordId)
-    if (!threadId) return
-    const fresco = readData()
-    const alvo = fresco.membros.find(x => x.id === m.id)
-    if (alvo) { alvo.discordThreadId = threadId; writeData(fresco) }
+    if (!m) return
+    await garantirTopicoRegistro(m.id)
   })
+}
+
+/**
+ * Recria o registro de todo membro APROVADO sem tópico válido no fórum atual
+ * (ex.: depois de trocar de servidor ou de fórum). Chamado ao iniciar e ao
+ * trocar o canal de registro. Um de cada vez, para respeitar o rate limit.
+ */
+let reparando: Promise<void> | null = null
+let repararDeNovo = false
+
+export function repararRegistros(): Promise<void> {
+  // Já rodando → marca para repetir no fim (o fórum pode ter mudado no meio)
+  if (reparando) { repararDeNovo = true; return reparando }
+  reparando = (async () => {
+    do {
+      repararDeNovo = false
+      await repararUmaVez()
+    } while (repararDeNovo)
+  })().finally(() => { reparando = null })
+  return reparando
+}
+
+async function repararUmaVez(): Promise<void> {
+  if (!botConfigurado() || !peekData().canais?.registro) return
+  const alvos = peekData().contas
+    .filter(c => c.membroId && c.onboarded !== false && !c.exonerado && (c.id === 1 || c.cargoPermId))
+    .map(c => c.membroId as number)
+  for (const membroId of alvos) {
+    try { await garantirTopicoRegistro(membroId) } catch (err) {
+      console.error('[FAST][DISCORD] reparar registro:', err instanceof Error ? err.message : err)
+    }
+  }
 }
 
 // ── Carteirinhas ───────────────────────────────────────────────────────────────

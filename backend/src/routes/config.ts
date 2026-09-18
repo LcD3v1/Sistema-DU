@@ -17,7 +17,7 @@ import { readData, writeData } from '../data'
 import { Conta, FastData, CargoPermissao, CanaisDiscord } from '../types'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
-import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, emSegundoPlano } from '../discord/forum'
+import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, emSegundoPlano, repararRegistros } from '../discord/forum'
 import { publicarPainel } from '../discord/painelApreensoes'
 import { NIVEIS_ADV, infoCargosAdv, validarCargosEscolhidos, garantirCargosAdv, sincronizarTodosCargosAdv, retirarCargoDeTodos, type NivelAdvChave } from '../discord/cargosAdv'
 import { notificar } from '../notificacoes'
@@ -476,16 +476,22 @@ router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async 
 
   const data = readData()
   const anteriorPainel = data.canais.rankingApreensoes
+  const anteriorRegistro = data.canais.registro
   for (const chave of CHAVES_CANAIS) {
     if (body[chave] === null) delete data.canais[chave]
     else if (body[chave]) data.canais[chave] = body[chave]
   }
   const canalPainelMudou = body.rankingApreensoes !== undefined && anteriorPainel !== data.canais.rankingApreensoes
+  const canalRegistroMudou = anteriorRegistro !== data.canais.registro
   writeData(data)
   audit('CANAIS_UPDATED', req, CHAVES_CANAIS.map(k => `${k}: ${data.canais[k] ?? '—'}`).join(' | '))
   // O painel de apreensões é postado justamente quando o canal é escolhido.
   if (canalPainelMudou && data.canais.rankingApreensoes) {
     emSegundoPlano('painel de apreensões', publicarPainel)
+  }
+  // Fórum de registro novo → recria o registro de quem não tem tópico nele
+  if (canalRegistroMudou && data.canais.registro) {
+    emSegundoPlano('reparar registros', repararRegistros)
   }
   res.json({ canais: data.canais })
 })

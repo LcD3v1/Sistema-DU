@@ -16,6 +16,7 @@ import { firewall, registrarInfracao, PONTOS } from './security/firewall'
 import { iniciarPersistenciaRevogacoes, encerrarPersistenciaRevogacoes } from './security/tokenBlacklist'
 import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureFastPermissionRoles } from './data'
 import { iniciarGateway } from './discord/gateway'
+import { emSegundoPlano, repararRegistros } from './discord/forum'
 import { verificarAusencias } from './efetivo'
 import { limparNotificacoesAntigas } from './notificacoes'
 import { readData as lerDados, writeData as gravarDados } from './data'
@@ -193,6 +194,8 @@ async function iniciar(): Promise<void> {
     console.log(`[FAST] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
   iniciarGateway()
+  // Membros aprovados sem tópico válido no fórum de registro atual (ex.: troca de servidor)
+  emSegundoPlano('reparar registros', repararRegistros)
 
   // Rotina (1 min): ausências (início/fim do período) e limpeza de notificações
   const rotina = () => {
