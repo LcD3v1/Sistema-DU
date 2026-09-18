@@ -4,6 +4,7 @@ import { useSetPersonalizacao, type LinkPerfil, type Me } from '@/hooks/useMe'
 import { useUIStore } from '@/store/uiStore'
 import { linkSeguro, plataformaDoLink } from '@/lib/plataformas'
 import EmojiPicker from './EmojiPicker'
+import EmojiPerfil from './EmojiPerfil'
 
 const MAX_LINKS = 8
 const MAX_EMOJIS = 6
@@ -79,9 +80,9 @@ export default function PersonalizarPerfil({ me, onAbrirFundo }: { me: Me; onAbr
         <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase mb-2">Emojis ao lado do nome</p>
         <div className="relative flex flex-wrap items-center gap-1.5">
           {emojis.map((e, i) => (
-            <button key={`${e}-${i}`} onClick={() => setEmojis(es => es.filter((_, j) => j !== i))} title="Remover" aria-label={`Remover ${e}`}
-              className="group relative w-9 h-9 rounded-lg bg-card2 border border-bdr2 text-xl leading-none hover:border-red/50">
-              {e}<X size={10} className="absolute -top-1 -right-1 text-red opacity-0 group-hover:opacity-100" />
+            <button key={`${e}-${i}`} onClick={() => setEmojis(es => es.filter((_, j) => j !== i))} title="Remover" aria-label="Remover emoji"
+              className="group relative w-9 h-9 rounded-lg bg-card2 border border-bdr2 text-xl leading-none hover:border-red/50 inline-flex items-center justify-center">
+              <EmojiPerfil valor={e} /><X size={10} className="absolute -top-1 -right-1 text-red opacity-0 group-hover:opacity-100" />
             </button>
           ))}
           {emojis.length < MAX_EMOJIS && (
@@ -99,7 +100,7 @@ export default function PersonalizarPerfil({ me, onAbrirFundo }: { me: Me; onAbr
           {links.map((l, i) => (
             <div key={i} className="relative flex gap-1.5 items-start">
               <button onClick={() => setSeletor({ alvo: 'link', indice: i })} title="Escolher emoji do link" aria-label="Escolher emoji do link"
-                className="shrink-0 w-9 h-9 rounded-lg bg-card2 border border-bdr2 text-lg leading-none hover:border-gold/40">{l.emoji || plataformaDoLink(l.url).emoji}</button>
+                className="shrink-0 w-9 h-9 rounded-lg bg-card2 border border-bdr2 text-lg leading-none hover:border-gold/40 inline-flex items-center justify-center"><EmojiPerfil valor={l.emoji || plataformaDoLink(l.url).emoji} /></button>
               <div className="flex-1 min-w-0 space-y-1">
                 <input value={l.rotulo} maxLength={30} onChange={e => editarLink(i, 'rotulo', e.target.value)} placeholder="Nome (ex.: Meu TikTok)" aria-label="Nome do link"
                   className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-2.5 py-1.5 text-xs text-txt" />

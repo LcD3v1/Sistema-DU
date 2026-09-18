@@ -27,7 +27,7 @@
 .perfil-banner-escurecer { background: linear-gradient(180deg, rgba(5, 5, 7, .55) 0%, rgba(5, 5, 7, .35) 45%, rgba(0, 0, 0, .8) 100%); }
 .perfil-banner > .perfil-voltar, .perfil-banner > .perfil-hero { z-index: 1; }
 .perfil-hero { position: relative; }
-.perfil-emojis { margin-left: 10px; font-size: .8em; }
+.perfil-emojis { display: inline-flex; align-items: center; gap: 8px; margin-left: 10px; font-size: .8em; vertical-align: middle; }
 .perfil-links { margin-top: 12px; }
 .perfil-banner-borda { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 42px; }
 .perfil-banner-borda path { fill: #000; }

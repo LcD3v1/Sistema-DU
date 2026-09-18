@@ -15,6 +15,7 @@ import type { Membro } from '@/types'
 import PersonalizarPerfil from '@/components/perfil/PersonalizarPerfil'
 import MinhasQrus from '@/components/perfil/MinhasQrus'
 import LinksPerfil from '@/components/perfil/LinksPerfil'
+import EmojiPerfil from '@/components/perfil/EmojiPerfil'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
@@ -141,7 +142,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">{nome}{me.emojisPerfil?.length ? <span className="ml-2" aria-hidden="true">{me.emojisPerfil.join(' ')}</span> : null}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">{nome}{me.emojisPerfil?.length ? <span className="ml-2 inline-flex items-center gap-1.5 align-middle" aria-hidden="true">{me.emojisPerfil.map((e, i) => <EmojiPerfil key={i} valor={e} />)}</span> : null}</h1>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-blue border-blue/40 bg-blue/10'}`}>{me.admin ? 'Administrador' : 'Membro'}</span>
               {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}

@@ -170,6 +170,14 @@ check(/router\.get\('\/me\/qrus', requireAuth/.test(authRoutes) && /some\(p => p
   check(/filter\(l => ehLinkPerfil\(l\.url\)\)/.test(pub) && /filter\(ehEmoji\)/.test(pub),
     'perfil público revalida links/emojis na saída', 'perfil público devolve links/emojis sem revalidar')
 }
+{
+  // Logos de plataforma: a lista branca do backend tem de bater com a do frontend
+  const back = (ler('src/security/perfil.ts').match(/ICONES_PLATAFORMA = new Set\(\(\s*'([a-z0-9 ]+)'/) || [])[1]?.split(' ') ?? []
+  const frontTs = fs.readFileSync(path.join(ROOT, '..', 'frontend', 'src', 'lib', 'iconesPlataforma.ts'), 'utf8')
+  const front = [...frontTs.matchAll(/\[si([A-Z][a-z0-9]*)/g)].map(m => m[1].toLowerCase())
+  check(back.length > 0 && front.length === back.length && front.every(c => back.includes(c)),
+    `logos de plataforma: backend e frontend iguais (${back.length})`, 'lista de logos de plataforma diferente entre backend e frontend')
+}
 check(/router\.post\('\/restore',[^\n]*criticalLimiter/.test(ler('src/routes/config.ts')), 'criticalLimiter no restore', 'restore sem criticalLimiter')
 check(ler('src/middleware/rateLimiter.ts').includes('registrarInfracao'), 'rate limit alimenta o firewall', 'rate limit não pontua no firewall')
 

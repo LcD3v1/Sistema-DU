@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react'
+import EmojiPerfil from './EmojiPerfil'
 import { linkSeguro, plataformaDoLink } from '@/lib/plataformas'
 
 export interface LinkExibido { rotulo: string; url: string; emoji?: string | null }
@@ -15,7 +16,7 @@ export default function LinksPerfil({ links, className = '' }: { links: LinkExib
           <a key={`${l.url}-${i}`} href={l.url} target="_blank" rel="noopener noreferrer nofollow ugc" title={l.url}
             className="inline-flex items-center gap-1.5 max-w-[14rem] px-3 py-1 rounded-full border bg-black/40 backdrop-blur text-white/90 text-xs hover:text-white transition-colors"
             style={{ borderColor: p.cor + '66' }}>
-            <span aria-hidden="true">{l.emoji || p.emoji}</span>
+            <span aria-hidden="true" className="inline-flex"><EmojiPerfil valor={l.emoji || p.emoji} /></span>
             <span className="truncate">{l.rotulo}</span>
             <ExternalLink size={11} className="shrink-0 opacity-60" />
           </a>

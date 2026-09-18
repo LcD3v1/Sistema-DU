@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios'
 import api from '@/lib/axios'
 import { resolveBanner } from '@/lib/banners'
 import LinksPerfil from '@/components/perfil/LinksPerfil'
+import EmojiPerfil from '@/components/perfil/EmojiPerfil'
 import ModalOverlay from '@/components/ui/ModalOverlay'
 import { linkSeguro } from '@/lib/plataformas'
 import './perfil-publico.css'
@@ -83,7 +84,7 @@ export default function PerfilPublicoPage() {
             </div>
             <div className="perfil-id">
               <div className="perfil-id-top">
-                <h1>{p.nome}{p.emojis?.length ? <span className="perfil-emojis" aria-hidden="true">{p.emojis.join(' ')}</span> : null}</h1>
+                <h1>{p.nome}{p.emojis?.length ? <span className="perfil-emojis" aria-hidden="true">{p.emojis.map((e, i) => <EmojiPerfil key={i} valor={e} />)}</span> : null}</h1>
                 <span className="perfil-nivel">Nv. {p.nivel > 0 ? p.nivel : '—'}</span>
               </div>
               <p className="perfil-meta">
