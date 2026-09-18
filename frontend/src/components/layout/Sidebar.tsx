@@ -209,7 +209,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
         <div className="leading-tight">
           <p className="font-mono text-[8px] text-txt3 tracking-[0.22em] uppercase">Desenvolvido por</p>
           <p className="text-[12px] font-semibold text-txt tracking-wide">
-            LC<span className="text-gold3"> Dev</span>
+            LC<span className="text-gold3"> Dev</span> e <span className="text-gold3">Vilão</span>
           </p>
         </div>
       </div>
