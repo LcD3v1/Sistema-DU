@@ -3,7 +3,7 @@ import {
   LayoutGrid, FilePlus2, ClipboardCheck, History,
   Users, Trophy, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
-  Settings, ArrowUpRight, Code2, Bell, X, Send,
+  Settings, ArrowUpRight, Code2, Bell, X, Send, FileText,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAcoes } from '@/hooks/useAcoes'
@@ -43,6 +43,7 @@ const GROUPS: NavGroup[] = [
       { to: '/acoes/nova',       icon: FilePlus2,      label: 'Cadastrar',       minNivel: 'membro', area: 'registrar_acao' },
       { to: '/acoes/pendentes',  icon: ClipboardCheck, label: 'Pendentes',       minNivel: 'membro', area: 'pendentes' },
       { to: '/acoes/historico',  icon: History,        label: 'Histórico',       minNivel: 'membro', area: 'historico' },
+      { to: '/relatorio',        icon: FileText,       label: 'Relatório da unidade', minNivel: 'membro', viewOnly: true, area: 'relatorio' },
     ],
   },
   {

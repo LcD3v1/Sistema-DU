@@ -27,6 +27,7 @@ const RegistrarAcaoPage = paginaLazy('/acoes/nova')
 const HistoricoPage = paginaLazy('/acoes/historico')
 const PendentesPage = paginaLazy('/acoes/pendentes')
 const EstatisticasPage = paginaLazy('/estatisticas')
+const RelatorioUnidadePage = paginaLazy('/relatorio')
 const RankingPage = paginaLazy('/ranking')
 const RegistrarAusenciaPage = paginaLazy('/ausencias/nova')
 const AusenciasPage = paginaLazy('/ausencias')
@@ -127,6 +128,9 @@ export default function App() {
               <ProtectedRoute area="pendentes"><PendentesPage /></ProtectedRoute>
             } />
             <Route path="estatisticas" element={<EstatisticasPage />} />
+            <Route path="relatorio" element={
+              <ProtectedRoute area="relatorio"><RelatorioUnidadePage /></ProtectedRoute>
+            } />
             <Route path="ranking" element={<RankingPage />} />
             <Route path="ausencias/nova" element={
               <ProtectedRoute area="ausencias"><RegistrarAusenciaPage /></ProtectedRoute>

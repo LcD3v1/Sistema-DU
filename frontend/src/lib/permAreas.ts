@@ -6,6 +6,7 @@ export const PERM_AREAS = [
   { id: 'pendentes',      label: 'Aprovações' },
   { id: 'historico',      label: 'Histórico' },
   { id: 'estatisticas',   label: 'Estatísticas' },
+  { id: 'relatorio',      label: 'Relatório da unidade' },
   { id: 'ranking',        label: 'Ranking' },
   { id: 'zerar_rankings',  label: 'Zerar rankings (todos os módulos)' },
   { id: 'membros',        label: 'Membros' },

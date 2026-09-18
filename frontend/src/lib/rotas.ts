@@ -21,6 +21,7 @@ const carregadores = {
   '/acoes/historico': () => import('@/components/sections/HistoricoPage'),
   '/acoes/pendentes': () => import('@/components/sections/PendentesPage'),
   '/estatisticas': () => import('@/components/sections/EstatisticasPage'),
+  '/relatorio': () => import('@/components/sections/RelatorioUnidadePage'),
   '/ranking': () => import('@/components/sections/RankingPage'),
   '/ausencias/nova': () => import('@/components/sections/RegistrarAusenciaPage'),
   '/ausencias': () => import('@/components/sections/AusenciasPage'),
