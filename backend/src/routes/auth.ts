@@ -413,6 +413,51 @@ router.post('/me/nivel', requireAuth, validateBody(nivelInicialSchema), (req: Re
   res.json({ ok: true, nivel: membro.nivel })
 })
 
+// POST /api/auth/me/nivel/solicitar — PEDE a atualização do nível já informado.
+// Só vale depois da aprovação de um superior (a conta dona aplica direto). Se já houver
+// alteração de perfil pendente, o nível entra nela sem descartar os outros campos pedidos.
+router.post('/me/nivel/solicitar', requireAuth, validateBody(nivelInicialSchema), (req: Request, res: Response): void => {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  const membro = conta?.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+  if (!conta || !membro) { res.status(400).json({ error: 'Nenhum perfil de membro vinculado' }); return }
+  const atual = nivelDoMembro(membro)
+  if (atual === null) { res.status(409).json({ error: 'Informe o seu nível primeiro.' }); return }
+  const nivel = (req.body as { nivel: number }).nivel
+  if (nivel === atual) { res.status(400).json({ error: 'Esse já é o seu nível atual.' }); return }
+
+  if (conta.id === PROTECTED_OWNER_ID) {
+    membro.nivel = nivel
+    writeData(data)
+    audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona): nível ${atual}→${nivel}`)
+    res.json({ pendente: false, nivel })
+    return
+  }
+
+  const anterior = data.solicitacoesPerfil.find(sp => sp.membroId === membro.id && sp.status === 'pendente')
+  const alteracoes = [
+    ...(anterior?.alteracoes.filter(a => a.campo !== 'nivel') ?? []),
+    { campo: 'nivel' as const, de: String(atual), para: String(nivel) },
+  ]
+  data.solicitacoesPerfil = data.solicitacoesPerfil.filter(sp => !(sp.membroId === membro.id && sp.status === 'pendente'))
+  const sol = {
+    id: data.nextSolPerfilId++,
+    membroId: membro.id,
+    contaId: conta.id,
+    alteracoes,
+    status: 'pendente' as const,
+    criadoEm: new Date().toISOString(),
+  }
+  data.solicitacoesPerfil.push(sol)
+  notificar(data, conta.id, 'solicitacao', 'Atualização de nível enviada',
+    `Seu pedido para atualizar o nível para ${nivel} foi enviado. Você está aguardando a aprovação de um superior.`, '/perfil')
+  notificarAprovadores(data, 'membros', membro.id, conta.id, 'pendente_aprovacao', 'Atualização de nível aguardando aprovação',
+    `${membro.policial} pediu para atualizar o nível: ${atual} → ${nivel}.`, '/membros')
+  writeData(data)
+  audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: nivel=${nivel}`)
+  res.status(202).json({ pendente: true, solicitacao: sol })
+})
+
 // PUT /api/auth/me/membro-dados — o usuário PEDE alteração do próprio perfil;
 // só passa a valer quando um superior aprovar (a conta dona aplica direto).
 router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req: Request, res: Response): void => {

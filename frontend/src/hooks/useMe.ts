@@ -103,6 +103,18 @@ export function useSetBanner() {
   })
 }
 
+/** Pede a atualização do nível — só muda depois que um superior aprovar. */
+export function useSolicitarNivel() {
+  return useMutation({
+    mutationFn: (nivel: number) => api.post<{ pendente: boolean }>('/auth/me/nivel/solicitar', { nivel }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      queryClient.invalidateQueries({ queryKey: ['membros'] })
+      queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
+    },
+  })
+}
+
 /** Informa o nível pela primeira vez (obrigatório). */
 export function useInformarNivel() {
   return useMutation({

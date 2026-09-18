@@ -151,6 +151,10 @@ check(/httpOnly: true, [^\n]*sameSite: 'strict'[^\n]*path: '\/api\/auth\/sessao'
 for (const rota of ["'/discord'", "'/discord/callback'"]) {
   check(new RegExp(`router\\.(get|post)\\(${rota.replace(/[/]/g, '\\/')}, loginLimiter`).test(authRoutes), `loginLimiter em ${rota}`, `loginLimiter ausente em ${rota}`)
 }
+check(/router\.post\('\/me\/nivel\/solicitar', requireAuth, validateBody\(nivelInicialSchema\)/.test(authRoutes),
+  'pedido de nível exige login + Zod', 'pedido de nível sem requireAuth/validateBody')
+check(/router\.put\('\/solicitacoes-perfil\/:id\/aprovar', requireAuth, requireArea\('membros', 'editar'\)/.test(ler('src/routes/membros.ts')),
+  'aprovar alteração de perfil/nível exige editar membros', 'aprovação de perfil/nível sem requireArea editar')
 check(/router\.post\('\/restore',[^\n]*criticalLimiter/.test(ler('src/routes/config.ts')), 'criticalLimiter no restore', 'restore sem criticalLimiter')
 check(ler('src/middleware/rateLimiter.ts').includes('registrarInfracao'), 'rate limit alimenta o firewall', 'rate limit não pontua no firewall')
 
@@ -427,7 +431,7 @@ console.log('\n[Registro] Tópico/canal do registro no Discord')
 console.log('\n[QRU] Tipo convencional × fechado')
 {
   const cfg = ler('src/routes/config.ts')
-  check(/router\.put\('\/qrus\/:nome\/tipo', requireAuth, requireArea\('configuracoes', 'editar'\), validateBody\(tipoQruSchema\)/.test(cfg),
+  check(/router\.put\('\/qrus\/tipo', requireAuth, requireArea\('configuracoes', 'editar'\), validateBody\(tipoQruSchema\)/.test(cfg),
     'trocar tipo do QRU exige editar configurações + Zod', 'troca de tipo do QRU sem permissão/Zod')
   check(/router\.get\('\/qrus\/tipos', requireAuth, requireAprovado/.test(cfg),
     'tipos de QRU só para conta aprovada', 'tipos de QRU sem autenticação')

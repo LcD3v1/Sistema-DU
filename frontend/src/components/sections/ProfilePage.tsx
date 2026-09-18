@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import {
   Shield, Trophy, Target, Crosshair, CalendarDays, BadgeCheck, Link2, UserCog, Award, Percent,
-  Camera, Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle,
+  Camera, Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle, Gauge, Send,
 } from 'lucide-react'
-import { useMe, useLinkMembro, useSetAvatar, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil } from '@/hooks/useMe'
+import { useMe, useLinkMembro, useSetAvatar, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil, useSolicitarNivel } from '@/hooks/useMe'
 import { ROTULO_CAMPO } from '@/lib/perfil'
 import { useMembros } from '@/hooks/useMembros'
 import { useDirectoryQuery } from '@/modules/ranking/queries'
@@ -39,12 +39,15 @@ export default function ProfilePage() {
   const setBanner = useSetBanner()
   const updateMeuMembro = useUpdateMeuMembro()
   const { data: minhaSolicitacao } = useMinhaSolicitacaoPerfil()
+  const solicitarNivel = useSolicitarNivel()
   const { addToast } = useUIStore()
   const [sel, setSel] = useState('')
   const [pickBanner, setPickBanner] = useState(false)
   const [linkFoto, setLinkFoto] = useState('')
   const [linkBanner, setLinkBanner] = useState('')
   const [editMembro, setEditMembro] = useState(false)
+  const [editNivel, setEditNivel] = useState(false)
+  const [novoNivel, setNovoNivel] = useState('')
   const [form, setForm] = useState({ nivel: '', policial: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
   const avatarInput = useRef<HTMLInputElement>(null)
   const bannerInput = useRef<HTMLInputElement>(null)
@@ -87,6 +90,23 @@ export default function ProfilePage() {
   }
   function escolherBanner(key: string) { setBanner.mutate(key, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }) }
   function vincular() { if (sel) link.mutate(Number(sel), { onSuccess: () => { addToast('success', 'Perfil vinculado!'); setSel('') } }) }
+  const nivelPendente = minhaSolicitacao?.status === 'pendente'
+    ? minhaSolicitacao.alteracoes.find(a => a.campo === 'nivel')?.para ?? null
+    : null
+  function enviarNivel() {
+    const n = Number(novoNivel)
+    if (!Number.isInteger(n) || n < 1 || n > 999) { addToast('error', 'Informe um nível entre 1 e 999.'); return }
+    if (n === me?.nivelMembro) { addToast('error', 'Esse já é o seu nível atual.'); return }
+    solicitarNivel.mutate(n, {
+      onSuccess: r => {
+        addToast('success', r.data.pendente
+          ? 'Pedido enviado! O nível muda assim que um superior aprovar.'
+          : 'Nível atualizado!')
+        setEditNivel(false); setNovoNivel('')
+      },
+      onError: (err: unknown) => addToast('error', (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao enviar.'),
+    })
+  }
   function abrirEdicao() {
     if (!membro) return
     setForm({ nivel: me?.nivelMembro ? String(me.nivelMembro) : '', policial: membro.policial, badge: membro.badge, passaporte: membro.passaporte, patenteNPD: membro.patenteNPD, patenteInterna: membro.patenteInterna })
@@ -153,6 +173,7 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-blue border-blue/40 bg-blue/10'}`}>{me.admin ? 'Administrador' : 'Membro'}</span>
               {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}
+              {me.nivelMembro !== null && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono flex items-center gap-1"><Gauge size={11} /> Nv. {me.nivelMembro}</span>}
               {rankPos && <span className="px-2.5 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold3 text-[11px] font-mono flex items-center gap-1"><Trophy size={11} /> {rankPos}º no ranking</span>}
             </div>
           </div>
@@ -289,6 +310,38 @@ export default function ProfilePage() {
               <>
                 <dl className="space-y-3 text-sm">
                   <div className="flex justify-between"><dt className="text-txt2">Nome</dt><dd className="text-txt font-medium">{membro.policial}</dd></div>
+                  <div>
+                    <div className="flex justify-between items-center gap-2">
+                      <dt className="text-txt2 flex items-center gap-1"><Gauge size={12} /> Nível</dt>
+                      <dd className="flex items-center gap-2">
+                        <span className="text-txt font-medium font-mono">{me.nivelMembro ?? '—'}</span>
+                        {me.nivelMembro !== null && !editNivel && (
+                          <button onClick={() => { setNovoNivel(nivelPendente ?? String(me.nivelMembro)); setEditNivel(true) }}
+                            className="text-[11px] text-txt3 hover:text-gold3 transition-colors font-mono flex items-center gap-1"><Pencil size={11} /> Atualizar</button>
+                        )}
+                      </dd>
+                    </div>
+                    {nivelPendente && !editNivel && (
+                      <p className="mt-1 text-[11px] text-orange-400 flex items-center gap-1"><Hourglass size={11} /> Nível {nivelPendente} aguardando aprovação</p>
+                    )}
+                    {editNivel && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex gap-2">
+                          <input type="number" min={1} max={999} inputMode="numeric" autoFocus aria-label="Novo nível"
+                            value={novoNivel} onChange={e => setNovoNivel(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') enviarNivel(); if (e.key === 'Escape') setEditNivel(false) }}
+                            placeholder="Novo nível"
+                            className="input-gold flex-1 min-w-0 bg-card2 border border-bdr2 rounded-lg px-3 py-1.5 text-sm font-mono text-txt" />
+                          <button onClick={enviarNivel} disabled={solicitarNivel.isPending}
+                            className="flex items-center gap-1 px-3 rounded-lg bg-gold text-white text-xs font-medium hover:bg-gold2 transition-colors disabled:opacity-50">
+                            <Send size={12} /> {solicitarNivel.isPending ? 'Enviando...' : 'Enviar'}
+                          </button>
+                          <button onClick={() => setEditNivel(false)} aria-label="Cancelar" className="px-2 rounded-lg border border-bdr2 text-txt2 hover:text-txt transition-colors"><X size={14} /></button>
+                        </div>
+                        <p className="text-[11px] text-txt3">O nível só muda depois da aprovação de um superior. Aprovado, ele é atualizado em todo o sistema.</p>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex justify-between"><dt className="text-txt2">Badge</dt><dd className="text-txt font-medium font-mono">{membro.badge || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-txt2">Passaporte</dt><dd className="text-txt font-medium font-mono">{membro.passaporte || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-txt2">Patente</dt><dd className="text-txt font-medium">{membro.patenteInterna || membro.patenteNPD || '—'}</dd></div>
