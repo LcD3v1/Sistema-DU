@@ -31,15 +31,28 @@ const nomePessoa = (m: Membro) => nomeComDiscord(m)
  */
 export function MembroNomeMenu({ membro, children }: { membro: Membro; children: React.ReactNode }) {
   const { canEdit } = usePerms()
-  const [aberto, setAberto] = useState(false)
+  // Posição fixa (menu em portal): a tabela tem overflow e cortava o menu da última linha
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const aberto = pos !== null
   const [acao, setAcao] = useState<Acao | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!aberto) return
-    const fechar = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setAberto(false) }
+    const fechar = (e: MouseEvent) => {
+      const alvo = e.target as Node
+      if (!ref.current?.contains(alvo) && !menuRef.current?.contains(alvo)) setPos(null)
+    }
+    const fecharJa = () => setPos(null)   // rolar/redimensionar: a posição calculada deixaria de valer
     document.addEventListener('mousedown', fechar)
-    return () => document.removeEventListener('mousedown', fechar)
+    window.addEventListener('scroll', fecharJa, true)
+    window.addEventListener('resize', fecharJa)
+    return () => {
+      document.removeEventListener('mousedown', fechar)
+      window.removeEventListener('scroll', fecharJa, true)
+      window.removeEventListener('resize', fecharJa)
+    }
   }, [aberto])
 
   const itens: { id: Acao; label: string; icon: typeof ChevronsUp; cls: string; pode: boolean }[] = [
@@ -51,42 +64,54 @@ export function MembroNomeMenu({ membro, children }: { membro: Membro; children:
 
   if (visiveis.length === 0) return <>{children}</>
 
+  /** Ao lado do nome, centralizado na linha; vira para a esquerda/sobe se não couber na tela. */
+  function alternar() {
+    if (aberto || !ref.current) { setPos(null); return }
+    const r = ref.current.getBoundingClientRect()
+    const largura = 160, altura = visiveis.length * 36 + 8, margem = 8
+    let left = r.right + margem
+    if (left + largura > window.innerWidth - margem) left = Math.max(margem, r.left - largura - margem)
+    const top = Math.min(Math.max(margem, r.top + r.height / 2 - altura / 2), window.innerHeight - altura - margem)
+    setPos({ top, left })
+  }
+
   return (
     <div ref={ref} className="relative inline-flex">
       <button
         type="button"
-        onClick={() => setAberto(v => !v)}
+        onClick={alternar}
         className="font-mono text-xs text-txt hover:text-gold transition-colors text-left underline-offset-2 hover:underline"
       >
         {children}
       </button>
-      <AnimatePresence>
-        {aberto && (
-          <motion.div
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -6 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 w-40 bg-card border border-bdr rounded-lg shadow-2xl p-1"
-          >
-            {visiveis.map(i => {
-              const Icon = i.icon
-              return (
-                <button
-                  key={i.id}
-                  onClick={() => { setAcao(i.id); setAberto(false) }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-colors ${i.cls}`}
-                >
-                  <Icon size={14} /> {i.label}
-                </button>
-              )
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {createPortal(
         <>
+          <AnimatePresence>
+            {pos && (
+              <motion.div
+                ref={menuRef}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.15 }}
+                style={{ position: 'fixed', top: pos.top, left: pos.left }}
+                className="z-50 w-40 bg-card border border-bdr rounded-lg shadow-2xl p-1"
+              >
+                {visiveis.map(i => {
+                  const Icon = i.icon
+                  return (
+                    <button
+                      key={i.id}
+                      onClick={() => { setAcao(i.id); setPos(null) }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-colors ${i.cls}`}
+                    >
+                      <Icon size={14} /> {i.label}
+                    </button>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
           <PromocaoModal membro={membro} open={acao === 'promocao'} onClose={() => setAcao(null)} />
           <GerenciarModal membro={membro} open={acao === 'gerenciar'} onClose={() => setAcao(null)} />
           <ExonerarModal membro={membro} open={acao === 'exonerar'} onClose={() => setAcao(null)} />
