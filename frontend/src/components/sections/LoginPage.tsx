@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ShieldX, CalendarClock } from 'lucide-react'
+import { ShieldX, CalendarClock, FileText } from 'lucide-react'
 import Brand from '@/components/ui/Brand'
 import MusicPlayer from '@/components/ui/MusicPlayer'
 import PublicOverlay from '@/components/sections/PublicOverlay'
@@ -145,6 +145,18 @@ export default function LoginPage() {
 
       {/* ── Player de música (canto inferior esquerdo) ──────────── */}
       <MusicPlayer />
+
+      {/* ── Termos (logo abaixo do player) ──────────────────────── */}
+      <Link
+        to="/termos"
+        className="group fixed bottom-14 left-4 sm:bottom-6 sm:left-6 z-40 flex items-center gap-2.5 px-3 py-2 transition-opacity opacity-70 hover:opacity-100 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
+      >
+        <FileText size={15} className="text-gold3 shrink-0" />
+        <span className="leading-tight">
+          <span className="block text-[12px] font-semibold text-white/85 group-hover:text-white">Termos e Privacidade</span>
+          <span className="block font-mono text-[8.5px] tracking-[0.18em] uppercase text-white/40">© Nata Studios &amp; Nextech</span>
+        </span>
+      </Link>
 
       {/* ── Overlay Ranking/Membros ─────────────────────────────── */}
       <PublicOverlay />

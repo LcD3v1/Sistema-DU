@@ -22,6 +22,7 @@ export interface Me {
   admin: boolean
   dev: boolean
   permissoes: PermMap | null
+  termos?: { atual: string; aceita: string | null }
 }
 
 export function useMe() {

@@ -377,5 +377,19 @@ const acoesTs = ler('src/routes/acoes.ts')
 check(/const autor = data\.contas\.find\(c => c\.id === req\.user!\.contaId\)/.test(acoesTs) &&
   /comandante: responsavel/.test(acoesTs) && !/comandante: body\.comandante/.test(acoesTs),
   'responsável da apreensão definido pela sessão', 'cliente pode forjar responsável da apreensão')
+
+console.log('\n[Termos] Aceite dos termos de uso')
+const authTs = ler('src/routes/auth.ts')
+check(/router\.post\('\/me\/termos', requireAuth, validateBody\(termosAceiteSchema\)/.test(authTs),
+  'aceite dos termos exige login e corpo validado por Zod', 'aceite dos termos sem requireAuth/Zod')
+const aceiteTs = authTs.slice(authTs.indexOf("router.post('/me/termos'"))
+check(/c\.id === req\.user!\.contaId/.test(aceiteTs.slice(0, 900)) && !/req\.body[^\n]*contaId/.test(aceiteTs.slice(0, 900)),
+  'aceite grava só na conta da sessão', 'aceite pode gravar em outra conta')
+check(/versao !== TERMOS_VERSAO/.test(aceiteTs) && /audit\('TERMOS_ACEITOS'/.test(aceiteTs),
+  'aceite só da versão vigente e auditado', 'aceite de versão antiga ou sem auditoria')
+const termoFront = fs.existsSync(path.join(REPO, 'frontend/src/components/ui/TermoAceite.tsx'))
+  ? fs.readFileSync(path.join(REPO, 'frontend/src/components/ui/TermoAceite.tsx'), 'utf8') : ''
+check(termoFront && !/localStorage\.setItem\([^)]*token/i.test(termoFront),
+  'popup de termos não guarda token no navegador', 'popup de termos ausente ou guarda token')
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

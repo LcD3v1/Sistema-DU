@@ -13,11 +13,12 @@ import LoadingHud from '@/components/ui/LoadingHud'
 import { paginaLazy } from '@/lib/rotas'
 import FaixaAmbiente from '@/components/ui/FaixaAmbiente'
 import LimiteErro from '@/components/ui/LimiteErro'
-import TermoExclusividade from '@/components/ui/TermoExclusividade'
+import TermoAceite from '@/components/ui/TermoAceite'
 
 // Páginas sob demanda: cada rota baixa só o próprio código (recharts, jspdf, dnd-kit…)
 const LoginPage = paginaLazy('/login')
 const PerfilPublicoPage = paginaLazy('/perfil-publico')
+const TermosPage = paginaLazy('/termos')
 const DashboardPage = paginaLazy('/dashboard')
 const AvisosPage = paginaLazy('/avisos')
 const ProfilePage = paginaLazy('/perfil')
@@ -89,9 +90,9 @@ export default function App() {
       {/* Respeita "reduzir movimento" do sistema: efeitos de transform viram só fade */}
       <MotionConfig reducedMotion="user">
       <FaixaAmbiente />
-      <TermoExclusividade />
       <SincronizacaoTempoReal />
       <BrowserRouter>
+        <TermoAceite />
         <LimiteErro telaCheia>
         <Suspense fallback={<TelaCarregando />}>
         <Routes>
@@ -100,6 +101,7 @@ export default function App() {
           } />
           <Route path="/auth/discord" element={<DiscordCallback />} />
           <Route path="/perfil/:slug" element={<PerfilPublicoPage />} />
+          <Route path="/termos" element={<TermosPage />} />
           <Route path="/" element={
             <ProtectedRoute><AppShell /></ProtectedRoute>
           }>

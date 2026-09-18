@@ -93,6 +93,7 @@ export interface Conta {
   exonerado?: boolean        // perde o acesso e vê o aviso de exoneração ao entrar
   exoneradoEm?: string
   exoneradoMotivo?: string
+  termosAceitos?: { versao: string; em: string }  // última versão dos termos aceita (ISO)
 }
 
 export interface PermArea {

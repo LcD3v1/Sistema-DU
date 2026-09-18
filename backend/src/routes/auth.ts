@@ -7,7 +7,8 @@ import { iguaisSeguro } from '../security/crypto'
 import { requireAuth } from '../middleware/auth'
 import { adminOnly } from '../middleware/roles'
 import { loginLimiter, trocaLoginLimiter, sessaoLimiter } from '../middleware/rateLimiter'
-import { validateBody, onboardingSchema, membroSelfSchema, nivelInicialSchema } from '../middleware/validate'
+import { validateBody, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema } from '../middleware/validate'
+import { TERMOS_VERSAO } from '../termos'
 import { Membro, Conta, FastData } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
@@ -315,7 +316,24 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     admin: isAdmin(conta, data),
     dev: isDev(conta, data),
     permissoes: resolvePerms(conta, data),
+    termos: { atual: TERMOS_VERSAO, aceita: conta.termosAceitos?.versao ?? null },
   })
+})
+
+// POST /api/auth/me/termos — registra o aceite da versão VIGENTE dos termos
+// (Termos de Uso, Privacidade e Exclusividade). Só a própria conta, sem alvo.
+router.post('/me/termos', requireAuth, validateBody(termosAceiteSchema), (req: Request, res: Response): void => {
+  const { versao } = req.body as { versao: string }
+  if (versao !== TERMOS_VERSAO) { res.status(409).json({ error: 'Os termos foram atualizados. Recarregue a página.' }); return }
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  if (conta.termosAceitos?.versao !== TERMOS_VERSAO) {
+    conta.termosAceitos = { versao: TERMOS_VERSAO, em: new Date().toISOString() }
+    writeData(data)
+    audit('TERMOS_ACEITOS', req, `versão ${TERMOS_VERSAO}`)
+  }
+  res.json({ ok: true, aceita: TERMOS_VERSAO })
 })
 
 // POST /api/auth/onboarding — primeiro acesso cria o perfil de membro e vincula

@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import {
   LayoutGrid, FilePlus2, ClipboardCheck, History,
   Users, Trophy, CalendarPlus, CalendarDays, ArrowUpNarrowWide, UserPlus,
@@ -212,6 +212,13 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
             LC<span className="text-gold3"> Dev</span> e <span className="text-gold3">Vilão</span>
           </p>
         </div>
+      </div>
+      <div className="mx-3 mb-3 -mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 px-1 font-mono text-[8.5px] tracking-[0.16em] uppercase">
+        <Link to="/termos#uso" className="text-txt3 hover:text-gold3 transition-colors">Termos</Link>
+        <Link to="/termos#privacidade" className="text-txt3 hover:text-gold3 transition-colors">Privacidade</Link>
+        <Link to="/termos#cookies" className="text-txt3 hover:text-gold3 transition-colors">Cookies</Link>
+        <Link to="/termos#licenca" className="text-txt3 hover:text-gold3 transition-colors">Licença</Link>
+        <span className="w-full text-txt3/70 normal-case tracking-wide">© Nata Studios &amp; Nextech</span>
       </div>
     </nav>
     </>
