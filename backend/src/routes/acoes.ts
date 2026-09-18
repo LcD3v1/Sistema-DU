@@ -183,6 +183,7 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
 
   const jaAprovada = acao.status === 'aprovada'
   acao.status = 'aprovada'
+  if (!jaAprovada) acao.aprovadaEm = new Date().toISOString()
   if (!jaAprovada) {
     notificar(data, acao.criadoPorContaId, 'aprovada', 'Apreensão aprovada',
       `Sua apreensão (${acao.qru}) foi aprovada por ${req.user!.username} e enviada ao canal de apreensões.`, '/acoes/historico')

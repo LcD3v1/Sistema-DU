@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { readData, rankingPersistenceReady, dataRevision } from '../data'
 import { snapshot } from '../modules/ranking/router'
 import { configuredScope, belongsToScope } from '../modules/ranking/scope'
+import { calcularRanking } from '../discord/painelApreensoes'
 
 const router = Router()
 // Compatibility for existing widgets. New clients use the paginated /public/directory API.
@@ -29,6 +30,24 @@ router.get('/membros', (_req, res) => {
       id: m.id, badge: m.badge, name: m.name, role: m.role, entrada: m.joinedAt, status: m.status,
     })) })).filter(g => g.membros.length) })
 })
+// GET /api/public/ranking-historico — rankings zerados no painel do Discord + o atual.
+// Só nome e total (lista branca): sem passaporte, discordId ou IDs internos.
+router.get('/ranking-historico', (_req, res) => {
+  const data = readData()
+  const atual = calcularRanking(data)
+  res.json({
+    atual: {
+      inicio: data.painelApreensoes?.resetadoEm ?? null,
+      total: atual.total,
+      linhas: atual.linhas.map(l => ({ nome: l.nome, total: l.total })),
+    },
+    anteriores: [...(data.historicoRankings ?? [])].reverse().map(r => ({
+      id: r.id, inicio: r.inicio ?? null, fim: r.fim, total: r.total,
+      linhas: r.linhas.map(l => ({ nome: l.nome, total: l.total })),
+    })),
+  })
+})
+
 // GET /api/public/revisao — versão atual dos dados (o navegador atualiza tudo quando muda)
 router.get('/revisao', (_req, res) => { res.json({ revisao: dataRevision() }) })
 

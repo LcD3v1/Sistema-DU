@@ -1,4 +1,4 @@
-import { FastData } from '../types'
+import { FastData, Acao, RankingArquivado } from '../types'
 import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
 import { podeZerarRankings } from '../access'
@@ -25,33 +25,34 @@ export const ID_BOTAO_ATUALIZAR = 'apreensoes:atualizar'
 export const ID_BOTAO_RESETAR = 'apreensoes:resetar'
 
 const diaSP = (d: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(d)
-
-/** Data (YYYY-MM-DD) de N dias atrás, no fuso da unidade. */
-function diasAtras(n: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() - n)
-  return diaSP(d)
-}
+const MAX_HISTORICO = 500      // rankings arquivados guardados (os mais antigos saem)
 
 interface LinhaRanking { nome: string; discordId?: string; passaporte: string; total: number }
 
+/**
+ * Quando a apreensão entrou no placar: hora da aprovação. Registro antigo (sem
+ * `aprovadaEm`) usa o início do dia da QRU — assim um reset no meio do dia já
+ * tira do placar tudo o que foi aprovado antes dele.
+ */
+function momentoNoPlacar(a: Acao): number {
+  if (a.aprovadaEm) return Date.parse(a.aprovadaEm)
+  return Date.parse(`${a.data.slice(0, 10)}T00:00:00-03:00`)
+}
+
 /** Apreensões aprovadas que contam para o placar (depois do último reset). */
 function apreensoesValidas(data: FastData) {
-  const corte = data.painelApreensoes?.resetadoEmData
+  const corte = data.painelApreensoes?.resetadoEm ? Date.parse(data.painelApreensoes.resetadoEm) : NaN
   const hoje = diaSP(new Date())
   return data.acoes.filter(a =>
     (a.status ?? 'aprovada') === 'aprovada' &&
     Array.isArray(a.participants) && a.participants.length > 0 &&
     typeof a.data === 'string' && a.data.slice(0, 10) <= hoje &&
-    (!corte || a.data.slice(0, 10) >= corte))
+    (Number.isNaN(corte) || momentoNoPlacar(a) > corte))
 }
 
 export interface ResumoApreensoes {
   linhas: LinhaRanking[]
   total: number
-  ultimos7: number
-  ultimos15: number
-  ultimos30: number
 }
 
 /** Monta o placar: uma apreensão conta 1 para CADA participante. */
@@ -64,7 +65,6 @@ export function calcularRanking(data: FastData): ResumoApreensoes {
     }
   }
 
-  const d7 = diasAtras(7), d15 = diasAtras(15), d30 = diasAtras(30)
   const linhas: LinhaRanking[] = []
   for (const [memId, total] of porMembro) {
     const membro = data.membros.find(m => m.id === memId)
@@ -80,13 +80,7 @@ export function calcularRanking(data: FastData): ResumoApreensoes {
   }
   linhas.sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'))
 
-  return {
-    linhas,
-    total: acoes.length,
-    ultimos7: acoes.filter(a => a.data.slice(0, 10) >= d7).length,
-    ultimos15: acoes.filter(a => a.data.slice(0, 10) >= d15).length,
-    ultimos30: acoes.filter(a => a.data.slice(0, 10) >= d30).length,
-  }
+  return { linhas, total: acoes.length }
 }
 
 const plural = (n: number) => `${n} apreens${n === 1 ? 'ão' : 'ões'}`
@@ -117,11 +111,6 @@ function montarEmbed(data: FastData) {
       '',
       corpo || '_Nenhuma apreensão registrada ainda._',
       '',
-      '**✅ Total de apreensões:**',
-      `Últimos 7 dias: **${r.ultimos7}**`,
-      `Últimos 15 dias: **${r.ultimos15}**`,
-      `Últimos 30 dias: **${r.ultimos30}**`,
-      '',
       `Total de apreensões: **${r.total}**`,
     ].join('\n').slice(0, 4000),
     footer: { text: 'FAST · North Police Department' },
@@ -129,13 +118,32 @@ function montarEmbed(data: FastData) {
   }
 }
 
-const botoes = () => ([{
-  type: 1,
-  components: [
-    { type: 2, style: 1, custom_id: ID_BOTAO_ATUALIZAR, label: 'Atualizar agora', emoji: { name: '🔄' } },
-    { type: 2, style: 4, custom_id: ID_BOTAO_RESETAR, label: 'Resetar ranking', emoji: { name: '🟥' } },
-  ],
-}])
+/**
+ * Endereço do site para o botão de histórico: PUBLIC_URL ou, na falta, a origem
+ * do redirect do OAuth (os dois vêm do .env — nada vindo de usuário).
+ */
+function urlDoSite(): string | undefined {
+  // Só https: o Discord recusa a mensagem inteira se o link do botão for inválido
+  const fixa = process.env.PUBLIC_URL?.trim().replace(/\/+$/, '')
+  if (fixa && /^https:\/\/[\w.-]+(:\d+)?$/i.test(fixa)) return fixa
+  try {
+    const u = new URL(process.env.DISCORD_REDIRECT_URI ?? '')
+    return u.protocol === 'https:' ? u.origin : undefined
+  } catch { return undefined }
+}
+
+const botoes = () => {
+  const site = urlDoSite()
+  return [{
+    type: 1,
+    components: [
+      { type: 2, style: 1, custom_id: ID_BOTAO_ATUALIZAR, label: 'Atualizar agora', emoji: { name: '🔄' } },
+      { type: 2, style: 4, custom_id: ID_BOTAO_RESETAR, label: 'Resetar ranking', emoji: { name: '🟥' } },
+      // Botão de link (style 5): abre a página pública com os rankings anteriores
+      ...(site ? [{ type: 2, style: 5, url: `${site}/historico-ranking`, label: 'Histórico de rankings', emoji: { name: '📜' } }] : []),
+    ],
+  }]
+}
 
 /** Corpo da mensagem. `allowed_mentions` vazio: o placar nunca notifica ninguém. */
 function corpoMensagem(data: FastData) {
@@ -192,6 +200,16 @@ export async function resetarRanking(contaId: number): Promise<void> {
   }
   const por = conta.nomeServidor || conta.username
   const agora = new Date()
+  // Guarda o placar que está sendo zerado no histórico de rankings (automático)
+  const atual = calcularRanking(data)
+  const arquivado: RankingArquivado = {
+    id: (data.historicoRankings ?? []).reduce((max, r) => Math.max(max, r.id), 0) + 1,
+    ...(data.painelApreensoes?.resetadoEm ? { inicio: data.painelApreensoes.resetadoEm } : {}),
+    fim: agora.toISOString(),
+    total: atual.total,
+    linhas: atual.linhas.map(l => ({ nome: l.nome, total: l.total })),
+  }
+  data.historicoRankings = [...(data.historicoRankings ?? []), arquivado].slice(-MAX_HISTORICO)
   data.painelApreensoes = {
     ...data.painelApreensoes,
     resetadoEm: agora.toISOString(),

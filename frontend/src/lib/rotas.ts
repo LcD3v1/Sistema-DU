@@ -11,6 +11,7 @@ type Loader = () => Promise<{ default: ComponentType }>
 const carregadores = {
   '/login': () => import('@/components/sections/LoginPage'),
   '/perfil-publico': () => import('@/components/sections/PerfilPublicoPage'),
+  '/historico-ranking': () => import('@/components/sections/HistoricoRankingPage'),
   '/termos': () => import('@/components/sections/TermosPage'),
   '/onboarding': () => import('@/components/sections/OnboardingPage'),
   '/dashboard': () => import('@/components/sections/DashboardPage'),

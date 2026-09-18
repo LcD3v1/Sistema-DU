@@ -18,6 +18,7 @@ import TermoAceite from '@/components/ui/TermoAceite'
 // Páginas sob demanda: cada rota baixa só o próprio código (recharts, jspdf, dnd-kit…)
 const LoginPage = paginaLazy('/login')
 const PerfilPublicoPage = paginaLazy('/perfil-publico')
+const HistoricoRankingPage = paginaLazy('/historico-ranking')
 const TermosPage = paginaLazy('/termos')
 const DashboardPage = paginaLazy('/dashboard')
 const AvisosPage = paginaLazy('/avisos')
@@ -100,6 +101,7 @@ export default function App() {
           } />
           <Route path="/auth/discord" element={<DiscordCallback />} />
           <Route path="/perfil/:slug" element={<PerfilPublicoPage />} />
+          <Route path="/historico-ranking" element={<HistoricoRankingPage />} />
           <Route path="/termos" element={<TermosPage />} />
           <Route path="/" element={
             <ProtectedRoute><AppShell /></ProtectedRoute>

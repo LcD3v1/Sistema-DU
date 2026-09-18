@@ -442,6 +442,17 @@ console.log('\n[QRU] Tipo convencional × fechado')
     'apreensões saem da API sem discordId dos participantes', 'apreensão devolvida crua (discordId de participante)')
 }
 
+console.log('\n[Ranking] Histórico de rankings')
+{
+  const pub = ler('src/routes/public.ts')
+  const trecho = pub.slice(pub.indexOf("router.get('/ranking-historico'"), pub.indexOf("router.get('/ranking-historico'") + 900)
+  check(/linhas\.map\(l => \(\{ nome: l\.nome, total: l\.total \}\)\)/.test(trecho) && !/discordId|passaporte/.test(trecho),
+    'histórico público só com nome e total (lista branca)', 'histórico público expõe passaporte/discordId')
+  const painel = ler('src/discord/painelApreensoes.ts')
+  check(/u\.protocol === 'https:'/.test(painel) && /\^https:/.test(painel),
+    'botão de histórico usa só URL https do .env', 'botão de histórico aceita URL não-https')
+}
+
 console.log('\n[Termos] Aceite dos termos de uso')
 const authTs = ler('src/routes/auth.ts')
 check(/router\.post\('\/me\/termos', requireAuth, validateBody\(termosAceiteSchema\)/.test(authTs),

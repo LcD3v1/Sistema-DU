@@ -71,6 +71,7 @@ export interface Acao {
   local?: string
   imagem?: string
   status?: 'pendente' | 'aprovada'
+  aprovadaEm?: string        // ISO — hora da aprovação (corte do reset do ranking)
   discordThreadId?: string   // postagem no fórum de Apreensões
   criadoPorContaId?: number
 }
@@ -239,6 +240,15 @@ export interface PainelApreensoes {
   resetadoEmData?: string
 }
 
+/** Ranking guardado automaticamente a cada reset do painel (histórico de rankings). */
+export interface RankingArquivado {
+  id: number
+  inicio?: string         // ISO — reset anterior (ausente = desde o começo)
+  fim: string             // ISO — momento do reset
+  total: number           // apreensões no período
+  linhas: { nome: string; total: number }[]
+}
+
 export interface FastData {
   membros: Membro[]
   acoes: Acao[]
@@ -272,6 +282,7 @@ export interface FastData {
   solicitacoesPerfil: SolicitacaoPerfil[]
   nextSolPerfilId: number
   painelApreensoes?: PainelApreensoes
+  historicoRankings?: RankingArquivado[]
   cargosAdv?: CargosAdv
 }
 

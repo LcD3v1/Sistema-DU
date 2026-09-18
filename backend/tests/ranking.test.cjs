@@ -357,6 +357,39 @@ test('reset exige cargo autorizado ou admin e bloqueia conta inativa/exonerada',
   }
 })
 
+test('reset guarda o placar no histórico e zera pela hora da aprovação', async () => {
+  const original = structuredClone(data)
+  const { resetarRanking, calcularRanking } = require('../dist/discord/painelApreensoes')
+  try {
+    data.cargosPermissao.find(c => c.id === 20).admin = true
+    const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+    data.acoes = [{ id: 1, data: hoje, qru: 'X', tipo: 'convencional', participants: [{ memberId: 1, patenteUnidade: '' }],
+      status: 'aprovada', aprovadaEm: new Date(Date.now() - 60_000).toISOString() }]
+    delete data.painelApreensoes; delete data.historicoRankings
+    const antes = calcularRanking(data)
+    assert.equal(antes.total, 1)
+    await resetarRanking(2)
+    // Aprovada antes do reset (mesmo dia) → sai do placar e vai para o histórico
+    assert.equal(calcularRanking(data).total, 0)
+    assert.equal(data.historicoRankings.length, 1)
+    assert.equal(data.historicoRankings[0].total, 1)
+    assert.deepEqual(data.historicoRankings[0].linhas, antes.linhas.map(l => ({ nome: l.nome, total: l.total })))
+    // Aprovada depois do reset → já entra no novo ranking
+    data.acoes.push({ ...data.acoes[0], id: 2, aprovadaEm: new Date(Date.now() + 1000).toISOString() })
+    assert.equal(calcularRanking(data).total, 1)
+    // Rota pública: só nome e total (sem passaporte/discordId)
+    const pub = await get('/api/public/ranking-historico', null)
+    assert.equal(pub.status, 200)
+    assert.equal(pub.body.anteriores.length, 1)
+    assert.equal(pub.body.atual.total, 1)
+    for (const l of [...pub.body.atual.linhas, ...pub.body.anteriores[0].linhas]) {
+      assert.deepEqual(Object.keys(l).sort(), ['nome', 'total'])
+    }
+  } finally {
+    data = original; revision++
+  }
+})
+
 test('canal do ranking permanece salvo após consulta e pode ser desvinculado', async () => {
   const original = structuredClone(data)
   const forum = require('../dist/discord/forum')
