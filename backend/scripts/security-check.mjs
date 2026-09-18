@@ -378,6 +378,21 @@ check(/const autor = data\.contas\.find\(c => c\.id === req\.user!\.contaId\)/.t
   /comandante: responsavel/.test(acoesTs) && !/comandante: body\.comandante/.test(acoesTs),
   'responsável da apreensão definido pela sessão', 'cliente pode forjar responsável da apreensão')
 
+console.log('\n[Acesso externo] Dispensa do servidor do Discord')
+const accessExtTs = ler('src/access.ts')
+check(/DISCORD_ACESSO_EXTERNO/.test(accessExtTs) && /\^\\d\{17,20\}\$/.test(accessExtTs),
+  'lista de acesso externo só aceita IDs numéricos do Discord', 'lista de acesso externo sem validação de ID')
+check(!/dispensaServidor|discordIdsAcessoExterno/.test(ler('src/middleware/auth.ts')) &&
+  !/discordIdsAcessoExterno|dispensaServidor/.test(accessExtTs.slice(accessExtTs.indexOf('export function ehDono'), accessExtTs.indexOf('export function ehDono') + 300)),
+  'acesso externo não vira dono nem pula as checagens do requireAuth', 'acesso externo concede privilégio além do servidor')
+{
+  const cb = ler('src/routes/auth.ts')
+  const posDispensa = cb.indexOf('!dispensaServidor(me.id)')
+  const posExonerado = cb.indexOf("reason=exonerado")
+  check(posDispensa > -1 && posExonerado > posDispensa,
+    'exonerado continua bloqueado mesmo com acesso externo', 'acesso externo pode contornar exoneração')
+}
+
 console.log('\n[Termos] Aceite dos termos de uso')
 const authTs = ler('src/routes/auth.ts')
 check(/router\.post\('\/me\/termos', requireAuth, validateBody\(termosAceiteSchema\)/.test(authTs),

@@ -21,7 +21,7 @@ import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from 
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
 import { imagemValida } from '../security/imagem'
-import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, garantirAcessoDono } from '../access'
+import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, dispensaServidor, garantirAcessoDono } from '../access'
 
 const router = Router()
 
@@ -140,10 +140,11 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
         console.error('[FAST][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
         res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
       }
-      if (!membroServidor) {
+      if (!membroServidor && !dispensaServidor(me.id)) {
         audit('DISCORD_LOGIN_DENIED', req, `Não faz parte do servidor — Discord: ${me.username} (${me.id})`)
         res.redirect(`${FRONTEND_URL}/login?reason=fora_servidor`); return
       }
+      if (!membroServidor) audit('DISCORD_LOGIN_SUCCESS', req, `Acesso externo (fora do servidor) liberado — Discord: ${me.username} (${me.id})`)
     } else {
       // Dono: identidade do servidor é opcional (não bloqueia o acesso)
       try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {

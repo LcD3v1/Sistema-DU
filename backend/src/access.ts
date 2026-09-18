@@ -11,12 +11,26 @@ import { PermMap, AreaId, fullPermMap, emptyPermMap, normalizePermMap } from './
  */
 export const PROTECTED_OWNER_ID = 1
 
+const idsDiscord = (valor: string | undefined): string[] =>
+  (valor ?? '').split(/[,;\s]+/).map(s => s.trim()).filter(s => /^\d{17,20}$/.test(s))
+
 /** IDs do Discord com acesso total (DISCORD_OWNER_ID, separados por vírgula). */
 export function discordIdsDonos(): string[] {
-  return (process.env.DISCORD_OWNER_ID ?? '')
-    .split(/[,;\s]+/)
-    .map(s => s.trim())
-    .filter(s => /^\d{17,20}$/.test(s))
+  return idsDiscord(process.env.DISCORD_OWNER_ID)
+}
+
+/**
+ * IDs do Discord liberados a entrar SEM fazer parte do servidor da unidade
+ * (DISCORD_ACESSO_EXTERNO, separados por vírgula). Só dispensa a presença no
+ * servidor: não dá cargo, não vira dono e não fura exoneração/conta inativa.
+ */
+export function discordIdsAcessoExterno(): string[] {
+  return idsDiscord(process.env.DISCORD_ACESSO_EXTERNO)
+}
+
+/** Dispensado de estar no servidor: dono ou liberado em DISCORD_ACESSO_EXTERNO. */
+export function dispensaServidor(discordId: string): boolean {
+  return discordIdsDonos().includes(discordId) || discordIdsAcessoExterno().includes(discordId)
 }
 
 /**

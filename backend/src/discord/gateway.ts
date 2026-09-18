@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js'
 import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
-import { PROTECTED_OWNER_ID, canArea, podeZerarRankings } from '../access'
+import { PROTECTED_OWNER_ID, canArea, podeZerarRankings, discordIdsAcessoExterno } from '../access'
 import { botConfigurado } from './forum'
 import { definirBotNoServidor, verificarBotNoServidor } from './acessoServidor'
 import { exonerarMembro, ehContaDona } from '../efetivo'
@@ -25,6 +25,8 @@ const MOTIVO_SAIDA = 'Saiu do servidor do Discord'
  * a conta fica bloqueada (vê o aviso de exoneração) e o tópico recebe o ❌.
  */
 export function processarSaida(discordId: string, origem: string): void {
+  // Liberado para ficar fora do servidor (DISCORD_ACESSO_EXTERNO): não exonera
+  if (discordIdsAcessoExterno().includes(discordId)) return
   // Checagem barata sem copiar o banco: a maioria das saídas não tem conta no painel
   const previa = peekData().contas.find(c => c.discordId === discordId)
   if (!previa || ehContaDona(previa) || previa.exonerado) return
