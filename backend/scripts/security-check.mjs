@@ -387,7 +387,14 @@ check(/c\.id === req\.user!\.contaId/.test(aceiteTs.slice(0, 900)) && !/req\.bod
   'aceite grava só na conta da sessão', 'aceite pode gravar em outra conta')
 check(/versao !== TERMOS_VERSAO/.test(aceiteTs) && /audit\('TERMOS_ACEITOS'/.test(aceiteTs),
   'aceite só da versão vigente e auditado', 'aceite de versão antiga ou sem auditoria')
-const termoFront = fs.existsSync(path.join(REPO, 'frontend/src/components/ui/TermoAceite.tsx'))
+// A versão vigente precisa passar na validação do aceite (senão ninguém consegue aceitar)
+const versaoTermos = (ler('src/termos.ts').match(/TERMOS_VERSAO = '([^']+)'/) || [])[1]
+const regexAceite = (ler('src/middleware/validate.ts').match(/termosAceiteSchema = z\.object\(\{ versao: z\.string\(\)\.regex\(\/(.+?)\/\)/) || [])[1]
+const versaoFront = (fs.existsSync(path.join(REPO, 'frontend/src/content/termos.ts'))
+  ? fs.readFileSync(path.join(REPO, 'frontend/src/content/termos.ts'), 'utf8') : '').match(/versao: '([^']+)'/)?.[1]
+check(versaoTermos && regexAceite && new RegExp(regexAceite).test(versaoTermos) && versaoFront === versaoTermos,
+  'versão dos termos válida e igual no backend e no frontend', 'versão dos termos inválida ou diferente entre backend e frontend')
+const termoFront =fs.existsSync(path.join(REPO, 'frontend/src/components/ui/TermoAceite.tsx'))
   ? fs.readFileSync(path.join(REPO, 'frontend/src/components/ui/TermoAceite.tsx'), 'utf8') : ''
 check(termoFront && !/localStorage\.setItem\([^)]*token/i.test(termoFront),
   'popup de termos não guarda token no navegador', 'popup de termos ausente ou guarda token')

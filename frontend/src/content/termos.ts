@@ -23,10 +23,10 @@ export interface Documento {
 export const EMPRESAS = 'Nata Studios e Nextech'
 
 export const TERMOS = {
-  versao: '2026-09-18',
+  versao: '2026-09-18-2',
   vigencia: '14 de setembro de 2026',
   atualizacao: '18 de setembro de 2026',
-  leiAplicavel: 'Flórida, EUA',
+  leiAplicavel: 'Brasil e Flórida, EUA',
 }
 
 export const DOCUMENTOS: Documento[] = [
@@ -148,7 +148,7 @@ export const DOCUMENTOS: Documento[] = [
         titulo: '7. Seus direitos e segurança',
         texto: [
           'Você pode pedir acesso, correção ou informações sobre os seus dados ao comando da unidade ou às empresas responsáveis, pelo canal oficial no Discord. Correções de cadastro também podem ser solicitadas pelo próprio perfil.',
-          'Protegemos os dados com conexão HTTPS, sessão com expiração e revogação, controle de acesso por cargo, limites contra abuso, firewall de aplicação e registro de auditoria. Respeitamos a legislação de proteção de dados aplicável, incluindo a LGPD para usuários no Brasil.',
+          'Protegemos os dados com conexão HTTPS, sessão com expiração e revogação, controle de acesso por cargo, limites contra abuso, firewall de aplicação e registro de auditoria. Seguimos a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018) e o Marco Civil da Internet (Lei nº 12.965/2014). Pela LGPD, você pode pedir confirmação, acesso, correção, anonimização, portabilidade e informação sobre com quem seus dados são compartilhados.',
         ],
       },
     ],
@@ -206,6 +206,7 @@ export const DOCUMENTOS: Documento[] = [
         texto: [
           `Todo o sistema FAST faz parte da ${EMPRESAS}. Ele é um produto privado, de propriedade exclusiva das duas empresas, e não está à venda, não é de código aberto e não é distribuído a terceiros.`,
           'A unidade e os seus membros recebem apenas uma permissão de uso, pessoal, limitada e revogável. Usar o sistema não transfere nenhuma parte dele a quem usa.',
+          'O sistema é protegido pela Lei de Software (Lei nº 9.609/1998) e pela Lei de Direitos Autorais (Lei nº 9.610/1998), além das leis equivalentes dos EUA.',
         ],
       },
       {
@@ -372,7 +373,8 @@ export const DOCUMENTOS: Documento[] = [
         texto: [
           'As empresas não respondem por conteúdo inserido por usuários, por decisões internas da unidade, pelo uso indevido de contas por terceiros quando a falha for do usuário, nem por indisponibilidades de serviços de terceiros como Discord, hospedagem e banco de dados.',
           'O sistema é uma ferramenta de apoio à gestão de uma unidade de roleplay. Nomes, patentes e registros de personagens não representam autoridades ou fatos reais.',
-          `Estes documentos são regidos pelas leis de ${TERMOS.leiAplicavel}, sem prejuízo dos direitos garantidos ao usuário pela legislação do seu país.`,
+          'Estes documentos são regidos pelas leis da República Federativa do Brasil, em especial a LGPD (Lei nº 13.709/2018), o Marco Civil da Internet (Lei nº 12.965/2014), a Lei de Software (Lei nº 9.609/1998) e a Lei de Direitos Autorais (Lei nº 9.610/1998). Nas relações com as empresas fora do Brasil, aplicam‑se também as leis da Flórida, EUA.',
+          'Para usuários e clientes no Brasil, prevalecem sempre os direitos garantidos pela legislação brasileira, e fica eleito o foro do domicílio do usuário ou do cliente para resolver qualquer questão.',
         ],
       },
     ],

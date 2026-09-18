@@ -299,4 +299,4 @@ export const recusarSchema = z.object({
 export const nivelInicialSchema = z.object({ nivel: nivelSchema })
 
 // Aceite dos termos: só a versão vigente é aceita (evita aceitar texto antigo)
-export const termosAceiteSchema = z.object({ versao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict()
+export const termosAceiteSchema = z.object({ versao: z.string().regex(/^\d{4}-\d{2}-\d{2}(-\d{1,3})?$/) }).strict()
