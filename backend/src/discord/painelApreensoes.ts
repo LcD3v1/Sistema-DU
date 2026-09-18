@@ -118,32 +118,13 @@ function montarEmbed(data: FastData) {
   }
 }
 
-/**
- * Endereço do site para o botão de histórico: PUBLIC_URL ou, na falta, a origem
- * do redirect do OAuth (os dois vêm do .env — nada vindo de usuário).
- */
-function urlDoSite(): string | undefined {
-  // Só https: o Discord recusa a mensagem inteira se o link do botão for inválido
-  const fixa = process.env.PUBLIC_URL?.trim().replace(/\/+$/, '')
-  if (fixa && /^https:\/\/[\w.-]+(:\d+)?$/i.test(fixa)) return fixa
-  try {
-    const u = new URL(process.env.DISCORD_REDIRECT_URI ?? '')
-    return u.protocol === 'https:' ? u.origin : undefined
-  } catch { return undefined }
-}
-
-const botoes = () => {
-  const site = urlDoSite()
-  return [{
-    type: 1,
-    components: [
-      { type: 2, style: 1, custom_id: ID_BOTAO_ATUALIZAR, label: 'Atualizar agora', emoji: { name: '🔄' } },
-      { type: 2, style: 4, custom_id: ID_BOTAO_RESETAR, label: 'Resetar ranking', emoji: { name: '🟥' } },
-      // Botão de link (style 5): abre a página pública com os rankings anteriores
-      ...(site ? [{ type: 2, style: 5, url: `${site}/historico-ranking`, label: 'Histórico de rankings', emoji: { name: '📜' } }] : []),
-    ],
-  }]
-}
+const botoes = () => ([{
+  type: 1,
+  components: [
+    { type: 2, style: 1, custom_id: ID_BOTAO_ATUALIZAR, label: 'Atualizar agora', emoji: { name: '🔄' } },
+    { type: 2, style: 4, custom_id: ID_BOTAO_RESETAR, label: 'Resetar ranking', emoji: { name: '🟥' } },
+  ],
+}])
 
 /** Corpo da mensagem. `allowed_mentions` vazio: o placar nunca notifica ninguém. */
 function corpoMensagem(data: FastData) {
