@@ -288,6 +288,8 @@ before(async () => {
   app.use('/api/acoes', require('../dist/routes/acoes').default)
   app.use('/api/anuncio', require('../dist/routes/anuncioImagem').uploadRouter)
   app.use('/img', require('../dist/routes/anuncioImagem').publicoRouter)
+  app.use('/api/mensagens', require('../dist/routes/mensagens').default)
+  app.use('/api/avisos', require('../dist/routes/avisos').default)
   global.setInterval = originalInterval
   app.use((_err, _req, res, _next) => res.status(500).json({ error: 'Erro interno do servidor' }))
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
@@ -558,4 +560,35 @@ test('anúncio: envio exige login e a permissão de editar anúncio; link públi
   assert.equal((await enviar(token(1))).status, 503)        // dono passa; sem Mongo no teste
   for (const p of ['/img/../../etc', '/img/curto.png', '/img/AAAAAAAAAAAAAAAAAAAAAAAA.svg', '/img/AAAAAAAAAAAAAAAAAAAAAAAA.png.html'])
     assert.equal((await fetch(base + p)).status, 404, p)
+})
+
+// ── Mensagens pelo bot (Components V2) e avisos no Discord ────────────────────
+test('mensagem: painel V2 da FAST nunca notifica ninguém', () => {
+  const { montarPainel } = require('../dist/discord/mensagens')
+  const p = montarPainel({ titulo: 'Operação', mensagem: '@everyone <@&123> texto', rotulo: 'Comunicado', autor: '<@1>' })
+  assert.equal(p.flags, 1 << 15)
+  assert.deepEqual(p.allowed_mentions, { parse: [] })
+  assert.equal(p.content, undefined); assert.equal(p.embeds, undefined)   // V2 não aceita content/embeds
+  const container = p.components[0]
+  assert.equal(container.type, 17)
+  assert.ok(JSON.stringify(container).includes('## Operação'))
+})
+test('mensagem: enviar exige login, área mensagens/editar, corpo válido e bot configurado', async () => {
+  const enviar = (auth, body) => fetch(base + '/api/mensagens', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(body) })
+  const ok = { canalId: '555555555555555555', mensagem: 'Teste' }
+  assert.equal((await enviar(null, ok)).status, 401)
+  assert.equal((await enviar(token(2), ok)).status, 403)                        // cargo sem a área
+  assert.equal((await enviar(token(1), { ...ok, canalId: '../1' })).status, 400)  // canal inválido
+  assert.equal((await enviar(token(1), { ...ok, extra: 1 })).status, 400)          // campo desconhecido
+  assert.equal((await enviar(token(1), ok)).status, 400)                        // sem bot no teste
+  assert.equal((await get('/api/mensagens/canais', token(2))).status, 403)
+})
+test('avisos: listagem não expõe o vínculo com a mensagem do Discord', async () => {
+  data.avisos = [{ id: 1, titulo: 'T', mensagem: 'M', autor: 'a', criadoEm: '2026-09-18T00:00:00Z',
+    discord: { canalId: '555555555555555555', mensagemId: '666666666666666666' } }]
+  const res = await get('/api/avisos', token(1))
+  assert.equal(res.status, 200)
+  assert.equal(res.body.avisos[0].discord, undefined)
+  assert.ok(!JSON.stringify(res.body).includes('666666666666666666'))
 })

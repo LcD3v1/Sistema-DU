@@ -23,6 +23,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/boletim':          'Gerar boletim',
   '/protocolo':        'Protocolo operacional',
   '/carteira':         'Gerar carteira',
+  '/mensagens':        'Enviar mensagem',
   '/cursos':           'Cursos internos',
   '/configuracoes':    'Configurações',
 }

@@ -491,5 +491,17 @@ check(/randomBytes\(18\)/.test(anuncioImgTs) && /'X-Content-Type-Options', 'nosn
   'link da foto com ID aleatório, nosniff e CSP sandbox', 'link da foto previsível ou sem nosniff/sandbox')
 check(/app\.use\('\/img', anuncioImagemPublica\)/.test(index) && /anuncio\\\/imagem/.test(index),
   'foto pública fora de /api e envio no limite de upload', 'rota da foto fora do lugar ou sem uploadLimiter')
+console.log('\n[Discord] Mensagens e avisos enviados pelo bot')
+const mensagensTs = ler('src/routes/mensagens.ts')
+const mensagensDiscordTs = ler('src/discord/mensagens.ts')
+check(/router\.post\('\/', requireAuth, requireArea\('mensagens', 'editar'\), mensagemDiscordLimiter, validateBody\(mensagemDiscordSchema\)/.test(mensagensTs)
+  && /router\.get\('\/canais', requireAuth, requireArea\('mensagens', 'ver'\)/.test(mensagensTs),
+  'enviar mensagem exige login, área mensagens, limitador e Zod', 'rota de mensagem sem requireAuth/requireArea/limitador/Zod')
+check(/canalDeTextoValido\(canalId\)/.test(mensagensTs),
+  'mensagem só em canal de texto do próprio servidor', 'mensagem aceita qualquer ID de canal')
+check(/allowed_mentions: \{ parse: \[\] \}/.test(mensagensDiscordTs) && !/parse: \['everyone'|parse: \["everyone"/.test(mensagensDiscordTs),
+  'mensagens do bot nunca notificam @everyone/cargos', 'mensagem do bot pode notificar @everyone/cargos')
+check(/\.map\(\(\{ id, titulo, mensagem, autor, criadoEm \}\)/.test(ler('src/routes/avisos.ts')),
+  'avisos listados campo a campo (sem IDs do Discord)', 'avisos saem crus (com IDs do Discord)')
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

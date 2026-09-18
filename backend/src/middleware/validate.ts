@@ -253,6 +253,7 @@ export const canaisSchema = z.object({
   apreensoes: snowflake.nullable().optional(),
   carteira:   snowflake.nullable().optional(),
   rankingApreensoes: snowflake.nullable().optional(),
+  avisos:     snowflake.nullable().optional(),
 } satisfies Record<keyof CanaisDiscord, ZodSchema>)
 
 /** Postagem da carteirinha: tópico de destino + PNG gerado no navegador. */
@@ -317,6 +318,13 @@ export const recusarSchema = z.object({
 })
 
 export const nivelInicialSchema = z.object({ nivel: nivelSchema })
+
+// Enviar mensagem pelo bot: canal de texto + título opcional + texto (Components V2)
+export const mensagemDiscordSchema = z.object({
+  canalId:  snowflake,
+  titulo:   safeStrOpt(100).optional(),
+  mensagem: safeStr(1, 3500),
+}).strict()
 
 // Foto do Gerar anúncio (até 3 MB decodificados; os bytes são conferidos na rota)
 export const anuncioImagemSchema = z.object({

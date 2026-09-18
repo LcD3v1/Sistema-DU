@@ -37,6 +37,7 @@ const CANAIS_CFG: Record<keyof CanaisDiscord, { rotulo: string; tipos?: number[]
   apreensoes: { rotulo: 'Apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio, não fórum' },
   carteira:   { rotulo: 'Carteira',   tipos: [GUILD_FORUM, GUILD_MEDIA],       exigencia: 'fórum ou mídia' },
   rankingApreensoes: { rotulo: 'Ranking de apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio' },
+  avisos:     { rotulo: 'Avisos',     tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio' },
 }
 type ChaveCanal = keyof typeof CANAIS_CFG
 const CHAVES_CANAIS = Object.keys(CANAIS_CFG) as ChaveCanal[]

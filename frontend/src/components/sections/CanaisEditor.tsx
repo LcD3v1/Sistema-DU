@@ -9,6 +9,7 @@ const MODULOS: { chave: CanalChave; titulo: string; descricao: string; tipos?: n
   { chave: 'apreensoes', titulo: 'Apreensões', descricao: 'Cada apreensão aprovada vira uma mensagem direta no canal configurado.', tipos: [0, 5] },
   { chave: 'carteira',   titulo: 'Carteira',   descricao: 'Fórum onde as carteirinhas são postadas. Na tela de gerar carteira você escolhe o tópico de destino a cada envio.', tipos: [15, 16] },
   { chave: 'rankingApreensoes', titulo: 'Ranking de apreensões', descricao: 'O painel se atualiza a cada apreensão aprovada. Atualizar manualmente exige editar em Aprovações. Zerar exige cargo administrador ou a permissão Zerar rankings.', tipos: [0, 5] },
+  { chave: 'avisos', titulo: 'Avisos', descricao: 'Todo aviso publicado no painel também é postado pelo bot neste canal, no painel da FAST. Apagar o aviso apaga a mensagem.', tipos: [0, 5] },
 ]
 
 const TIPO_CANAL: Record<number, string> = {

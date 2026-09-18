@@ -32,6 +32,7 @@ import avisosRoutes from './routes/avisos'
 import fardamentosRoutes from './routes/fardamentos'
 import carteiraRoutes from './routes/carteira'
 import notificacoesRoutes from './routes/notificacoes'
+import mensagensRoutes from './routes/mensagens'
 import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPublica } from './routes/anuncioImagem'
 
 const app = express()
@@ -101,6 +102,7 @@ app.use('/api/fardamentos', fardamentosRoutes)
 app.use('/api/carteira', carteiraRoutes)
 app.use('/api/notificacoes', notificacoesRoutes)
 app.use('/api/anuncio', anuncioImagemUpload)
+app.use('/api/mensagens', mensagensRoutes)
 
 // Link público das fotos do Gerar anúncio (o jogo abre sem login; limite: globalLimiter)
 app.use('/img', anuncioImagemPublica)

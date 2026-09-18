@@ -123,6 +123,8 @@ export interface Aviso {
   mensagem: string
   autor: string
   criadoEm: string
+  /** Cópia postada pelo bot no canal de avisos (para apagar junto). */
+  discord?: { canalId: string; mensagemId: string }
 }
 
 export interface Fardamento {
@@ -225,6 +227,7 @@ export interface CanaisDiscord {
   apreensoes?: string   // ID do canal Fórum de apreensões
   carteira?: string     // ID do canal Fórum onde as carteirinhas são postadas
   rankingApreensoes?: string  // canal do painel de ranking de apreensões
+  avisos?: string       // canal de texto onde todo aviso publicado é repostado pelo bot
 }
 
 /**

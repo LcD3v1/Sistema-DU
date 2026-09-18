@@ -18,6 +18,7 @@ export const PERM_AREAS = [
   { id: 'boletim',       label: 'Gerar Boletim' },
   { id: 'protocolo',     label: 'Protocolo' },
   { id: 'carteira',      label: 'Gerar Carteira' },
+  { id: 'mensagens',     label: 'Enviar mensagem (Discord)' },
   { id: 'configuracoes', label: 'Configurações' },
 ] as const
 

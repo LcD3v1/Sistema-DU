@@ -3,7 +3,7 @@ import {
   LayoutGrid, FilePlus2, ClipboardCheck, History,
   Users, Trophy, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
-  Settings, ArrowUpRight, Code2, Bell, X,
+  Settings, ArrowUpRight, Code2, Bell, X, Send,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAcoes } from '@/hooks/useAcoes'
@@ -63,6 +63,7 @@ const GROUPS: NavGroup[] = [
       { to: '/boletim',  icon: ScrollText,    label: 'Gerar boletim',    minNivel: 'membro', area: 'boletim' },
       { to: '/protocolo', icon: BookOpen,     label: 'Protocolo',        minNivel: 'membro', viewOnly: true, area: 'protocolo' },
       { to: '/carteira',  icon: CreditCard,   label: 'Gerar carteira',   minNivel: 'membro', area: 'carteira' },
+      { to: '/mensagens', icon: Send,         label: 'Enviar mensagem',  minNivel: 'membro', area: 'mensagens' },
       { to: '/cursos',   icon: GraduationCap, label: 'Cursos Internos',  minNivel: 'membro', external: true },
     ],
   },

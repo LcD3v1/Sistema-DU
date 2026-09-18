@@ -167,7 +167,7 @@ export function useUpdateRecCfg() {
   })
 }
 
-export type CanalChave = 'registro' | 'apreensoes' | 'carteira' | 'rankingApreensoes'
+export type CanalChave = 'registro' | 'apreensoes' | 'carteira' | 'rankingApreensoes' | 'avisos'
 export interface CanaisConfig {
   botConfigurado: boolean
   erro?: string

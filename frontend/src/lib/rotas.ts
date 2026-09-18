@@ -29,6 +29,7 @@ const carregadores = {
   '/boletim': () => import('@/components/sections/GerarBoletimPage'),
   '/protocolo': () => import('@/components/sections/ProtocoloPage'),
   '/carteira': () => import('@/components/sections/GerarCarteiraPage'),
+  '/mensagens': () => import('@/components/sections/EnviarMensagemPage'),
   '/cursos': () => import('@/components/sections/EmBreve'),
   '/recrutamento': () => import('@/components/sections/RecrutamentoPage'),
   '/recrutamento/:id': () => import('@/components/sections/RecrutaCandidatoPage'),

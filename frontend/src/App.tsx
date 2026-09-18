@@ -35,6 +35,7 @@ const GerarAnuncioPage = paginaLazy('/anuncio')
 const GerarBoletimPage = paginaLazy('/boletim')
 const ProtocoloPage = paginaLazy('/protocolo')
 const GerarCarteiraPage = paginaLazy('/carteira')
+const EnviarMensagemPage = paginaLazy('/mensagens')
 const EmBreve = paginaLazy('/cursos')
 const RecrutamentoPage = paginaLazy('/recrutamento')
 const RecrutaCandidatoPage = paginaLazy('/recrutamento/:id')
@@ -147,6 +148,9 @@ export default function App() {
             } />
             <Route path="carteira" element={
               <ProtectedRoute area="carteira"><GerarCarteiraPage /></ProtectedRoute>
+            } />
+            <Route path="mensagens" element={
+              <ProtectedRoute area="mensagens"><EnviarMensagemPage /></ProtectedRoute>
             } />
             <Route path="cursos" element={
               <ProtectedRoute><EmBreve /></ProtectedRoute>

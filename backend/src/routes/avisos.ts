@@ -7,6 +7,23 @@ import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Aviso } from '../types'
 import { notificar, notificarArea } from '../notificacoes'
+import { botConfigurado, emSegundoPlano } from '../discord/forum'
+import { enviarPainel, apagarMensagem } from '../discord/mensagens'
+import { autorDiscord } from './mensagens'
+
+/** Reposta o aviso no canal de avisos do Discord (se configurado) e guarda o ID para apagar junto. */
+function postarAvisoNoDiscord(aviso: Aviso, autor: string): void {
+  const canalId = readData().canais?.avisos
+  if (!canalId || !botConfigurado()) return
+  emSegundoPlano('aviso no Discord', async () => {
+    const mensagemId = await enviarPainel(canalId, { titulo: aviso.titulo, mensagem: aviso.mensagem, rotulo: 'Aviso da unidade', autor })
+    const data = readData()
+    const salvo = data.avisos.find(a => a.id === aviso.id)
+    if (!salvo) { await apagarMensagem(canalId, mensagemId); return }   // apagado enquanto postava
+    salvo.discord = { canalId, mensagemId }
+    writeData(data)
+  })
+}
 
 const router = Router()
 
@@ -16,7 +33,9 @@ router.get('/', requireAuth, (req: Request, res: Response): void => {
   const conta = data.contas.find(c => c.id === req.user!.contaId)
   if (!conta || !canArea(conta, data, 'avisos', 'ver')) { res.json({ avisos: [], naoVistos: 0 }); return }
   const lastSeen = conta.avisoLastSeen ?? 0
+  // Campo a campo: o vínculo com a mensagem do Discord (IDs internos) não sai daqui
   const avisos = [...data.avisos].sort((a, b) => b.id - a.id)
+    .map(({ id, titulo, mensagem, autor, criadoEm }) => ({ id, titulo, mensagem, autor, criadoEm }))
   const naoVistos = avisos.filter(a => a.id > lastSeen).length
   res.json({ avisos, naoVistos })
 })
@@ -39,6 +58,7 @@ router.post('/', requireAuth, requireArea('avisos', 'editar'), validateBody(avis
   notificar(data, req.user!.contaId, 'aviso', 'Aviso publicado', `Seu aviso "${titulo}" foi publicado para a unidade.`, '/avisos')
   writeData(data)
   audit('AVISO_CREATED', req, `${titulo}`)
+  postarAvisoNoDiscord(novo, autorDiscord(data, req.user!.contaId, novo.autor))
   res.status(201).json(novo)
 })
 
@@ -60,9 +80,13 @@ router.delete('/:id', requireAuth, requireArea('avisos', 'editar'), (req: Reques
   const data = readData()
   const idx = data.avisos.findIndex(a => a.id === id)
   if (idx === -1) { res.status(404).json({ error: 'Aviso não encontrado' }); return }
-  data.avisos.splice(idx, 1)
+  const [removido] = data.avisos.splice(idx, 1)
   writeData(data)
   audit('AVISO_DELETED', req, `ID: ${id}`)
+  if (removido.discord && botConfigurado()) {
+    const { canalId, mensagemId } = removido.discord
+    emSegundoPlano('apagar aviso no Discord', () => apagarMensagem(canalId, mensagemId))
+  }
   res.json({ ok: true })
 })
 
