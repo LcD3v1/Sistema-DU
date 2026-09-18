@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import {
   Shield, Trophy, Target, Crosshair, CalendarDays, BadgeCheck, Link2, UserCog, Award, Percent,
-  Camera, Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle, Gauge, Send,
+  Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle, Gauge, Send,
 } from 'lucide-react'
-import { useMe, useLinkMembro, useSetAvatar, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil, useSolicitarNivel } from '@/hooks/useMe'
+import { useMe, useLinkMembro, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil, useSolicitarNivel } from '@/hooks/useMe'
 import { ROTULO_CAMPO } from '@/lib/perfil'
 import { useMembros } from '@/hooks/useMembros'
 import { useDirectoryQuery } from '@/modules/ranking/queries'
@@ -12,10 +12,12 @@ import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { resolveBanner, unlockedTiers, PRESET_BANNERS, TIER_BANNERS } from '@/lib/banners'
 import type { Membro } from '@/types'
+import PersonalizarPerfil from '@/components/perfil/PersonalizarPerfil'
+import MinhasQrus from '@/components/perfil/MinhasQrus'
+import LinksPerfil from '@/components/perfil/LinksPerfil'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
-function linkImagemValido(s: string) { try { const u = new URL(s); return (u.protocol === 'https:' || u.protocol === 'http:') && s.length <= 2048 } catch { return false } }
 function fileToDataUrl(file: File, cb: (s: string) => void) { const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(file) }
 
 function Stat({ icon: Icon, label, value, color = '#3a72c4' }: { icon: typeof Trophy; label: string; value: string | number; color?: string }) {
@@ -35,7 +37,6 @@ export default function ProfilePage() {
   const { data: membros, isLoading: lm } = useMembros()
   const { data: rankingMember, isLoading: la } = useDirectoryQuery<RankingMember | null>('/me', { period: 'all', search: '', role: '', page: 1 }, false, !!me?.membroId && (me.admin || !!me.cargoPermId))
   const link = useLinkMembro()
-  const setAvatar = useSetAvatar()
   const setBanner = useSetBanner()
   const updateMeuMembro = useUpdateMeuMembro()
   const { data: minhaSolicitacao } = useMinhaSolicitacaoPerfil()
@@ -43,13 +44,10 @@ export default function ProfilePage() {
   const { addToast } = useUIStore()
   const [sel, setSel] = useState('')
   const [pickBanner, setPickBanner] = useState(false)
-  const [linkFoto, setLinkFoto] = useState('')
-  const [linkBanner, setLinkBanner] = useState('')
   const [editMembro, setEditMembro] = useState(false)
   const [editNivel, setEditNivel] = useState(false)
   const [novoNivel, setNovoNivel] = useState('')
   const [form, setForm] = useState({ nivel: '', policial: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
-  const avatarInput = useRef<HTMLInputElement>(null)
   const bannerInput = useRef<HTMLInputElement>(null)
 
   const membrosList: Membro[] = membros ?? []
@@ -68,25 +66,10 @@ export default function ProfilePage() {
   const banner = resolveBanner(me.banner, rankPos)
   const tiers = unlockedTiers(rankPos)
 
-  function onAvatar(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f) return
-    if (f.size > 2_000_000) { addToast('error', 'Imagem muito grande (máx 2MB).'); return }
-    fileToDataUrl(f, url => setAvatar.mutate(url, { onSuccess: () => addToast('success', 'Foto atualizada!') }))
-  }
   function onBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return
     if (f.size > 3_000_000) { addToast('error', 'Imagem muito grande (máx 3MB).'); return }
     fileToDataUrl(f, url => setBanner.mutate(url, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }))
-  }
-  function usarLinkFoto() {
-    const url = linkFoto.trim()
-    if (!linkImagemValido(url)) { addToast('error', 'Cole um link de imagem válido (http/https).'); return }
-    setAvatar.mutate(url, { onSuccess: () => { addToast('success', 'Foto atualizada!'); setLinkFoto('') } })
-  }
-  function usarLinkBanner() {
-    const url = linkBanner.trim()
-    if (!linkImagemValido(url)) { addToast('error', 'Cole um link de imagem válido (http/https).'); return }
-    setBanner.mutate(url, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setLinkBanner(''); setPickBanner(false) } })
   }
   function escolherBanner(key: string) { setBanner.mutate(key, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }) }
   function vincular() { if (sel) link.mutate(Number(sel), { onSuccess: () => { addToast('success', 'Perfil vinculado!'); setSel('') } }) }
@@ -156,26 +139,16 @@ export default function ProfilePage() {
             <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center text-2xl font-bold text-white backdrop-blur">
               {me.avatarAtual ? <img src={me.avatarAtual} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : initials(nome)}
             </div>
-            <button onClick={() => avatarInput.current?.click()}
-              className="absolute inset-0 rounded-2xl bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-              <Camera size={22} />
-            </button>
-            <input ref={avatarInput} type="file" accept="image/*" onChange={onAvatar} className="hidden" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">{nome}</h1>
-            <div className="flex items-center gap-1.5 mt-2 max-w-xs">
-              <input value={linkFoto} onChange={e => setLinkFoto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') usarLinkFoto() }}
-                placeholder="Link da foto (http/https)" aria-label="Link da foto de perfil"
-                className="flex-1 min-w-0 bg-black/40 border border-white/15 rounded-lg px-2.5 py-1 text-xs text-white placeholder:text-white/50" />
-              <button onClick={usarLinkFoto} title="Usar link como foto" className="px-2 py-1 rounded-lg bg-black/50 border border-white/15 text-white/80 hover:text-white text-xs flex items-center gap-1"><Link2 size={12} /> Usar</button>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">{nome}{me.emojisPerfil?.length ? <span className="ml-2" aria-hidden="true">{me.emojisPerfil.join(' ')}</span> : null}</h1>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-blue border-blue/40 bg-blue/10'}`}>{me.admin ? 'Administrador' : 'Membro'}</span>
               {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}
               {me.nivelMembro !== null && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono flex items-center gap-1"><Gauge size={11} /> Nv. {me.nivelMembro}</span>}
               {rankPos && <span className="px-2.5 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold3 text-[11px] font-mono flex items-center gap-1"><Trophy size={11} /> {rankPos}º no ranking</span>}
             </div>
+            <LinksPerfil links={me.links ?? []} className="mt-3" />
           </div>
         </div>
       </div>
@@ -229,12 +202,7 @@ export default function ProfilePage() {
 
           <div className="flex gap-2">
             <button onClick={() => bannerInput.current?.click()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-bdr2 text-txt2 text-xs hover:text-txt hover:border-gold/40 transition-colors">
-              <Upload size={14} /> Enviar imagem própria
-            </button>
-            <input value={linkBanner} onChange={e => setLinkBanner(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') usarLinkBanner() }}
-              placeholder="ou cole o link da imagem" className="input-gold flex-1 min-w-0 bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-xs text-txt" />
-            <button onClick={usarLinkBanner} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-gold/40 transition-colors">
-              <Link2 size={14} /> Usar link
+              <Upload size={14} /> Enviar imagem do computador
             </button>
             {me.banner && <button onClick={() => setBanner.mutate(null, { onSuccess: () => addToast('success', 'Banner redefinido.') })} className="px-3 py-2 rounded-lg text-txt3 hover:text-red text-xs transition-colors">Redefinir</button>}
             <input ref={bannerInput} type="file" accept="image/*" onChange={onBannerUpload} className="hidden" />
@@ -364,6 +332,8 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
+          <PersonalizarPerfil me={me} onAbrirFundo={() => { setPickBanner(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
         </div>
 
         {/* Desempenho */}
@@ -404,6 +374,7 @@ export default function ProfilePage() {
               <p className="text-txt2 text-sm">Vincule seu perfil de membro para ver seu desempenho.</p>
             </div>
           )}
+          {membro && <MinhasQrus ativo={!!me.membroId} />}
         </div>
       </div>
     </div>

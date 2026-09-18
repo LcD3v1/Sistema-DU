@@ -3,6 +3,9 @@ import { readData, rankingPersistenceReady, dataRevision } from '../data'
 import { snapshot } from '../modules/ranking/router'
 import { configuredScope, belongsToScope } from '../modules/ranking/scope'
 import { calcularRanking } from '../discord/painelApreensoes'
+import { contaDoMembro } from '../efetivo'
+import { imagemValida, ehLinkImagem } from '../security/imagem'
+import { ehLinkPerfil, ehEmoji } from '../security/perfil'
 
 const router = Router()
 // Compatibility for existing widgets. New clients use the paginated /public/directory API.
@@ -67,15 +70,25 @@ router.get('/perfil/:slug', (req, res) => {
       && a.participants.some(p => p.memberId === row.id) && a.data.slice(0, 10) <= hoje)
     .sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id)
   const contar = (dias: number) => minhas.filter(a => a.data.slice(0, 10) >= desde(dias)).length
+  // Personalização escolhida pelo próprio membro (lista branca, revalidada na saída)
+  const conta = contaDoMembro(data, row.id)
+  const banner = conta?.banner && (imagemValida(conta.banner) || /^[\w.-]{1,40}$/.test(conta.banner)) ? conta.banner : null
 
   res.json({
     slug: row.slug, nome: row.name, avatar: row.avatar, badge: row.badge, nivel: row.level,
     cargo: row.hierarchy.replace(/^\(FAST\)\s*/i, ''), patente: row.role, membroDesde: row.joinedAt, status: row.status,
     apreensoes: { d7: contar(7), d15: contar(15), d30: contar(30), total: minhas.length },
-    ultimasApreensoes: minhas.slice(0, 10).map(a => ({
-      id: a.id, data: a.data.slice(0, 10), tipo: a.qru, local: '', resultado: a.resultado ?? 'Convencional', imagem: null,
+    // QRUs aprovadas: só nome, data, resultado e a foto do boletim (sem local/participantes)
+    ultimasApreensoes: minhas.slice(0, 60).map(a => ({
+      id: a.id, data: a.data.slice(0, 10), tipo: a.qru, local: '', resultado: a.resultado ?? 'Convencional',
+      imagem: a.imagem && ehLinkImagem(a.imagem) ? a.imagem : null,
     })),
-    historicoCargos: [...(membro?.historicoCargos ?? [])].reverse().slice(0, 20)
+    posicao: row.rank ?? null,
+    banner,
+    links: (conta?.links ?? []).filter(l => ehLinkPerfil(l.url)).map(l => ({ rotulo: l.rotulo, url: l.url, emoji: l.emoji && ehEmoji(l.emoji) ? l.emoji : null })),
+    emojis: (conta?.emojisPerfil ?? []).filter(ehEmoji),
+    // Só promoções aparecem no perfil público (rebaixamentos ficam de fora)
+    historicoCargos: [...(membro?.historicoCargos ?? [])].filter(h => h.tipo === 'promocao').reverse().slice(0, 20)
       .map(({ data, tipo, de, para }) => ({ data, tipo, de, para })),
   })
 })

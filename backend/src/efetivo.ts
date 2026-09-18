@@ -111,6 +111,20 @@ export function exonerarMembro(data: FastData, membro: Membro, por: string, moti
     conta.ativo = false
     delete conta.cargoPermId
     delete conta.membroId
+    // O perfil personalizado some junto: fundo, links e emojis são apagados (a ficha
+    // do membro continua arquivada acima). Ao ser readmitido, ele recomeça do zero.
+    delete conta.banner
+    delete conta.links
+    delete conta.emojisPerfil
+  }
+  // Nenhuma solicitação de perfil/nível fica pendente para quem foi exonerado
+  for (const sp of data.solicitacoesPerfil) {
+    if (sp.membroId === membro.id && sp.status === 'pendente') {
+      sp.status = 'recusada'
+      sp.decididoPor = por
+      sp.decididoEm = new Date().toISOString()
+      sp.motivoRecusa = 'Membro exonerado'
+    }
   }
   const snapshot = structuredClone(data)
   emSegundoPlano('exoneração', () => postarExoneracao(snapshot, membro, por, motivo))

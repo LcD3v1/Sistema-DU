@@ -17,12 +17,29 @@ export interface Me {
   nivelMembro: number | null
   avatar: string | null
   banner: string | null
+  links: LinkPerfil[]
+  emojisPerfil: string[]
   onboarded: boolean
   cargoPermId: number | null
   admin: boolean
   dev: boolean
   permissoes: PermMap | null
   termos?: { atual: string; aceita: string | null }
+}
+
+export interface LinkPerfil { rotulo: string; url: string; emoji?: string }
+
+export interface MinhaQru {
+  id: number
+  data: string
+  qru: string
+  tipo: 'convencional' | 'fechado'
+  resultado: string | null
+  local: string
+  comandante: string
+  imagem: string | null
+  status: 'pendente' | 'aprovada'
+  participantes: { nome: string; patente: string; externo?: boolean }[]
 }
 
 export function useMe() {
@@ -123,5 +140,22 @@ export function useInformarNivel() {
       queryClient.invalidateQueries({ queryKey: ['me'] })
       queryClient.invalidateQueries({ queryKey: ['membros'] })
     },
+  })
+}
+
+/** Links e emojis do próprio perfil (aparecem também no perfil público). */
+export function useSetPersonalizacao() {
+  return useMutation({
+    mutationFn: (body: { links: LinkPerfil[]; emojis: string[] }) => api.put('/auth/me/personalizacao', body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+  })
+}
+
+/** QRUs em que o próprio membro participou, com o boletim. */
+export function useMinhasQrus(enabled: boolean) {
+  return useQuery<MinhaQru[]>({
+    queryKey: ['me', 'qrus'],
+    queryFn: async () => (await api.get<MinhaQru[]>('/auth/me/qrus')).data,
+    enabled,
   })
 }

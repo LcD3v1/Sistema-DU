@@ -2,6 +2,7 @@ import { z, ZodSchema } from 'zod'
 import { Request, Response, NextFunction } from 'express'
 import type { CanaisDiscord } from '../types'
 import { imagemValida, ehImagemEnviada, ehLinkImagem, MAX_URL_IMAGEM } from '../security/imagem'
+import { ehEmoji, ehLinkPerfil, MAX_LINKS_PERFIL, MAX_EMOJIS_PERFIL, MAX_URL_LINK } from '../security/perfil'
 
 export function validateBody<T>(schema: ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -334,6 +335,18 @@ export const recusarSchema = z.object({
 })
 
 export const nivelInicialSchema = z.object({ nivel: nivelSchema })
+
+// Personalização do perfil (dados públicos): links http/https e emojis de verdade
+const emojiSchema = z.string().max(32).refine(ehEmoji, 'Emoji inválido')
+export const personalizacaoSchema = z.object({
+  links: z.array(z.object({
+    rotulo: z.string().max(30).transform(s => s.replace(/[\u0000-\u001f\u007f]/g, '').trim())
+      .refine(s => s.length > 0, 'Dê um nome ao link'),
+    url: z.string().max(MAX_URL_LINK).transform(s => s.trim()).refine(ehLinkPerfil, 'Link inválido (use http:// ou https://)'),
+    emoji: emojiSchema.optional(),
+  }).strict()).max(MAX_LINKS_PERFIL, `No máximo ${MAX_LINKS_PERFIL} links`),
+  emojis: z.array(emojiSchema).max(MAX_EMOJIS_PERFIL, `No máximo ${MAX_EMOJIS_PERFIL} emojis`),
+}).strict()
 
 // Enviar mensagem pelo bot: canal de texto + título opcional + texto (Components V2)
 export const mensagemDiscordSchema = z.object({

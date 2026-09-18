@@ -155,6 +155,21 @@ check(/router\.post\('\/me\/nivel\/solicitar', requireAuth, validateBody\(nivelI
   'pedido de nível exige login + Zod', 'pedido de nível sem requireAuth/validateBody')
 check(/router\.put\('\/solicitacoes-perfil\/:id\/aprovar', requireAuth, requireArea\('membros', 'editar'\)/.test(ler('src/routes/membros.ts')),
   'aprovar alteração de perfil/nível exige editar membros', 'aprovação de perfil/nível sem requireArea editar')
+check(/router\.put\('\/me\/personalizacao', requireAuth, validateBody\(personalizacaoSchema\)/.test(authRoutes),
+  'personalização do perfil exige login + Zod', 'personalização do perfil sem requireAuth/validateBody')
+check(/router\.get\('\/me\/qrus', requireAuth/.test(authRoutes) && /some\(p => p\.memberId === membroId\)/.test(authRoutes),
+  'QRUs do perfil: só login e só as do próprio membro', 'QRUs do perfil sem requireAuth ou sem filtro do próprio membro')
+{
+  const perfilSec = ler('src/security/perfil.ts')
+  check(/url\.protocol === 'https:' \|\| url\.protocol === 'http:'/.test(perfilSec) && /!url\.username && !url\.password/.test(perfilSec),
+    'links do perfil só http/https e sem credenciais', 'links do perfil aceitam outros protocolos/credenciais')
+  const pub = ler('src/routes/public.ts')
+  check(/filter\(h => h\.tipo === 'promocao'\)/.test(pub), 'perfil público mostra só promoções', 'perfil público expõe rebaixamentos')
+  check(/delete conta\.banner[\s\S]*delete conta\.links[\s\S]*delete conta\.emojisPerfil/.test(ler('src/efetivo.ts')),
+    'exoneração apaga o perfil personalizado', 'exoneração mantém fundo/links/emojis')
+  check(/filter\(l => ehLinkPerfil\(l\.url\)\)/.test(pub) && /filter\(ehEmoji\)/.test(pub),
+    'perfil público revalida links/emojis na saída', 'perfil público devolve links/emojis sem revalidar')
+}
 check(/router\.post\('\/restore',[^\n]*criticalLimiter/.test(ler('src/routes/config.ts')), 'criticalLimiter no restore', 'restore sem criticalLimiter')
 check(ler('src/middleware/rateLimiter.ts').includes('registrarInfracao'), 'rate limit alimenta o firewall', 'rate limit não pontua no firewall')
 

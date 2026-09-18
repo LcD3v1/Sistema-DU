@@ -91,6 +91,8 @@ export interface Conta {
   membroId?: number
   avatar?: string
   banner?: string
+  links?: LinkPerfil[]       // links personalizados do perfil (TikTok, Instagram, Twitch…) — públicos
+  emojisPerfil?: string[]    // emojis de destaque ao lado do nome — públicos
   onboarded?: boolean
   cargoPermId?: number
   nomeServidor?: string      // apelido no servidor do Discord da unidade
@@ -101,6 +103,12 @@ export interface Conta {
   exoneradoEm?: string
   exoneradoMotivo?: string
   termosAceitos?: { versao: string; em: string }  // última versão dos termos aceita (ISO)
+}
+
+export interface LinkPerfil {
+  rotulo: string
+  url: string        // só http/https (security/perfil.ts)
+  emoji?: string
 }
 
 export interface PermArea {

@@ -22,6 +22,13 @@
 .perfil-desde { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 0; }
 .perfil-desde span { color: #c3c3c7; font: 650 9px/1.5 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
 .perfil-desde strong { color: #fff; font: 700 13px/1.5 var(--mono); }
+.perfil-banner-fundo, .perfil-banner-fundo > * { position: absolute; inset: 0; }
+.perfil-banner-fundo img { width: 100%; height: 100%; object-fit: cover; }
+.perfil-banner-escurecer { background: linear-gradient(180deg, rgba(5, 5, 7, .55) 0%, rgba(5, 5, 7, .35) 45%, rgba(0, 0, 0, .8) 100%); }
+.perfil-banner > .perfil-voltar, .perfil-banner > .perfil-hero { z-index: 1; }
+.perfil-hero { position: relative; }
+.perfil-emojis { margin-left: 10px; font-size: .8em; }
+.perfil-links { margin-top: 12px; }
 .perfil-banner-borda { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 42px; }
 .perfil-banner-borda path { fill: #000; }
 
@@ -70,3 +77,13 @@
   .perfil-linha { grid-template-columns: 70px minmax(0, 1fr); }
   .perfil-linha-status { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* ── QRUs (miniatura + nome; o clique abre o boletim) ───────── */
+.perfil-qrus { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.perfil-qru { display: grid; grid-template-rows: 96px auto auto; overflow: hidden; border: 1px solid rgba(255, 255, 255, .1); background: #0b0b0d; text-align: left; cursor: pointer; transition: border-color 160ms, transform 160ms; }
+.perfil-qru:hover, .perfil-qru:focus-visible { border-color: rgba(58, 114, 196, .7); transform: translateY(-2px); }
+.perfil-qru-foto { width: 100%; height: 96px; object-fit: cover; }
+.perfil-qru-semfoto { display: grid; place-items: center; height: 96px; background: #111114; color: rgba(246, 246, 247, .35); font: 650 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.perfil-qru-nome { padding: 8px 10px 2px; color: #fff; font: 600 13px/1.3 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.perfil-qru-rodape { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 10px 10px; color: rgba(246, 246, 247, .5); font: 600 10px/1 var(--mono); }
+@media (prefers-reduced-motion: reduce) { .perfil-qru { transition: none; } .perfil-qru:hover { transform: none; } }

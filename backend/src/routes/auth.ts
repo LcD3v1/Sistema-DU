@@ -7,9 +7,9 @@ import { iguaisSeguro } from '../security/crypto'
 import { requireAuth } from '../middleware/auth'
 import { adminOnly } from '../middleware/roles'
 import { loginLimiter, trocaLoginLimiter, sessaoLimiter } from '../middleware/rateLimiter'
-import { validateBody, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema } from '../middleware/validate'
+import { validateBody, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
 import { TERMOS_VERSAO } from '../termos'
-import { Membro, Conta, FastData } from '../types'
+import { Membro, Conta, FastData, LinkPerfil } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -20,7 +20,7 @@ import { verificarBotNoServidor } from '../discord/acessoServidor'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
-import { imagemValida } from '../security/imagem'
+import { imagemValida, ehLinkImagem } from '../security/imagem'
 import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, dispensaServidor, garantirAcessoDono } from '../access'
 
 const router = Router()
@@ -312,6 +312,8 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     avatarAtual: avatarAtual(conta),
     nivelMembro: nivelDoMembro(conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined),
     banner: conta.banner ?? null,
+    links: conta.links ?? [],
+    emojisPerfil: conta.emojisPerfil ?? [],
     onboarded: conta.onboarded !== false,
     cargoPermId: conta.cargoPermId ?? null,
     admin: isAdmin(conta, data),
@@ -541,6 +543,51 @@ router.put('/me/banner', requireAuth, (req: Request, res: Response): void => {
   if (banner === null) delete conta.banner; else conta.banner = banner
   writeData(data)
   res.json({ ok: true })
+})
+
+// PUT /api/auth/me/personalizacao — links e emojis do próprio perfil (dados públicos)
+router.put('/me/personalizacao', requireAuth, validateBody(personalizacaoSchema), (req: Request, res: Response): void => {
+  const { links, emojis } = req.body as { links: LinkPerfil[]; emojis: string[] }
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  conta.links = links.map(l => ({ rotulo: l.rotulo, url: l.url, ...(l.emoji ? { emoji: l.emoji } : {}) }))
+  conta.emojisPerfil = [...emojis]
+  if (!conta.links.length) delete conta.links
+  if (!conta.emojisPerfil.length) delete conta.emojisPerfil
+  writeData(data)
+  audit('PROFILE_SELF_EDITED', req, `personalização: ${links.length} link(s), ${emojis.length} emoji(s)`)
+  res.json({ ok: true, links: conta.links ?? [], emojisPerfil: conta.emojisPerfil ?? [] })
+})
+
+// GET /api/auth/me/qrus — QRUs em que o próprio membro participou (com o boletim).
+// Só as dele; campos filtrados (sem IDs do Discord, sem discordId de participantes).
+router.get('/me/qrus', requireAuth, (req: Request, res: Response): void => {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  const membroId = conta?.membroId
+  if (!membroId) { res.json([]); return }
+  const nomes = new Map(data.membros.map(m => [m.id, m.policial]))
+  const lista = data.acoes
+    .filter(a => Array.isArray(a.participants) && a.participants.some(p => p.memberId === membroId))
+    .sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id)
+    .slice(0, 300)
+    .map(a => ({
+      id: a.id,
+      data: a.data.slice(0, 10),
+      qru: a.qru,
+      tipo: a.tipo ?? 'fechado',   // registro antigo sem tipo = fechado
+      resultado: a.resultado ?? null,
+      local: a.local ?? '',
+      comandante: a.comandante ?? '',
+      imagem: a.imagem && ehLinkImagem(a.imagem) ? a.imagem : null,
+      status: a.status ?? 'aprovada',
+      participantes: [
+        ...a.participants.map(p => ({ nome: nomes.get(p.memberId) ?? 'Ex-membro', patente: p.patenteUnidade ?? '' })),
+        ...(a.participantesExtras ?? []).map(e => ({ nome: e.nome, patente: e.patente ?? '', externo: true })),
+      ],
+    }))
+  res.json(lista)
 })
 
 // PUT /api/auth/me/membro — vincula (ou desvincula) o perfil de membro à conta
