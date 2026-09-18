@@ -23,7 +23,6 @@ const carregadores = {
   '/ranking': () => import('@/components/sections/RankingPage'),
   '/ausencias/nova': () => import('@/components/sections/RegistrarAusenciaPage'),
   '/ausencias': () => import('@/components/sections/AusenciasPage'),
-  '/promocoes': () => import('@/components/sections/PromocoesPage'),
   '/fardamento': () => import('@/components/sections/FardamentoPage'),
   '/anuncio': () => import('@/components/sections/GerarAnuncioPage'),
   '/boletim': () => import('@/components/sections/GerarBoletimPage'),

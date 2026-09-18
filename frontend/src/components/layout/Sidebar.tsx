@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom'
 import {
   LayoutGrid, FilePlus2, ClipboardCheck, History,
-  Users, Trophy, CalendarPlus, CalendarDays, ArrowUpNarrowWide, UserPlus,
+  Users, Trophy, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
   Settings, ArrowUpRight, Code2, Bell, X,
 } from 'lucide-react'
@@ -52,7 +52,6 @@ const GROUPS: NavGroup[] = [
       { to: '/ranking',        icon: Trophy,            label: 'Ranking',            minNivel: 'membro', viewOnly: true, area: 'ranking' },
       { to: '/ausencias/nova', icon: CalendarPlus,      label: 'Registrar Ausência', minNivel: 'membro', area: 'ausencias' },
       { to: '/ausencias',      icon: CalendarDays,      label: 'Ausências',          minNivel: 'membro', area: 'ausencias' },
-      { to: '/promocoes',      icon: ArrowUpNarrowWide, label: 'Promoções',          minNivel: 'moderador', area: 'promocoes' },
       { to: '/fardamento',     icon: Shirt,             label: 'Fardamento',         minNivel: 'membro', area: 'fardamento' },
       { to: '/recrutamento',   icon: UserPlus,          label: 'Recrutamento',       minNivel: 'membro', external: true, area: 'recrutamento' },
     ],

@@ -29,7 +29,6 @@ const EstatisticasPage = paginaLazy('/estatisticas')
 const RankingPage = paginaLazy('/ranking')
 const RegistrarAusenciaPage = paginaLazy('/ausencias/nova')
 const AusenciasPage = paginaLazy('/ausencias')
-const PromocoesPage = paginaLazy('/promocoes')
 const FardamentoPage = paginaLazy('/fardamento')
 const GerarAnuncioPage = paginaLazy('/anuncio')
 const GerarBoletimPage = paginaLazy('/boletim')
@@ -131,9 +130,6 @@ export default function App() {
             } />
             <Route path="ausencias" element={
               <ProtectedRoute area="ausencias"><AusenciasPage /></ProtectedRoute>
-            } />
-            <Route path="promocoes" element={
-              <ProtectedRoute area="promocoes"><PromocoesPage /></ProtectedRoute>
             } />
             <Route path="fardamento" element={
               <ProtectedRoute area="fardamento"><FardamentoPage /></ProtectedRoute>

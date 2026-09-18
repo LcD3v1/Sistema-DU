@@ -17,7 +17,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/ranking':          'Ranking',
   '/ausencias/nova':   'Registrar ausência',
   '/ausencias':        'Ausências',
-  '/promocoes':        'Promoções',
   '/fardamento':       'Fardamento',
   '/recrutamento':     'Recrutamento',
   '/anuncio':          'Gerar anúncio',

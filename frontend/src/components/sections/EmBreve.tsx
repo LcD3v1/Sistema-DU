@@ -7,7 +7,6 @@ const LABELS: Record<string, string> = {
   '/ranking': 'Ranking',
   '/ausencias/nova': 'Registrar Ausência',
   '/ausencias': 'Ausências',
-  '/promocoes': 'Promoções',
   '/corridas': 'Corridas',
   '/minigame': 'Minigame',
   '/galeria': 'Galeria',
