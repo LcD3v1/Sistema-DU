@@ -91,3 +91,8 @@ export function canArea(conta: Conta, data: FastData, area: AreaId, mode: 'ver' 
   const perms = resolvePerms(conta, data)
   return Boolean(perms[area]?.[mode])
 }
+
+/** Regra comum de reset: conta ativa e admin/dev ou cargo autorizado explicitamente. */
+export function podeZerarRankings(conta: Conta, data: FastData): boolean {
+  return !conta.exonerado && conta.ativo !== false && canArea(conta, data, 'zerar_rankings', 'editar')
+}

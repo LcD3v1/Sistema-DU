@@ -405,7 +405,7 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
       campo('Data da QRU', dataQru),
       campo('Resultado', acao.resultado),
       ...(acao.local ? [campo('Local', acao.local, false)] : []),
-      ...(acao.comandante ? [campo('Comandante', acao.comandante, false)] : []),
+      ...(acao.comandante ? [campo('Responsável', acao.comandante, false)] : []),
     ],
     footer: { text: `FAST - North Police Department · ${fmtDataHora()}` },
     timestamp: agora(),

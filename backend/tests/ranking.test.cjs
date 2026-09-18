@@ -258,12 +258,73 @@ before(async () => {
   app.use('/api/membros', require('../dist/routes/membros').default)
   app.use('/api/auth', require('../dist/routes/auth').default)
   app.use('/api/config', require('../dist/routes/config').default)
+  app.use('/api/acoes', require('../dist/routes/acoes').default)
   global.setInterval = originalInterval
   app.use((_err, _req, res, _next) => res.status(500).json({ error: 'Erro interno do servidor' }))
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
   base = `http://127.0.0.1:${server.address().port}`
 })
 after(() => { timers.forEach(clearInterval); return new Promise(resolve => server.close(resolve)) })
+
+test('responsável da apreensão vem da sessão, nunca do nome enviado pelo cliente', async () => {
+  const original = structuredClone(data)
+  try {
+    data.nextAcId = 900
+    data.contas[0].nomeServidor = 'Oficial do servidor'
+    const response = await fetch(base + '/api/acoes', {
+      method: 'POST', headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: '2026-09-17', qru: 'QRU-1', resultado: 'Vitória', participants: [], comandante: 'Outra pessoa' }),
+    })
+    assert.equal(response.status, 201)
+    const created = await response.json()
+    assert.equal(created.comandante, 'Oficial do servidor')
+    assert.equal(created.criadoPorContaId, 1)
+    assert.equal(data.acoes.find(a => a.id === 900).comandante, 'Oficial do servidor')
+    data.cargosPermissao.find(c => c.id === 20).permissoes = { registrar_acao: { ver: true, editar: true } }
+    const members = await get('/api/membros', token(2))
+    assert.equal(members.status, 200)
+    const officer = members.body.find(m => m.id === 1)
+    assert.equal(officer.nomeServidor, 'Oficial do servidor')
+    assert.equal(officer.discordId, undefined)
+  } finally {
+    data = original; revision++
+  }
+})
+
+test('reset exige cargo autorizado ou admin e bloqueia conta inativa/exonerada', async () => {
+  const original = structuredClone(data)
+  const { resetarRanking } = require('../dist/discord/painelApreensoes')
+  const { normalizePermMap } = require('../dist/permAreas')
+  try {
+    const cargo = data.cargosPermissao.find(c => c.id === 20)
+    cargo.permissoes = { pendentes: { ver: true, editar: true }, ranking: { ver: true, editar: true } }
+    assert.equal(normalizePermMap(cargo.permissoes).zerar_rankings.editar, false)
+    const before = structuredClone(data)
+    await assert.rejects(resetarRanking(2), /Acesso negado/)
+    await assert.rejects(resetarRanking(999), /Acesso negado/)
+    assert.deepEqual(data, before)
+    cargo.permissoes.zerar_rankings = { ver: true, editar: false }
+    await assert.rejects(resetarRanking(2), /Acesso negado/)
+    cargo.permissoes.zerar_rankings.editar = true
+    await resetarRanking(2)
+    assert.equal(data.painelApreensoes.resetadoPor, 'operador')
+    assert.deepEqual(data.acoes, before.acoes)
+    const current = data.contas.find(c => c.id === 2)
+    current.cargoPermId = undefined
+    await assert.rejects(resetarRanking(2), /Acesso negado/)
+    current.cargoPermId = 20
+    data.cargosPermissao.find(c => c.id === 20).permissoes = {}
+    data.cargosPermissao.find(c => c.id === 20).admin = true
+    await resetarRanking(2)
+    data.contas.find(c => c.id === 2).ativo = false
+    await assert.rejects(resetarRanking(2), /Acesso negado/)
+    data.contas.find(c => c.id === 2).ativo = true
+    data.contas.find(c => c.id === 2).exonerado = true
+    await assert.rejects(resetarRanking(2), /Acesso negado/)
+  } finally {
+    data = original; revision++
+  }
+})
 
 test('canal do ranking permanece salvo após consulta e pode ser desvinculado', async () => {
   const original = structuredClone(data)

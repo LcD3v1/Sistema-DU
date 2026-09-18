@@ -1,22 +1,27 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, X, Send, UserX, Shield, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw } from 'lucide-react'
+import { Plus, X, Send, UserX, MapPin, Image, CheckCircle2, Copy, ScrollText, ArrowRight, RotateCcw } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useCreateAcao } from '@/hooks/useAcoes'
 import { useQrus } from '@/hooks/useConfig'
 import { useMembros } from '@/hooks/useMembros'
+import { useMe } from '@/hooks/useMe'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
 import LoadingHud from '@/components/ui/LoadingHud'
 import type { ResultadoAcao, Membro, Acao } from '@/types'
 
+function normalizarBusca(valor: string) {
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
 function buildBoletimModelo(a: Acao) {
   const dataBR = a.data.split('-').reverse().join('/')
   return [
     'North Police Department',
-    '[Oficial responsável — ex: Ofc. Peter Wolf 216F]',
+    `Responsável: ${a.comandante || 'Não informado'}`,
     '/'.repeat(110),
     '',
     `📄 Relato da ocorrência: Ocorrência de ${a.qru}${a.local ? ` na região de ${a.local}` : ''} registrada em ${dataBR}. [Descreva os detalhes da ação...]`,
@@ -53,8 +58,8 @@ export default function RegistrarAcaoPage() {
   const { data: membros, isLoading: membrosLoading } = useMembros()
   const createAcao = useCreateAcao()
 
-  const [comandante, setComandante] = useState('')
-  const [showComandanteDropdown, setShowComandanteDropdown] = useState(false)
+  const { data: me, isLoading: meLoading } = useMe()
+  const responsavel = me?.nomeServidor || me?.discordUsername || me?.username || ''
 
   const [local, setLocal] = useState('')
   const [imagem, setImagem] = useState('')
@@ -76,18 +81,10 @@ export default function RegistrarAcaoPage() {
 
   const resultado = watch('resultado')
 
-  const filteredComandanteMembros = (membros ?? []).filter((m: Membro) =>
-    comandante !== '' && (
-      m.policial.toLowerCase().includes(comandante.toLowerCase()) ||
-      m.badge.toLowerCase().includes(comandante.toLowerCase())
-    )
-  )
-
   const filteredMembros = (membros ?? []).filter((m: Membro) =>
     !selectedMembros.some(s => s.memberId === m.id) &&
-    (membroSearch === '' ||
-      m.policial.toLowerCase().includes(membroSearch.toLowerCase()) ||
-      m.badge.toLowerCase().includes(membroSearch.toLowerCase()))
+    [m.nomeServidor, m.discordUsername, m.policial, m.badge].some(nome =>
+      normalizarBusca(nome ?? '').includes(normalizarBusca(membroSearch)))
   )
 
   function addMembro(m: Membro) {
@@ -117,7 +114,6 @@ export default function RegistrarAcaoPage() {
         data: data.data,
         qru: data.qru,
         resultado: data.resultado,
-        comandante: comandante.trim() || undefined,
         local: local.trim() || undefined,
         imagem: imagem.trim() || undefined,
         participants: selectedMembros,
@@ -137,13 +133,13 @@ export default function RegistrarAcaoPage() {
     navigator.clipboard.writeText(txt).then(() => addToast('success', msg)).catch(() => addToast('error', 'Falha ao copiar.'))
   }
 
-  if (qrusLoading || membrosLoading) return <LoadingHud />
+  if (qrusLoading || membrosLoading || meLoading) return <LoadingHud />
 
   // ── Painel de resultado (após registrar) ──────────────────────
   if (registrado) {
     const modelo = buildBoletimModelo(registrado)
     function resetForm() {
-      setRegistrado(null); setLocal(''); setImagem(''); setComandante('')
+      setRegistrado(null); setLocal(''); setImagem('')
       setSelectedMembros([]); setParticipantesExtras([])
     }
     return (
@@ -287,40 +283,12 @@ export default function RegistrarAcaoPage() {
               </div>
             </div>
 
-            {/* Comandante */}
+            {/* Responsável identificado pela sessão */}
             <div>
-              <label className="font-mono text-xs text-txt2 tracking-wider block mb-2">
-                COMANDANTE
-              </label>
-              <div className="relative">
-                <input
-                  value={comandante}
-                  onChange={e => { setComandante(e.target.value); setShowComandanteDropdown(true) }}
-                  onBlur={() => setTimeout(() => setShowComandanteDropdown(false), 150)}
-                  onFocus={() => setShowComandanteDropdown(true)}
-                  placeholder="Buscar membro ou digitar nome do comandante..."
-                  className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt placeholder-txt3"
-                />
-                {showComandanteDropdown && filteredComandanteMembros.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-50 bg-card border border-bdr rounded-b-lg shadow-xl max-h-48 overflow-y-auto">
-                    {filteredComandanteMembros.slice(0, 8).map((m: Membro) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onMouseDown={() => { setComandante(m.policial); setShowComandanteDropdown(false) }}
-                        className="w-full text-left px-3 py-2 text-xs font-mono text-txt2 hover:bg-bdr hover:text-txt transition-colors flex items-center gap-2"
-                      >
-                        <Shield size={12} className="text-gold" />
-                        <span>{m.policial}</span>
-                        <span className="text-txt3 ml-auto">{m.patenteInterna || m.patenteNPD}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <p className="font-mono text-[10px] text-txt3 mt-1.5">
-                Selecione um membro da unidade ou digite o nome do comandante externo (opcional)
-              </p>
+              <label htmlFor="responsavel" className="font-mono text-xs text-txt2 tracking-wider block mb-2">RESPONSÁVEL</label>
+              <input id="responsavel" readOnly value={responsavel}
+                className="w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt" />
+              <p className="font-mono text-[10px] text-txt3 mt-1.5">Identificado automaticamente pela sua conta.</p>
             </div>
 
             {/* Participantes da Unidade */}
@@ -340,7 +308,7 @@ export default function RegistrarAcaoPage() {
                         animate={{ scale: 1 }}
                         className="flex items-center gap-1.5 bg-bdr border border-bdr2 rounded-lg px-2 py-1 text-xs font-mono text-txt"
                       >
-                        {m?.policial ?? `ID:${s.memberId}`}
+                        {m?.nomeServidor || m?.policial || `ID:${s.memberId}`}
                         <button type="button" onClick={() => removeMembro(s.memberId)}
                           className="text-txt3 hover:text-red transition-colors">
                           <X size={12} />
@@ -355,7 +323,7 @@ export default function RegistrarAcaoPage() {
                 <input
                   value={membroSearch}
                   onChange={e => setMembroSearch(e.target.value)}
-                  placeholder="Buscar membro da unidade..."
+                  placeholder="Buscar por nome no servidor, nome ou badge..."
                   className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt placeholder-txt3"
                 />
                 {membroSearch && filteredMembros.length > 0 && (
@@ -368,7 +336,7 @@ export default function RegistrarAcaoPage() {
                         className="w-full text-left px-3 py-2 text-xs font-mono text-txt2 hover:bg-bdr hover:text-txt transition-colors flex items-center gap-2"
                       >
                         <Plus size={12} className="text-gold" />
-                        <span>{m.policial}</span>
+                        <span>{m.nomeServidor || m.policial}{m.nomeServidor && m.nomeServidor !== m.policial && <small className="block text-txt3">{m.policial}</small>}</span>
                         <span className="text-txt3 ml-auto">{m.badge}</span>
                       </button>
                     ))}

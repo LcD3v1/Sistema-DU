@@ -8,6 +8,7 @@ export const PERM_AREAS = [
   { id: 'historico',     label: 'Histórico' },
   { id: 'estatisticas',  label: 'Estatísticas' },
   { id: 'ranking',       label: 'Ranking' },
+  { id: 'zerar_rankings', label: 'Zerar rankings (todos os módulos)' },
   { id: 'membros',       label: 'Membros' },
   { id: 'ausencias',     label: 'Ausências' },
   { id: 'promocoes',     label: 'Promoções' },

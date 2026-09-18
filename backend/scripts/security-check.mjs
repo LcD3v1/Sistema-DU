@@ -350,13 +350,19 @@ check(painelTs.length > 0, 'painelApreensoes.ts presente', 'ausente: src/discord
 // O clique chega do Discord: a permissão tem de ser conferida no handler
 const hb = gwTs.slice(gwTs.indexOf('Events.InteractionCreate'))
 check(/canArea\(conta, dados, 'pendentes', 'editar'\)/.test(hb),
-  'botão do painel exige editar em Aprovações', 'botão do painel sem checagem de permissão')
+  'atualização do painel exige editar em Aprovações', 'atualização sem checagem de permissão')
 check(/conta\.exonerado \|\| conta\.ativo === false/.test(hb),
   'exonerado bloqueado nos botões do painel', 'exonerado pode usar os botões do painel')
-const posPerm = hb.indexOf("canArea(conta, dados, 'pendentes', 'editar')")
+const posPerm = hb.indexOf('podeZerarRankings(conta, dados)')
 const posReset = hb.indexOf('resetarRanking(')
 check(posPerm > -1 && posReset > -1 && posPerm < posReset,
   'permissão conferida antes de resetar', 'reset executado antes da checagem de permissão')
+check(/canArea\(conta, data, 'zerar_rankings', 'editar'\)/.test(ler('src/access.ts')),
+  'reset usa permissão específica compartilhada', 'reset sem permissão específica')
+const resetServico = painelTs.slice(painelTs.indexOf('export async function resetarRanking'))
+check(resetServico.indexOf('!podeZerarRankings(conta, data)') >= 0 &&
+  resetServico.indexOf('!podeZerarRankings(conta, data)') < resetServico.indexOf('writeData(data)'),
+  'serviço de reset revalida autorização antes de gravar', 'serviço de reset permite contornar autorização')
 check(/audit\('UNAUTHORIZED_ACCESS'/.test(hb), 'clique negado é auditado', 'clique negado sem auditoria')
 check(/audit\('RANKING_APREENSOES_RESETADO'/.test(painelTs), 'reset do ranking é auditado', 'reset do ranking sem auditoria')
 // O placar é editado o tempo todo: não pode notificar ninguém
@@ -367,5 +373,9 @@ check(/resetadoEmData/.test(painelTs) && !/splice|filter\(a => a\.id !==/.test(p
   'reset não apaga apreensões, só move o corte', 'reset do ranking apaga dados')
 
 // Resultado
+const acoesTs = ler('src/routes/acoes.ts')
+check(/const autor = data\.contas\.find\(c => c\.id === req\.user!\.contaId\)/.test(acoesTs) &&
+  /comandante: responsavel/.test(acoesTs) && !/comandante: body\.comandante/.test(acoesTs),
+  'responsável da apreensão definido pela sessão', 'cliente pode forjar responsável da apreensão')
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

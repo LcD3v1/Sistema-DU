@@ -84,6 +84,8 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     return
   }
 
+  const autor = data.contas.find(c => c.id === req.user!.contaId)!
+  const responsavel = autor.nomeServidor || autor.discordUsername || autor.username
   const novaAcao: Acao = {
     id: data.nextAcId,
     data: body.data,
@@ -91,7 +93,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
     resultado: body.resultado,
     participants: body.participants,
     participantesExtras: body.participantesExtras ?? [],
-    comandante: body.comandante,
+    comandante: responsavel,
     local: body.local,
     imagem: body.imagem,
     status: 'pendente',

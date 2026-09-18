@@ -115,7 +115,7 @@ export default function HistoricoPage() {
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-bdr">
-                {['#', 'Data', 'QRU', 'Resultado', 'Comandante', 'Participantes', ''].map(h => (
+                {['#', 'Data', 'QRU', 'Resultado', 'Responsável', 'Participantes', ''].map(h => (
                   <th key={h} className="text-left font-mono text-xs text-txt3 tracking-wider px-4 py-3">{h}</th>
                 ))}
               </tr>

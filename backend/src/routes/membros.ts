@@ -36,6 +36,8 @@ router.get('/', requireAuth, (req, res) => {
   }
   res.json(membros.map(m => m.id === conta.membroId || detalhes ? comVinculo(data, m) : completo ? semDetalhesInternos(comVinculo(data, m)) : ({
     id: m.id, policial: m.policial, badge: m.badge, patenteNPD: m.patenteNPD,
+    nomeServidor: contaDoMembro(data, m.id)?.nomeServidor ?? null,
+    discordUsername: contaDoMembro(data, m.id)?.discordUsername ?? null,
     patenteInterna: m.patenteInterna, status: m.status, entrada: m.entrada,
   })))
 })

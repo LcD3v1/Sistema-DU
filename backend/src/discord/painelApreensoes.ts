@@ -1,6 +1,7 @@
 import { FastData } from '../types'
 import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
+import { podeZerarRankings } from '../access'
 import { botConfigurado, discordFetch, emSegundoPlano } from './forum'
 
 /**
@@ -182,8 +183,14 @@ export function atualizarPainelEmSegundoPlano(): void {
 }
 
 /** Zera o placar a partir de agora. Não apaga apreensão nenhuma. */
-export async function resetarRanking(por: string): Promise<void> {
+export async function resetarRanking(contaId: number): Promise<void> {
   const data = readData()
+  const conta = data.contas.find(c => c.id === contaId)
+  if (!conta || !podeZerarRankings(conta, data)) {
+    audit('UNAUTHORIZED_ACCESS', undefined, 'Reset de ranking negado')
+    throw new Error('Acesso negado')
+  }
+  const por = conta.nomeServidor || conta.username
   const agora = new Date()
   data.painelApreensoes = {
     ...data.painelApreensoes,

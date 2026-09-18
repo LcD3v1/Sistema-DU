@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js'
 import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
-import { PROTECTED_OWNER_ID, canArea } from '../access'
+import { PROTECTED_OWNER_ID, canArea, podeZerarRankings } from '../access'
 import { botConfigurado } from './forum'
 import { definirBotNoServidor, verificarBotNoServidor } from './acessoServidor'
 import { exonerarMembro, ehContaDona } from '../efetivo'
@@ -137,7 +137,7 @@ export function iniciarGateway(): void {
 
   // ── Botões do painel de apreensões ──────────────────────────────────────────
   // O clique vem do Discord, não do painel: a permissão é conferida AQUI, pelo
-  // discordId de quem clicou. Quem não tem "editar" em Aprovações não passa.
+  // discordId de quem clicou. Reset exige a permissão específica de zerar rankings.
   client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isButton()) return
     if (interaction.customId !== ID_BOTAO_ATUALIZAR && interaction.customId !== ID_BOTAO_RESETAR) return
@@ -154,7 +154,10 @@ export function iniciarGateway(): void {
         await negar('Você não tem acesso ao painel da FAST.')
         return
       }
-      if (!canArea(conta, dados, 'pendentes', 'editar')) {
+      const permitido = interaction.customId === ID_BOTAO_RESETAR
+        ? podeZerarRankings(conta, dados)
+        : canArea(conta, dados, 'pendentes', 'editar')
+      if (!permitido) {
         audit('UNAUTHORIZED_ACCESS', undefined, `Botão "${interaction.customId}" negado para ${conta.username} (#${conta.id})`)
         await negar('Seu cargo não tem permissão para isso.')
         return
@@ -162,7 +165,7 @@ export function iniciarGateway(): void {
 
       await interaction.deferUpdate()
       if (interaction.customId === ID_BOTAO_RESETAR) {
-        await resetarRanking(conta.nomeServidor || conta.username)
+        await resetarRanking(conta.id)
         await interaction.followUp({ content: '🟥 Ranking resetado.', flags: MessageFlags.Ephemeral }).catch(() => {})
       } else {
         await atualizarPainel()
