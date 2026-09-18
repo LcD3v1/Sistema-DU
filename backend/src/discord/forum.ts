@@ -307,22 +307,39 @@ export async function postarMudancaCargo(
   }, true)
 }
 
-export async function postarAdvertencia(data: FastData, m: Membro, nivel: number | null, por: string, motivo?: string): Promise<void> {
-  await postarNoTopico(data, m, nivel ? {
-    title: `⚠️ ADVERTÊNCIA · Nível ${nivel}`,
-    description: 'Advertência aplicada ao membro.',
+export type AcaoAdvertencia = { tipo: 'aplicada' | 'retirada'; nivel: number } | { tipo: 'todas' }
+
+/** Quadradinhos marcados agora, ex.: "ADV 1 · ADV 3" (ou "Nenhuma"). */
+function advertenciasAtuais(m: Membro): string {
+  const ativas = ([1, 2, 3] as const).filter(n => m[`adv${n}`]).map(n => `ADV ${n}`)
+  return ativas.length ? ativas.join(' · ') : 'Nenhuma'
+}
+
+export async function postarAdvertencia(data: FastData, m: Membro, acao: AcaoAdvertencia, por: string, motivo?: string): Promise<void> {
+  const atual = campo('Advertências atuais', advertenciasAtuais(m), false)
+  await postarNoTopico(data, m, acao.tipo === 'aplicada' ? {
+    title: `⚠️ ADVERTÊNCIA · ADV ${acao.nivel}`,
+    description: `O membro está com **ADV ${acao.nivel}**.`,
     color: COR_ADVERTENCIA,
     fields: [
       campo('Membro', mencionarMembro(data, m), false),
-      campo('Nível', `Advertência ${nivel}`),
+      campo('Advertência', `ADV ${acao.nivel}`),
       campo('Aplicada por', por),
       campo('Motivo', motivo, false),
+      atual,
     ],
+    footer: rodape(),
+    timestamp: agora(),
+  } : acao.tipo === 'retirada' ? {
+    title: `✅ ADV ${acao.nivel} RETIRADA`,
+    description: `A advertência **ADV ${acao.nivel}** foi retirada do membro.`,
+    color: COR_PROMOCAO,
+    fields: [campo('Membro', mencionarMembro(data, m), false), campo('Retirada por', por), atual],
     footer: rodape(),
     timestamp: agora(),
   } : {
     title: '✅ ADVERTÊNCIAS REMOVIDAS',
-    description: 'As advertências do membro foram retiradas.',
+    description: 'Todas as advertências do membro foram retiradas.',
     color: COR_PROMOCAO,
     fields: [campo('Membro', mencionarMembro(data, m), false), campo('Removidas por', por)],
     footer: rodape(),

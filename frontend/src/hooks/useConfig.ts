@@ -171,3 +171,34 @@ export function useUpdateCanais() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'canais'] }),
   })
 }
+
+export type NivelAdvChave = '1' | '2' | '3'
+export interface CargosAdvConfig {
+  botConfigurado: boolean
+  erro?: string
+  podeGerenciar: boolean
+  cargos: Partial<Record<NivelAdvChave, string>>
+  roles: { id: string; nome: string; gerenciavel: boolean }[]
+}
+
+export function useCargosAdv(enabled = true) {
+  return useQuery<CargosAdvConfig>({
+    queryKey: ['config', 'cargos-adv'],
+    queryFn: async () => (await api.get<CargosAdvConfig>('/config/cargos-adv')).data,
+    enabled,
+  })
+}
+
+export function useUpdateCargosAdv() {
+  return useMutation({
+    mutationFn: (body: Partial<Record<NivelAdvChave, string | null>>) => api.put<CargosAdvConfig>('/config/cargos-adv', body),
+    onSuccess: r => queryClient.setQueryData(['config', 'cargos-adv'], r.data),
+  })
+}
+
+export function useCriarCargosAdv() {
+  return useMutation({
+    mutationFn: () => api.post<CargosAdvConfig>('/config/cargos-adv/criar'),
+    onSuccess: r => queryClient.setQueryData(['config', 'cargos-adv'], r.data),
+  })
+}

@@ -85,6 +85,14 @@ export function useAdvertir() {
   })
 }
 
+/** Retira só um nível (os outros quadradinhos continuam como estão). */
+export function useRetirarAdvertencia() {
+  return useMutation({
+    mutationFn: ({ id, nivel }: { id: number; nivel: 1 | 2 | 3 }) => api.delete<Membro>(`/membros/${id}/advertencia/${nivel}`),
+    onSuccess: invalidarEfetivo,
+  })
+}
+
 export function useRemoverAdvertencias() {
   return useMutation({
     mutationFn: (id: number) => api.delete<Membro>(`/membros/${id}/advertencia`),

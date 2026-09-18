@@ -116,6 +116,10 @@ export const sessaoLimiter = limitador('sessao', 15 * 60_000, 60,
 export const criticalLimiter = limitador('critico', 15 * 60_000, 5,
   'Limite de operações críticas atingido. Tente em 15 minutos.', P + 5)
 
+// Cargos de advertência (consulta/cria/atribui cargos no Discord): 30 / 15 min por IP
+export const cargosDiscordLimiter = limitador('cargos_discord', 15 * 60_000, 30,
+  'Muitas operações de cargos no Discord. Tente em alguns minutos.', 3)
+
 // Backup (download da base inteira): 5 / 1 h por IP
 export const backupLimiter = limitador('backup', 60 * 60_000, 5,
   'Limite de downloads de backup atingido. Tente mais tarde.', P + 5)

@@ -8,6 +8,7 @@ import { exonerarMembro, ehContaDona } from '../efetivo'
 import { notificarArea } from '../notificacoes'
 import { aplicarIdentidade, MembroServidor } from './identidade'
 import { ID_BOTAO_ATUALIZAR, ID_BOTAO_RESETAR, atualizarPainel, resetarRanking } from './painelApreensoes'
+import { garantirCargosAdv, sincronizarTodosCargosAdv } from './cargosAdv'
 
 /**
  * Conexão em tempo real com o Discord (gateway) para detectar quando alguém
@@ -53,6 +54,12 @@ export function processarSaida(discordId: string, origem: string): void {
   console.log(`[FAST][DISCORD] ${conta.username} saiu do servidor — exonerado automaticamente.`)
 }
 
+function prepararCargosAdv(): void {
+  garantirCargosAdv().then(sincronizarTodosCargosAdv).catch(err =>
+    console.error('[FAST][DISCORD] cargos de advertência:', err instanceof Error ? err.message : err,
+      '— confira se o bot tem a permissão "Gerenciar Cargos".'))
+}
+
 export function iniciarGateway(): void {
   if (!botConfigurado()) {
     console.log('[FAST][DISCORD] Bot não configurado — detecção de saída do servidor desativada.')
@@ -70,7 +77,7 @@ export function iniciarGateway(): void {
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] })
 
   // Presença do bot no servidor (libera/bloqueia o painel)
-  client.on(Events.GuildCreate, g => { if (g.id === guildId) { definirBotNoServidor(true); console.log('[FAST][DISCORD] Bot adicionado ao servidor — painel liberado.') } })
+  client.on(Events.GuildCreate, g => { if (g.id === guildId) { definirBotNoServidor(true); console.log('[FAST][DISCORD] Bot adicionado ao servidor — painel liberado.'); prepararCargosAdv() } })
   client.on(Events.GuildDelete, g => { if (g.id === guildId) { definirBotNoServidor(false); console.warn('[FAST][DISCORD] Bot removido do servidor — acesso ao painel bloqueado.') } })
 
   client.on(Events.GuildMemberRemove, member => {
@@ -131,6 +138,8 @@ export function iniciarGateway(): void {
           processarSaida(conta.discordId, 'Verificação ao iniciar')
         }
       }
+      // Cargos de advertência: cria ADV FAST 1/2/3 se faltarem e corrige quem estiver diferente do painel
+      prepararCargosAdv()
     } catch (err) {
       console.error('[FAST][DISCORD] verificação inicial de membros:', err instanceof Error ? err.message : err,
         '— confira se o "Server Members Intent" está ativado no Developer Portal.')

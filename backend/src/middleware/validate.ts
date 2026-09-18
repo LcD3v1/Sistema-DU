@@ -228,6 +228,14 @@ export const reorderQruSchema = z.object({
 
 const snowflake = z.string().regex(/^\d{17,20}$/, 'ID de canal inválido')
 
+// Cargo do Discord para cada quadradinho de advertência (null = desvincular)
+const roleId = z.string().regex(/^\d{17,20}$/, 'ID de cargo inválido')
+export const cargosAdvSchema = z.object({
+  '1': roleId.nullable().optional(),
+  '2': roleId.nullable().optional(),
+  '3': roleId.nullable().optional(),
+}).strict()
+
 export const canaisSchema = z.object({
   registro:   snowflake.nullable().optional(),
   apreensoes: snowflake.nullable().optional(),

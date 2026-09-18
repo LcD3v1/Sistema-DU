@@ -34,6 +34,7 @@ export interface Advertencia {
   motivo: string
   autor: string
   data: string
+  removida?: boolean   // registro de retirada daquele nível
 }
 
 export interface CargoHierarquia {

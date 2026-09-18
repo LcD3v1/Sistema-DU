@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronsUp, ChevronsDown, Settings2, UserX, AlertTriangle, Trash2 } from 'lucide-react'
 import { useHierarquia, usePromover, useAdvertir, useRemoverAdvertencias, useExonerar } from '@/hooks/useMembros'
 import { usePerms } from '@/hooks/usePerms'
+import { useAlternarAdv } from '@/hooks/useAlternarAdv'
 import { useUIStore } from '@/store/uiStore'
 import ModalOverlay from '@/components/ui/ModalOverlay'
 import HudButton from '@/components/ui/HudButton'
@@ -19,7 +20,8 @@ const erroApi = (e: unknown, padrao: string) =>
   ?? (e as { response?: { data?: { error?: string } } })?.response?.data?.error
   ?? padrao
 
-const nivelAtual = (m: Membro) => (m.adv3 ? 3 : m.adv2 ? 2 : m.adv1 ? 1 : 0)
+const temAdv = (m: Membro) => m.adv1 || m.adv2 || m.adv3
+const primeiroLivre = (m: Membro) => (([1, 2, 3] as const).find(n => !m[`adv${n}`]) ?? 1)
 const fmtData = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
 const nomePessoa = (m: Membro) => nomeComDiscord(m)
 
@@ -181,19 +183,20 @@ export function PromocaoModal({ membro, open, onClose }: ModalProps) {
   )
 }
 
-/** Gerenciar: advertências (nível 1–3 com motivo) e histórico. */
+/** Gerenciar: advertências (ADV 1, 2 e 3 independentes, com motivo) e histórico. */
 export function GerenciarModal({ membro, open, onClose }: ModalProps) {
   const advertir = useAdvertir()
   const remover = useRemoverAdvertencias()
   const { addToast } = useUIStore()
-  const [nivel, setNivel] = useState<1 | 2 | 3>(Math.min(3, nivelAtual(membro) + 1) as 1 | 2 | 3)
+  const { alternar, ocupado } = useAlternarAdv()
+  const [nivel, setNivel] = useState<1 | 2 | 3>(primeiroLivre(membro))
   const [motivo, setMotivo] = useState('')
 
   function fechar() { setMotivo(''); onClose() }
   function enviar() {
     if (motivo.trim().length < 3) { addToast('error', 'Descreva o motivo da advertência.'); return }
     advertir.mutate({ id: membro.id, nivel, motivo: motivo.trim() }, {
-      onSuccess: () => { addToast('success', `Advertência nível ${nivel} aplicada a ${nomePessoa(membro)}.`); setMotivo('') },
+      onSuccess: () => { addToast('success', `ADV ${nivel} aplicada a ${nomePessoa(membro)}.`); setMotivo('') },
       onError: e => addToast('error', erroApi(e, 'Erro ao aplicar advertência.')),
     })
   }
@@ -209,36 +212,39 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
             <p className="text-[11px] text-txt3 font-mono">{membro.cargoNome ?? membro.patenteInterna ?? '—'}</p>
           </div>
           <div className="flex items-center gap-1">
-            <AdvBox active={membro.adv1} index={1} readonly />
-            <AdvBox active={membro.adv2} index={2} readonly />
-            <AdvBox active={membro.adv3} index={3} readonly />
+            {([1, 2, 3] as const).map(n => (
+              <AdvBox key={n} active={membro[`adv${n}`]} index={n} readonly={ocupado}
+                onClick={() => void alternar(membro, n)} />
+            ))}
           </div>
         </div>
+        <p className="text-[11px] text-txt3 -mt-3">Clique num quadradinho para aplicar ou retirar só aquele ADV. O cargo no Discord acompanha.</p>
 
         <div className="space-y-3">
           <h4 className="font-mono text-xs text-gold tracking-wider flex items-center gap-1.5"><AlertTriangle size={13} /> APLICAR ADVERTÊNCIA</h4>
           <div className="grid grid-cols-3 gap-2">
             {([1, 2, 3] as const).map(n => (
-              <button key={n} type="button" onClick={() => setNivel(n)}
-                className={`py-2 rounded-lg border text-xs font-mono transition-colors ${
+              <button key={n} type="button" onClick={() => setNivel(n)} disabled={membro[`adv${n}`]}
+                title={membro[`adv${n}`] ? `Já está com ADV ${n}` : undefined}
+                className={`py-2 rounded-lg border text-xs font-mono transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   nivel === n
                     ? n === 1 ? 'border-gold3 bg-gold3/20 text-gold3' : n === 2 ? 'border-orange-400 bg-orange-400/20 text-orange-400' : 'border-red bg-red/20 text-red'
                     : 'border-bdr2 text-txt2 hover:text-txt'
                 }`}>
-                Nível {n}
+                ADV {n}{membro[`adv${n}`] ? ' ✓' : ''}
               </button>
             ))}
           </div>
           <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3} maxLength={500}
             placeholder="Motivo da advertência (obrigatório)"
             className="input-gold w-full bg-card2 border border-bdr2 rounded px-3 py-2 text-sm text-txt resize-none" />
-          <HudButton onClick={enviar} loading={advertir.isPending} className="w-full">ENVIAR ADVERTÊNCIA</HudButton>
+          <HudButton onClick={enviar} loading={advertir.isPending} disabled={membro[`adv${nivel}`]} className="w-full">APLICAR ADV {nivel}</HudButton>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="font-mono text-xs text-txt2 tracking-wider">HISTÓRICO</h4>
-            {nivelAtual(membro) > 0 && (
+            {temAdv(membro) && (
               <button
                 disabled={remover.isPending}
                 onClick={async () => {
@@ -249,7 +255,7 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
                   })
                 }}
                 className="flex items-center gap-1 text-[11px] font-mono text-txt3 hover:text-red transition-colors">
-                <Trash2 size={12} /> Retirar advertências
+                <Trash2 size={12} /> Retirar todas
               </button>
             )}
           </div>
@@ -258,10 +264,12 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
             {historico.map((a, i) => (
               <div key={i} className="px-3 py-2 rounded-lg bg-card2 border border-bdr">
                 <div className="flex items-center justify-between text-[11px] font-mono">
-                  <span className={a.nivel === 1 ? 'text-gold3' : a.nivel === 2 ? 'text-orange-400' : 'text-red'}>Nível {a.nivel}</span>
+                  <span className={a.removida ? 'text-txt3' : a.nivel === 1 ? 'text-gold3' : a.nivel === 2 ? 'text-orange-400' : 'text-red'}>
+                    {a.removida ? `ADV ${a.nivel} retirada` : `ADV ${a.nivel}`}
+                  </span>
                   <span className="text-txt3">{fmtData(a.data)} · {a.autor}</span>
                 </div>
-                <p className="text-xs text-txt mt-1">{a.motivo}</p>
+                {!a.removida && <p className="text-xs text-txt mt-1">{a.motivo}</p>}
               </div>
             ))}
           </div>

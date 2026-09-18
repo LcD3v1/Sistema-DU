@@ -26,6 +26,7 @@ import { useContas, useUpdateConta, useDeleteConta } from '@/hooks/useContas'
 import { useCargosPermissao } from '@/hooks/useCargosPermissao'
 import PermissoesEditor from '@/components/sections/PermissoesEditor'
 import CanaisEditor from '@/components/sections/CanaisEditor'
+import CargosAdvEditor from '@/components/sections/CargosAdvEditor'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
@@ -540,7 +541,7 @@ export default function ConfiguracoesPage() {
           )}
 
           {/* Canais do Discord (admin only) */}
-          {activeTab === 'canais' && <CanaisEditor />}
+          {activeTab === 'canais' && <div className="space-y-8"><CanaisEditor /><CargosAdvEditor /></div>}
 
           {/* Permissões (admin only) */}
           {activeTab === 'permissoes' && <PermissoesEditor />}

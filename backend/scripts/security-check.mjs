@@ -393,6 +393,25 @@ check(!/dispensaServidor|discordIdsAcessoExterno/.test(ler('src/middleware/auth.
     'exonerado continua bloqueado mesmo com acesso externo', 'acesso externo pode contornar exoneração')
 }
 
+console.log('\n[ADV] Cargos de advertência no Discord')
+{
+  const cfg = ler('src/routes/config.ts')
+  for (const rota of ["get('/cargos-adv'", "post('/cargos-adv/criar'", "put('/cargos-adv'"]) {
+    const linha = cfg.split('\n').find(l => l.includes(`router.${rota}`)) ?? ''
+    check(/requireAuth, adminOnly, cargosDiscordLimiter/.test(linha), `${rota.split("'")[1]} exige admin + limitador próprio`, `${rota.split("'")[1]} sem admin ou sem limitador`)
+  }
+  check(/router\.put\('\/cargos-adv',[^\n]*validateBody\(cargosAdvSchema\)/.test(cfg) && /cargosAdvSchema = z\.object\(\{[\s\S]{0,300}\}\)\.strict\(\)/.test(ler('src/middleware/validate.ts')),
+    'escolha de cargos validada por Zod (IDs numéricos, sem campos extras)', 'escolha de cargos sem Zod estrito')
+  const mem = ler('src/routes/membros.ts')
+  const del = mem.slice(mem.indexOf("router.delete('/:id/advertencia/:nivel'"), mem.indexOf("router.delete('/:id/advertencia/:nivel'") + 900)
+  check(/requireAuth, requireArea\('membros', 'editar'\)/.test(del) && /podeGerenciar\(/.test(del) && /nivel !== 1 && nivel !== 2 && nivel !== 3/.test(del),
+    'retirar ADV exige editar membros, hierarquia e nível válido', 'retirar ADV sem permissão/hierarquia/validação')
+  check(!/\bdata\.cargosAdv/.test(ler('src/routes/public.ts')) && !/\bdata\.cargosAdv/.test(mem),
+    'IDs dos cargos de ADV não saem em rotas públicas nem na lista de membros', 'IDs dos cargos de ADV expostos')
+  check(/\.filter\(r => r\.id !== guild\(\) && !r\.managed\)/.test(ler('src/discord/cargosAdv.ts')),
+    'lista de cargos exclui @everyone e cargos gerenciados por integrações', 'lista de cargos inclui @everyone/cargos de integração')
+}
+
 console.log('\n[Termos] Aceite dos termos de uso')
 const authTs = ler('src/routes/auth.ts')
 check(/router\.post\('\/me\/termos', requireAuth, validateBody\(termosAceiteSchema\)/.test(authTs),

@@ -14,6 +14,7 @@ import { useForm } from 'react-hook-form'
 import { useMembros, useCreateMembro, useUpdateMembro, useDeleteMembro, useReorderMembros, useMembrosExonerados, useRetirarExoneracao } from '@/hooks/useMembros'
 import { usePatentes, useCargos } from '@/hooks/useConfig'
 import { usePerms } from '@/hooks/usePerms'
+import { useAlternarAdv } from '@/hooks/useAlternarAdv'
 import { useUIStore } from '@/store/uiStore'
 import { useDebounce } from '@/hooks/useDebounce'
 import GlowCard from '@/components/ui/GlowCard'
@@ -101,6 +102,8 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const { alternar: alternarAdv, ocupado: ocupadoAdv } = useAlternarAdv()
+
   return (
     <tr ref={setNodeRef} style={style} className="border-b border-bdr/50 hover:bg-bdr/30 transition-colors group">
       <td className="px-2 py-2.5 w-8">
@@ -156,9 +159,10 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
       </td>
       <td className="px-3 py-2.5">
         <div className="flex gap-1">
-          <AdvBox active={membro.adv1} index={1} readonly />
-          <AdvBox active={membro.adv2} index={2} readonly />
-          <AdvBox active={membro.adv3} index={3} readonly />
+          {([1, 2, 3] as const).map(n => (
+            <AdvBox key={n} active={membro[`adv${n}`]} index={n} readonly={!canEdit || ocupadoAdv}
+              onClick={() => void alternarAdv(membro, n)} />
+          ))}
         </div>
       </td>
       {canEdit && (

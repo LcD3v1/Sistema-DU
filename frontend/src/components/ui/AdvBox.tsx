@@ -19,7 +19,7 @@ export default function AdvBox({ active, index, onClick, readonly = false }: Pro
     <button
       onClick={!readonly ? onClick : undefined}
       disabled={readonly}
-      title={`Advertência ${index}`}
+      title={readonly ? `ADV ${index}` : active ? `ADV ${index} — clique para retirar` : `Clique para aplicar ADV ${index}`}
       className={`
         w-6 h-6 border rounded text-[10px] font-mono font-bold
         transition-all duration-200

@@ -40,6 +40,7 @@ export interface Advertencia {
   motivo: string
   autor: string
   data: string        // ISO
+  removida?: boolean  // registro de retirada daquele nível (o histórico nunca é apagado)
 }
 
 export interface ParticipanteAcao {
@@ -265,7 +266,11 @@ export interface FastData {
   solicitacoesPerfil: SolicitacaoPerfil[]
   nextSolPerfilId: number
   painelApreensoes?: PainelApreensoes
+  cargosAdv?: CargosAdv
 }
+
+/** Cargos do Discord que espelham cada quadradinho de advertência (ID do cargo por nível). */
+export type CargosAdv = Partial<Record<'1' | '2' | '3', string>>
 
 export interface AuthPayload {
   scope?: string

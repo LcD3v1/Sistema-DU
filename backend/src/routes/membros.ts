@@ -6,6 +6,7 @@ import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Membro, FastData, NivelAdvertencia } from '../types'
 import { postarExoneracao, postarMudancaCargo, postarAdvertencia, postarPerfilAtualizado, emSegundoPlano } from '../discord/forum'
+import { sincronizarCargosAdv } from '../discord/cargosAdv'
 import { notificar, notificarArea } from '../notificacoes'
 import { avatarAtual, aplicarCampoPerfil } from '../identidadeMembro'
 import { contaDoMembro, nivelHierarquia, podeGerenciar, exonerarMembro, nomeCargoAtual, ausenciaAtivaDoMembro, hoje } from '../efetivo'
@@ -67,7 +68,7 @@ function semDetalhesInternos<T extends ReturnType<typeof comVinculo>>(m: T) {
   const { discordId: _d, advertencias, historicoCargos, ...resto } = m
   return {
     ...resto,
-    advertencias: advertencias?.map(a => ({ nivel: a.nivel, data: a.data })),
+    advertencias: advertencias?.map(a => ({ nivel: a.nivel, data: a.data, ...(a.removida ? { removida: true } : {}) })),
     historicoCargos: historicoCargos?.map(h => ({ data: h.data, tipo: h.tipo, de: h.de, para: h.para })),
   }
 }
@@ -194,19 +195,49 @@ router.post('/:id/advertencia', requireAuth, requireArea('membros', 'editar'), v
   const negado = podeGerenciar(data, req.user!.contaId, membro)
   if (negado) { res.status(403).json({ error: negado }); return }
 
+  // Cada quadradinho é independente: aplicar o ADV 2 não mexe no 1 nem no 3
   const { nivel, motivo } = req.body as { nivel: NivelAdvertencia; motivo: string }
+  const campo = `adv${nivel}` as 'adv1' | 'adv2' | 'adv3'
+  if (membro[campo]) { res.status(409).json({ error: `O membro já está com ADV ${nivel}.` }); return }
   const por = req.user!.username
-  membro.adv1 = nivel >= 1
-  membro.adv2 = nivel >= 2
-  membro.adv3 = nivel >= 3
+  membro[campo] = true
   membro.advertencias = [...(membro.advertencias ?? []), { nivel, motivo, autor: por, data: new Date().toISOString() }]
-  notificar(data, contaDoMembro(data, membro.id)?.id, 'advertencia', `Advertência nível ${nivel}`,
-    `Você recebeu uma advertência nível ${nivel}. Motivo: ${motivo}`, '/perfil')
+  notificar(data, contaDoMembro(data, membro.id)?.id, 'advertencia', `Advertência ADV ${nivel}`,
+    `Você recebeu a advertência ADV ${nivel}. Motivo: ${motivo}`, '/perfil')
   writeData(data)
 
-  audit('ADVERTENCIA_APLICADA', req, `${membro.policial} (#${membro.id}) nível ${nivel}: ${motivo}`)
+  audit('ADVERTENCIA_APLICADA', req, `${membro.policial} (#${membro.id}) ADV ${nivel}: ${motivo}`)
   const snap = structuredClone(data)
-  emSegundoPlano('advertência', () => postarAdvertencia(snap, membro, nivel, por, motivo))
+  const discordId = contaDoMembro(data, membro.id)?.discordId
+  emSegundoPlano('advertência', () => postarAdvertencia(snap, membro, { tipo: 'aplicada', nivel }, por, motivo))
+  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
+  res.json(comVinculo(data, membro))
+})
+
+// DELETE /api/membros/:id/advertencia/:nivel — retira só aquele nível (o histórico é mantido)
+router.delete('/:id/advertencia/:nivel', requireAuth, requireArea('membros', 'editar'), (req: Request, res: Response): void => {
+  const nivel = parseInt(String(req.params.nivel), 10)
+  if (nivel !== 1 && nivel !== 2 && nivel !== 3) { res.status(400).json({ error: 'Nível de advertência inválido' }); return }
+  const ctx = carregarMembro(req, res); if (!ctx) return
+  const { data, membro } = ctx
+  const negado = podeGerenciar(data, req.user!.contaId, membro)
+  if (negado) { res.status(403).json({ error: negado }); return }
+
+  const campo = `adv${nivel}` as 'adv1' | 'adv2' | 'adv3'
+  if (!membro[campo]) { res.status(409).json({ error: `O membro não está com ADV ${nivel}.` }); return }
+  const por = req.user!.username
+  membro[campo] = false
+  membro.advertencias = [...(membro.advertencias ?? []),
+    { nivel: nivel as NivelAdvertencia, motivo: `ADV ${nivel} retirada`, autor: por, data: new Date().toISOString(), removida: true }]
+  notificar(data, contaDoMembro(data, membro.id)?.id, 'aprovada', `ADV ${nivel} retirada`,
+    `Sua advertência ADV ${nivel} foi retirada.`, '/perfil')
+  writeData(data)
+
+  audit('ADVERTENCIA_REMOVIDA', req, `${membro.policial} (#${membro.id}) ADV ${nivel}`)
+  const snap = structuredClone(data)
+  const discordId = contaDoMembro(data, membro.id)?.discordId
+  emSegundoPlano('remoção de advertência', () => postarAdvertencia(snap, membro, { tipo: 'retirada', nivel: nivel as NivelAdvertencia }, por))
+  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json(comVinculo(data, membro))
 })
 
@@ -224,7 +255,9 @@ router.delete('/:id/advertencia', requireAuth, requireArea('membros', 'editar'),
   const por = req.user!.username
   audit('ADVERTENCIA_REMOVIDA', req, `${membro.policial} (#${membro.id})`)
   const snap = structuredClone(data)
-  emSegundoPlano('remoção de advertência', () => postarAdvertencia(snap, membro, null, por))
+  const discordId = contaDoMembro(data, membro.id)?.discordId
+  emSegundoPlano('remoção de advertência', () => postarAdvertencia(snap, membro, { tipo: 'todas' }, por))
+  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json(comVinculo(data, membro))
 })
 
@@ -302,6 +335,7 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
   if (negado) { res.status(403).json({ error: negado }); return }
 
   const { motivo } = req.body as { motivo: string }
+  const discordId = contaDoMembro(data, membro.id)?.discordId   // antes: a exoneração desvincula o membro
   try {
     exonerarMembro(data, membro, req.user!.username, motivo)
     notificarArea(data, 'membros', [req.user!.contaId], 'exoneracao', `${membro.policial} foi exonerado`,
@@ -313,6 +347,7 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
   }
   writeData(data)
   audit('MEMBRO_EXONERADO', req, `${membro.policial} (#${membro.id}): ${motivo}`)
+  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json({ ok: true })
 })
 
@@ -389,6 +424,10 @@ router.put('/:id', requireAuth, requireArea('membros', 'editar'), validateBody(m
 
   writeData(data)
   audit('MEMBRO_UPDATED', req, `ID: ${id}`)
+  if ('adv1' in body || 'adv2' in body || 'adv3' in body) {
+    const discordId = contaDoMembro(data, id)?.discordId
+    emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
+  }
   res.json(comVinculo(data, data.membros[idx]))
 })
 
@@ -406,8 +445,10 @@ router.delete('/:id', requireAuth, requireArea('membros', 'editar'), (req: Reque
   const nome = removido.policial
   // Com conta vinculada: vira exoneração (bloqueio total, dados guardados para readmissão)
   if (contaDoMembro(data, id)) {
+    const discordId = contaDoMembro(data, id)?.discordId
     exonerarMembro(data, removido, req.user!.username, 'Removido do efetivo')
     writeData(data)
+    emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
     audit('MEMBRO_EXONERADO', req, `ID: ${id} | Nome: ${nome} | via remoção`)
     res.json({ ok: true, exonerado: true }); return
   }

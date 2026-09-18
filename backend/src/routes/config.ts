@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../middleware/roles'
-import { criticalLimiter } from '../middleware/rateLimiter'
+import { criticalLimiter, cargosDiscordLimiter } from '../middleware/rateLimiter'
 import {
   validateBody,
   qruSchema, patenteSchema, cargoSchema,
@@ -10,7 +10,7 @@ import {
   reorderPatenteSchema, reorderQruSchema,
   situacaoAnuncioSchema, situacaoAnuncioUpdateSchema,
   cargoPermCreateSchema, cargoPermUpdateSchema,
-  canaisSchema, reorderCargosSchema,
+  canaisSchema, reorderCargosSchema, cargosAdvSchema,
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -19,6 +19,7 @@ import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
 import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, emSegundoPlano } from '../discord/forum'
 import { publicarPainel } from '../discord/painelApreensoes'
+import { NIVEIS_ADV, infoCargosAdv, validarCargosEscolhidos, garantirCargosAdv, sincronizarTodosCargosAdv, retirarCargoDeTodos, type NivelAdvChave } from '../discord/cargosAdv'
 import { notificar } from '../notificacoes'
 
 const router = Router()
@@ -377,6 +378,65 @@ router.delete('/cargos-permissao/:id', requireAuth, adminOnly, (req: Request, re
   writeData(data)
   audit('CONFIG_UPDATED', req, `Cargo de permissão removido: #${id}`)
   res.json({ ok: true })
+})
+
+// ── Cargos de advertência (Discord) ─────────────────────────────────────────────
+
+async function respostaCargosAdv(res: Response): Promise<void> {
+  if (!botConfigurado()) { res.json({ botConfigurado: false, cargos: {}, roles: [], podeGerenciar: false }); return }
+  try {
+    res.json({ botConfigurado: true, ...(await infoCargosAdv()) })
+  } catch (err) {
+    console.error('[FAST][DISCORD] cargos de ADV:', err instanceof Error ? err.message : err)
+    res.json({ botConfigurado: true, erro: 'Não foi possível consultar os cargos do servidor.', cargos: readData().cargosAdv ?? {}, roles: [], podeGerenciar: false })
+  }
+}
+
+router.get('/cargos-adv', requireAuth, adminOnly, cargosDiscordLimiter, async (_req: Request, res: Response): Promise<void> => {
+  await respostaCargosAdv(res)
+})
+
+// Cria (ou reaproveita pelo nome) ADV FAST 1/2/3 para os níveis sem cargo
+router.post('/cargos-adv/criar', requireAuth, adminOnly, cargosDiscordLimiter, async (req: Request, res: Response): Promise<void> => {
+  if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
+  try { await garantirCargosAdv() } catch (err) {
+    console.error('[FAST][DISCORD] criar cargos de ADV:', err instanceof Error ? err.message : err)
+    res.status(502).json({ error: 'Não foi possível criar os cargos. Confira se o bot tem a permissão "Gerenciar Cargos".' }); return
+  }
+  audit('CONFIG_UPDATED', req, 'Cargos de advertência criados/verificados no Discord')
+  emSegundoPlano('cargos de advertência', sincronizarTodosCargosAdv)
+  await respostaCargosAdv(res)
+})
+
+router.put('/cargos-adv', requireAuth, adminOnly, cargosDiscordLimiter, validateBody(cargosAdvSchema), async (req: Request, res: Response): Promise<void> => {
+  if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
+  const body = req.body as Partial<Record<NivelAdvChave, string | null>>
+  const escolha = { ...(readData().cargosAdv ?? {}) } as Partial<Record<NivelAdvChave, string | null>>
+  for (const n of NIVEIS_ADV) if (body[n] !== undefined) escolha[n] = body[n]
+  let invalido: string | null
+  try { invalido = await validarCargosEscolhidos(escolha) } catch {
+    res.status(502).json({ error: 'Não foi possível consultar o Discord.' }); return
+  }
+  if (invalido) { res.status(400).json({ error: invalido }); return }
+
+  // Sem await daqui até writeData
+  const data = readData()
+  const antigos = { ...(data.cargosAdv ?? {}) }
+  const novos = { ...antigos }
+  for (const n of NIVEIS_ADV) {
+    if (body[n] === null) delete novos[n]
+    else if (body[n]) novos[n] = body[n]!
+  }
+  data.cargosAdv = novos
+  writeData(data)
+  audit('CONFIG_UPDATED', req, `Cargos de advertência: ${NIVEIS_ADV.map(n => `ADV ${n}=${novos[n] ?? '—'}`).join(' | ')}`)
+  // Cargo que deixou de ser de ADV sai de todo mundo; depois aplica os atuais
+  const trocados = NIVEIS_ADV.map(n => antigos[n]).filter((id): id is string => !!id && !Object.values(novos).includes(id))
+  emSegundoPlano('cargos de advertência', async () => {
+    for (const id of trocados) await retirarCargoDeTodos(id)
+    await sincronizarTodosCargosAdv()
+  })
+  await respostaCargosAdv(res)
 })
 
 // ── Canais do Discord ───────────────────────────────────────────────────────────
