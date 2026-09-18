@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Copy, ClipboardCheck, Eraser, Clipboard, Info, Settings } from 'lucide-react'
+import { ChevronLeft, Copy, Eraser, Info, Settings, ImagePlus, Link2, Loader2 } from 'lucide-react'
+import api from '@/lib/axios'
 import { useUIStore } from '@/store/uiStore'
 import { useAnuncioSituacoes } from '@/hooks/useConfig'
 import Brand from '@/components/ui/Brand'
@@ -13,96 +14,13 @@ function DefaultEmblem({ size = 56 }: { size?: number }) {
   return <img src="/media/npd-shield.png" alt="" width={size} height={size} className="object-contain" style={{ width: size, height: size }} onError={() => setErro(true)} />
 }
 
+const TIPOS_FOTO = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+const MAX_FOTO = 3 * 1024 * 1024
+
 function resolve(template: string, local: string, assinatura: string) {
   return template
     .replace(/\[LOCAL\]/g, local.trim() || '[LOCAL]')
     .replace(/\[ASSINATURA\]/g, assinatura.trim() || '[ASSINATURA]')
-}
-
-type CampoAutoPaste = 'situacao' | 'local' | 'assinatura' | 'titulo' | 'texto' | 'duracao' | 'imagem'
-
-type AutoPasteValue = {
-  field?: CampoAutoPaste
-  value: string
-}
-
-type LabeledAutoPasteValue = {
-  field: CampoAutoPaste
-  value: string
-}
-
-const AUTO_PASTE_FIELDS: CampoAutoPaste[] = ['situacao', 'local', 'assinatura', 'titulo', 'texto', 'duracao', 'imagem']
-
-const AUTO_PASTE_ALIASES: Record<string, CampoAutoPaste> = {
-  situacao: 'situacao',
-  situacao_do_anuncio: 'situacao',
-  tipo: 'situacao',
-  categoria: 'situacao',
-  local: 'local',
-  assinatura: 'assinatura',
-  assinatura_do_perfil: 'assinatura',
-  titulo: 'titulo',
-  titulo_do_anuncio: 'titulo',
-  texto: 'texto',
-  mensagem: 'texto',
-  conteudo: 'texto',
-  duracao: 'duracao',
-  duracao_em_segundos: 'duracao',
-  segundos: 'duracao',
-  imagem: 'imagem',
-  imagem_url: 'imagem',
-  url: 'imagem',
-}
-
-function normalizePasteKey(key: string) {
-  return key
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-}
-
-function isEditableElement(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  return Boolean(target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
-}
-
-function parseAutoPastePayload(raw: string): AutoPasteValue[] {
-  const text = raw.trim()
-  if (!text) return []
-
-  try {
-    const parsed = JSON.parse(text) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return Object.entries(parsed as Record<string, unknown>)
-        .map(([key, value]) => ({
-          field: AUTO_PASTE_ALIASES[normalizePasteKey(key)],
-          value: typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '',
-        }))
-        .filter((item): item is LabeledAutoPasteValue => Boolean(item.field && item.value))
-    }
-  } catch {
-    // Conteudo comum copiado nao precisa ser JSON.
-  }
-
-  const labeled = text
-    .split(/\r?\n/)
-    .map(line => {
-      const match = line.match(/^\s*([^:=]+)\s*[:=]\s*(.+?)\s*$/)
-      if (!match) return null
-      const field = AUTO_PASTE_ALIASES[normalizePasteKey(match[1])]
-      return field ? { field, value: match[2].trim() } : null
-    })
-    .filter((item): item is LabeledAutoPasteValue => item !== null && Boolean(item.value))
-
-  if (labeled.length > 0) return labeled
-
-  return text
-    .split(/\t|,|\r?\n/)
-    .map(value => value.trim())
-    .filter(Boolean)
-    .map(value => ({ value }))
 }
 
 export default function GerarAnuncioPage() {
@@ -159,94 +77,26 @@ export default function GerarAnuncioPage() {
     catch { addToast('error', 'Não foi possível copiar. Copie manualmente.') }
   }
 
-  useEffect(() => {
-    function preencherCampoVazio(field: CampoAutoPaste, value: string) {
-      if (!value.trim()) return false
-
-      if (field === 'situacao') {
-        if (situacaoId !== null) return false
-        const match = (situacoes ?? []).find(s => normalizePasteKey(s.label) === normalizePasteKey(value) || String(s.id) === value.trim())
-        if (!match) return false
-        setSituacaoId(match.id)
-        return true
-      }
-
-      if (field === 'local') {
-        if (local.trim()) return false
-        setLocal(value)
-        return true
-      }
-
-      if (field === 'assinatura') {
-        if (assinatura.trim()) return false
-        setAssinatura(value)
-        return true
-      }
-
-      if (field === 'titulo') {
-        if (titulo.trim()) return false
-        setTitulo(value)
-        return true
-      }
-
-      if (field === 'texto') {
-        if (texto.trim()) return false
-        manual.current = true
-        setTexto(value)
-        return true
-      }
-
-      if (field === 'duracao') {
-        if (duracao !== 60) return false
-        const seconds = Number(value.replace(/[^\d]/g, ''))
-        if (!Number.isFinite(seconds) || seconds <= 0) return false
-        setDuracao(Math.min(600, seconds))
-        return true
-      }
-
-      if (field === 'imagem') {
-        if (imagem.trim()) return false
-        setImagem(value)
-        return true
-      }
-
-      return false
-    }
-
-    function handlePaste(event: ClipboardEvent) {
-      if (isEditableElement(event.target)) return
-
-      const items = parseAutoPastePayload(event.clipboardData?.getData('text') ?? '')
-      if (items.length === 0) return
-
-      let cursor = 0
-      let preenchidos = 0
-
-      for (const item of items) {
-        if (item.field) {
-          if (preencherCampoVazio(item.field, item.value)) preenchidos += 1
-          continue
-        }
-
-        while (cursor < AUTO_PASTE_FIELDS.length) {
-          const field = AUTO_PASTE_FIELDS[cursor]
-          cursor += 1
-          if (preencherCampoVazio(field, item.value)) {
-            preenchidos += 1
-            break
-          }
-        }
-      }
-
-      if (preenchidos > 0) {
-        event.preventDefault()
-        addToast('success', `${preenchidos} campo${preenchidos > 1 ? 's' : ''} preenchido${preenchidos > 1 ? 's' : ''} pelo Ctrl+V.`)
-      }
-    }
-
-    document.addEventListener('paste', handlePaste)
-    return () => document.removeEventListener('paste', handlePaste)
-  }, [addToast, assinatura, duracao, imagem, local, situacaoId, situacoes, texto, titulo])
+  // Foto enviada → o sistema guarda e devolve um link fixo para colar no jogo
+  const arquivoRef = useRef<HTMLInputElement>(null)
+  const [enviando, setEnviando] = useState(false)
+  async function enviarFoto(arquivo: File) {
+    if (!TIPOS_FOTO.includes(arquivo.type)) { addToast('error', 'Use uma imagem PNG, JPG, WEBP ou GIF.'); return }
+    if (arquivo.size > MAX_FOTO) { addToast('error', 'A imagem pode ter no máximo 3 MB.'); return }
+    setEnviando(true)
+    try {
+      const dataUrl = await new Promise<string>((ok, falha) => {
+        const r = new FileReader(); r.onload = () => ok(r.result as string); r.onerror = falha; r.readAsDataURL(arquivo)
+      })
+      const { data } = await api.post<{ caminho: string }>('/anuncio/imagem', { imagem: dataUrl })
+      const link = `${window.location.origin}${data.caminho}`
+      setImagem(link)
+      await copiar(link, 'Imagem enviada! Link copiado.')
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } }).response?.data?.error
+      addToast('error', msg || 'Não foi possível enviar a imagem.')
+    } finally { setEnviando(false) }
+  }
 
   const inputCls = 'input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt placeholder-txt3'
   const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
@@ -332,29 +182,27 @@ export default function GerarAnuncioPage() {
               </div>
               <div>
                 <label className={labelCls}>Imagem (URL)</label>
-                <input value={imagem} onChange={e => setImagem(e.target.value)} placeholder="Deixe vazio p/ brasão padrão" className={inputCls} />
+                <div className="flex gap-2">
+                  <input value={imagem} onChange={e => setImagem(e.target.value)} placeholder="Envie uma foto ou cole um link" className={`${inputCls} min-w-0`} />
+                  <input ref={arquivoRef} type="file" accept={TIPOS_FOTO.join(',')} className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) enviarFoto(f) }} />
+                  <button type="button" onClick={() => arquivoRef.current?.click()} disabled={enviando} title="Enviar foto"
+                    className="shrink-0 flex items-center gap-1.5 px-3 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-bdrg transition-colors disabled:opacity-60">
+                    {enviando ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />} Foto
+                  </button>
+                </div>
+                {imagem.trim() && (
+                  <button type="button" onClick={() => copiar(imagem.trim(), 'Link da imagem copiado!')}
+                    className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-gold3 hover:text-txt transition-colors">
+                    <Link2 size={12} /> Copiar link da imagem
+                  </button>
+                )}
               </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-bdr2 bg-card2/60 px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-txt flex items-center gap-1.5"><Clipboard size={14} className="text-gold3" /> Auxiliar de Ctrl+V para Windows</p>
-                <p className="text-[11px] text-txt3 mt-0.5">Cole na página sem selecionar campo: os campos vazios são preenchidos e os já preenchidos são ignorados.</p>
-              </div>
-              <button
-                onClick={() => addToast('info', 'Copie dados por linha, planilha, JSON ou "Local: valor" e pressione Ctrl+V fora dos campos.')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-bdrg transition-colors"
-              >
-                <Info size={13} /> Como usar
-              </button>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-1">
-              <button onClick={() => copiar(mensagemCompleta, 'Texto copiado!')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-txt hover:border-bdrg transition-colors">
+              <button onClick={() => copiar(mensagemCompleta, 'Texto copiado!')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
                 <Copy size={15} /> Copiar como texto
-              </button>
-              <button onClick={() => copiar(mensagemCompleta, 'Pronto! Cole no jogo com Ctrl+V.')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
-                <ClipboardCheck size={16} /> Preparar sequência Ctrl+V
               </button>
             </div>
           </div>

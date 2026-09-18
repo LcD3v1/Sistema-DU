@@ -481,5 +481,15 @@ check(chamadasPublicas.length > 0 && chamadasPublicas.every(c => c.endsWith(', t
 const presencaTs = ler('src/discord/presenca.ts')
 check(presencaTs && !/writeData|readData|audit\(/.test(presencaTs) && /online: estaOnline\(row\.discordId\)/.test(ler('src/modules/ranking/service.ts')),
   'presença só em memória e exposta como booleano', 'presença gravada no banco ou exposta com dados do Discord')
+console.log('\n[Anúncio] Foto enviada com link público')
+const anuncioImgTs = ler('src/routes/anuncioImagem.ts')
+check(/uploadRouter\.post\('\/imagem', requireAuth, requireArea\('anuncio', 'editar'\), validateBody\(anuncioImagemSchema\)/.test(anuncioImgTs),
+  'envio de foto exige login, área anuncio/editar e Zod', 'envio de foto sem requireAuth/requireArea/Zod')
+check(/confere: \(b: Buffer\)/.test(anuncioImgTs) && /TIPOS\[ext\]\.confere\(bytes\)/.test(anuncioImgTs) && !/svg/i.test(anuncioImgTs),
+  'foto conferida pelos bytes (sem SVG)', 'foto aceita sem conferir os bytes ou aceita SVG')
+check(/randomBytes\(18\)/.test(anuncioImgTs) && /'X-Content-Type-Options', 'nosniff'/.test(anuncioImgTs) && /sandbox/.test(anuncioImgTs),
+  'link da foto com ID aleatório, nosniff e CSP sandbox', 'link da foto previsível ou sem nosniff/sandbox')
+check(/app\.use\('\/img', anuncioImagemPublica\)/.test(index) && /anuncio\\\/imagem/.test(index),
+  'foto pública fora de /api e envio no limite de upload', 'rota da foto fora do lugar ou sem uploadLimiter')
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

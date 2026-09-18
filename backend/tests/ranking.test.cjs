@@ -286,6 +286,8 @@ before(async () => {
   app.use('/api/auth', require('../dist/routes/auth').default)
   app.use('/api/config', require('../dist/routes/config').default)
   app.use('/api/acoes', require('../dist/routes/acoes').default)
+  app.use('/api/anuncio', require('../dist/routes/anuncioImagem').uploadRouter)
+  app.use('/img', require('../dist/routes/anuncioImagem').publicoRouter)
   global.setInterval = originalInterval
   app.use((_err, _req, res, _next) => res.status(500).json({ error: 'Erro interno do servidor' }))
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
@@ -533,4 +535,27 @@ test('falha de persistência suspende as consultas sem vazar detalhes do banco',
   assert.deepEqual(response.body, { error: 'Módulo temporariamente indisponível.' })
   assert.equal((await get('/api/public/ranking', null)).status, 503)
   store.rankingPersistenceReady = () => true
+})
+
+// ── Imagem do Gerar anúncio ──────────────────────────────────────────────────
+const { decodificarImagem, MAX_BYTES_IMAGEM } = require('../dist/routes/anuncioImagem')
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+test('anúncio: imagem é conferida pelos bytes, não só pelo tipo declarado', () => {
+  assert.equal(decodificarImagem(`data:image/png;base64,${PNG_1PX}`).ext, 'png')
+  const html = Buffer.from('<html><script>alert(1)</script></html>').toString('base64')
+  assert.equal(decodificarImagem(`data:image/png;base64,${html}`), null)          // HTML disfarçado
+  assert.equal(decodificarImagem(`data:image/jpeg;base64,${PNG_1PX}`), null)       // tipo trocado
+  assert.equal(decodificarImagem(`data:image/svg+xml;base64,${PNG_1PX}`), null)    // SVG pode ter script
+  const grande = Buffer.alloc(MAX_BYTES_IMAGEM + 1); Buffer.from(PNG_1PX, 'base64').copy(grande)
+  assert.equal(decodificarImagem(`data:image/png;base64,${grande.toString('base64')}`), null)
+})
+test('anúncio: envio exige login e a permissão de editar anúncio; link público recusa IDs inválidos', async () => {
+  const enviar = auth => fetch(base + '/api/anuncio/imagem', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
+    body: JSON.stringify({ imagem: `data:image/png;base64,${PNG_1PX}` }) })
+  assert.equal((await enviar(null)).status, 401)
+  assert.equal((await enviar(token(2))).status, 403)        // cargo sem a área "anuncio"
+  assert.equal((await enviar(token(1))).status, 503)        // dono passa; sem Mongo no teste
+  for (const p of ['/img/../../etc', '/img/curto.png', '/img/AAAAAAAAAAAAAAAAAAAAAAAA.svg', '/img/AAAAAAAAAAAAAAAAAAAAAAAA.png.html'])
+    assert.equal((await fetch(base + p)).status, 404, p)
 })

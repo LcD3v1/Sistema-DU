@@ -234,6 +234,14 @@ async function flush(): Promise<void> {
   }
 }
 
+/**
+ * Coleção avulsa, fora do cache e do diff do FastData (não entra no readData/backup):
+ * arquivos grandes, como as imagens enviadas no Gerar anúncio. null antes do initData.
+ */
+export function colecaoAvulsa<T extends Document>(nome: 'anuncioImagens') {
+  return db ? db.collection<T>(nome) : null
+}
+
 /** Aguarda gravações pendentes e fecha a conexão (desligamento limpo). */
 export async function closeData(): Promise<void> {
   while (gravando) await gravando

@@ -318,5 +318,10 @@ export const recusarSchema = z.object({
 
 export const nivelInicialSchema = z.object({ nivel: nivelSchema })
 
+// Foto do Gerar anúncio (até 3 MB decodificados; os bytes são conferidos na rota)
+export const anuncioImagemSchema = z.object({
+  imagem: z.string().max(4_300_000).refine(ehImagemEnviada, 'Envie uma imagem PNG, JPG, WEBP ou GIF'),
+}).strict()
+
 // Aceite dos termos: só a versão vigente é aceita (evita aceitar texto antigo)
 export const termosAceiteSchema = z.object({ versao: z.string().regex(/^\d{4}-\d{2}-\d{2}(-\d{1,3})?$/) }).strict()

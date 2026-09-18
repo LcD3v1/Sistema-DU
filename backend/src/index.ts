@@ -32,6 +32,7 @@ import avisosRoutes from './routes/avisos'
 import fardamentosRoutes from './routes/fardamentos'
 import carteiraRoutes from './routes/carteira'
 import notificacoesRoutes from './routes/notificacoes'
+import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPublica } from './routes/anuncioImagem'
 
 const app = express()
 const PROD = env.PROD
@@ -66,7 +67,7 @@ if (!PROD) {
 // Corpo grande só nas rotas de upload; o resto fica limitado (evita abuso de memória/CPU)
 const jsonGrande = express.json({ limit: '5mb' })
 const jsonPadrao = express.json({ limit: '200kb' })
-const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|carteira\/postar)(\/|$)/
+const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|carteira\/postar|anuncio\/imagem)(\/|$)/
 app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? jsonGrande : jsonPadrao)(req, res, next))
 app.use(hpp())
 
@@ -99,6 +100,10 @@ app.use('/api/avisos', avisosRoutes)
 app.use('/api/fardamentos', fardamentosRoutes)
 app.use('/api/carteira', carteiraRoutes)
 app.use('/api/notificacoes', notificacoesRoutes)
+app.use('/api/anuncio', anuncioImagemUpload)
+
+// Link público das fotos do Gerar anúncio (o jogo abre sem login; limite: globalLimiter)
+app.use('/img', anuncioImagemPublica)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
 
