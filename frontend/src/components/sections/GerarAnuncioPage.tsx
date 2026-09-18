@@ -17,6 +17,9 @@ function DefaultEmblem({ size = 56 }: { size?: number }) {
 const TIPOS_FOTO = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const MAX_FOTO = 3 * 1024 * 1024
 
+/** Logo padrão da NPD já preenchida no campo de imagem — editável para trocar por outro link. */
+const LOGO_NPD = 'https://fastunit.shardweb.app/media/npd-shield.png'
+
 function resolve(template: string, local: string, assinatura: string) {
   return template
     .replace(/\[LOCAL\]/g, local.trim() || '[LOCAL]')
@@ -34,7 +37,7 @@ export default function GerarAnuncioPage() {
   const [titulo, setTitulo] = useState('')
   const [texto, setTexto] = useState('')
   const [duracao, setDuracao] = useState(60)
-  const [imagem, setImagem] = useState('')
+  const [imagem, setImagem] = useState(LOGO_NPD)
   const manual = useRef(false)
 
   const situacao = useMemo(
@@ -65,7 +68,7 @@ export default function GerarAnuncioPage() {
   const mensagemCompleta = useMemo(() => `${titulo}\n${previewTexto}`.trim(), [titulo, previewTexto])
 
   function limpar() {
-    setLocal(''); setAssinatura(''); setImagem(''); setDuracao(60)
+    setLocal(''); setAssinatura(''); setImagem(LOGO_NPD); setDuracao(60)
     manual.current = false
     if (situacoes && situacoes.length) setSituacaoId(situacoes[0].id)
     if (situacao) { setTitulo(situacao.titulo); setTexto(resolve(situacao.texto, '', '')) }

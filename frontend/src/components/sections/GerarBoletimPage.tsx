@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, Copy, ClipboardCheck, Eraser, Info, FileSearch } from 'lucide-react'
+import { ChevronLeft, ClipboardCheck, Eraser, Info, FileSearch } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
 import { useAllAcoes } from '@/hooks/useAcoes'
 import Brand from '@/components/ui/Brand'
@@ -169,13 +169,12 @@ export default function GerarBoletimPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-1">
-              <button onClick={() => copiar('Boletim copiado!')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-bdr2 text-txt2 text-sm hover:text-txt hover:border-bdrg transition-colors">
-                <Copy size={15} /> Copiar como texto
+            <div className="pt-2">
+              <button onClick={() => copiar('Boletim copiado! Cole onde precisar.')}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gold text-white text-sm font-semibold hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
+                <ClipboardCheck size={16} /> Copiar boletim
               </button>
-              <button onClick={() => copiar('Pronto! Cole no jogo com Ctrl+V.')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
-                <ClipboardCheck size={16} /> Preparar sequência Ctrl+V
-              </button>
+              <p className="text-center font-mono text-[10px] text-txt3 mt-2">O texto vai para a área de transferência, pronto para colar.</p>
             </div>
           </div>
         </div>
