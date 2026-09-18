@@ -96,7 +96,7 @@ export default function FardamentoPage() {
           <p className="text-txt2 text-sm">Nenhum fardamento cadastrado{podeEditar ? ' — clique em “Adicionar fardamento”.' : '.'}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
           {lista.map((f, i) => (
             <motion.div
               key={f.id}
