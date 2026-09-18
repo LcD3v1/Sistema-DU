@@ -56,8 +56,8 @@ export interface Snapshot {
 
 /**
  * Ordered activities are aggregated on the backend; clients receive only bounded pages.
- * `ocultarDevs` (visão pública): o dev testa tudo, então some da lista, do ranking e dos
- * totais — ações em que só devs participaram não contam.
+ * `ocultarDevs` (visão pública): o dev aparece em Membros, mas testa tudo, então fica fora
+ * do ranking e dos totais — não pontua e ações em que só devs participaram não contam.
  */
 export function buildSnapshot(data: FastData, scope: RankingScope, period: Filters['period'], now = new Date(), ocultarDevs = false): Snapshot {
   const accounts = new Map(data.contas.filter(c => belongsToScope(c, scope) && c.membroId).map(c => [c.membroId!, c]))
@@ -72,7 +72,7 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     // A record explicitly linked to a foreign account is not a local unlinked member.
     if (!account && foreignLinks.has(m.id)) continue
     if (m.status === 'Inativo' || account?.exonerado || account?.ativo === false) continue
-    if (ocultarDevs && account && isDev(account, data)) { devs.add(m.id); continue }
+    if (ocultarDevs && account && isDev(account, data)) devs.add(m.id)
     // Conta ainda não aprovada (sem cargo ou cadastro incompleto) não aparece
     if (account && account.id !== PROTECTED_OWNER_ID && (account.onboarded === false || (!account.cargoPermId && !isAdmin(account, data)))) continue
     const configuredRole = roles.find(r => r.id === String(account?.cargoPermId))
@@ -109,7 +109,7 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
     if (action.resultado === 'Derrota') losses++
     for (const id of ids) {
       const row = rows.get(id)
-      if (!row) continue
+      if (!row || devs.has(id)) continue
       row.records++
       row.points++ // 1 ponto por participação aprovada, como o ranking de registros da referência.
       if (action.resultado === 'Vitória') row.wins++

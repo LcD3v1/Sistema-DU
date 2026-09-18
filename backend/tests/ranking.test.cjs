@@ -130,10 +130,12 @@ test('QRU convencional (sem resultado) pontua, mas não conta vitória nem derro
   assert.equal(row.points, 1); assert.equal(row.wins, 0); assert.equal(row.losses, 0)
   assert.equal(row.activity[0].result, 'Convencional')
 })
-test('visão pública esconde devs e ações só de devs; o painel continua com todos', () => {
+test('visão pública: dev aparece em Membros, fora do ranking e dos totais; o painel continua com todos', () => {
   const data = makeData()   // conta 1 é a dona → dev
   const pub = buildSnapshot(data, scope, 'all', now, true)
-  assert.equal(pub.members.some(m => m.id === 1), false)
+  const devPub = pub.members.find(m => m.id === 1)
+  assert.ok(devPub)                                   // aparece em Membros da tela inicial
+  assert.equal(devPub.records, 0); assert.equal(devPub.rank, null)   // sem pontuação pública
   assert.equal(pub.ranking.some(m => m.id === 1), false)
   assert.equal(pub.stats.records, 2)   // ação 2 só tinha o dev
   assert.equal(pub.stats.losses, 0)
@@ -141,9 +143,11 @@ test('visão pública esconde devs e ações só de devs; o painel continua com 
   const painel = build(data)
   assert.equal(painel.members.some(m => m.id === 1), true)
   assert.equal(painel.stats.records, 3)
-  // cargo marcado como dev também some
+  // cargo marcado como dev: aparece em Membros, mas sai do ranking
   data.cargosPermissao[1].dev = true
-  assert.equal(buildSnapshot(data, scope, 'all', now, true).members.some(m => m.id === 2), false)
+  const comCargoDev = buildSnapshot(data, scope, 'all', now, true)
+  assert.equal(comCargoDev.members.some(m => m.id === 2), true)
+  assert.equal(comCargoDev.ranking.some(m => m.id === 2), false)
 })
 test('presença: sem o bot acompanhando, o público recebe online null (sem bolinha)', () => {
   assert.equal(publicMember(build().members[1]).online, null)
@@ -496,7 +500,9 @@ test('API pública preserva preview, paginação e remove detalhes privados', as
   const stats = await get('/api/ranking/stats')
   // o público não conta ações só de devs, então nunca passa do total do painel
   assert.ok(response.body.stats.records <= stats.body.records)
-  assert.equal(response.body.items.some(m => m.id === 1), false)   // conta dona (dev) fora da tela inicial
+  assert.equal(response.body.items.some(m => m.id === 1), false)   // conta dona (dev) fora do ranking da tela inicial
+  const membros = await get('/api/public/directory/members?limit=100', null)
+  assert.equal(membros.body.items.some(m => m.id === 1), true)       // …mas aparece em Membros
   assert.equal((await get('/api/public/ranking?window=invalid', null)).status, 400)
 })
 test('auditoria registra consultas e recálculos sem credenciais', async () => {

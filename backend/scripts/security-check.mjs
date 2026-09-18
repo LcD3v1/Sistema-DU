@@ -496,7 +496,9 @@ const chamadasPublicas = publicTs.match(/snapshot\([^()]*\)/g) || []
 check(chamadasPublicas.length > 0 && chamadasPublicas.every(c => c.endsWith(', true)'))
   && /createRankingRouter\(true\)/.test(index) && /snapshot\(res\.locals\.filters\.period, publicView\)/.test(rankingRouterTs)
   && !/snapshot\(res\.locals\.filters\.period\)/.test(rankingRouterTs),
-  'rotas públicas usam o snapshot sem devs', 'rota pública usa o snapshot do painel (mostra devs)')
+  'rotas públicas usam o snapshot público (dev fora do ranking)', 'rota pública usa o snapshot do painel')
+check(/if \(!row \|\| devs\.has\(id\)\) continue/.test(ler('src/modules/ranking/service.ts')),
+  'dev não pontua no ranking público', 'dev pontua no ranking público')
 const presencaTs = ler('src/discord/presenca.ts')
 check(presencaTs && !/writeData|readData|audit\(/.test(presencaTs) && /online: estaOnline\(row\.discordId\)/.test(ler('src/modules/ranking/service.ts')),
   'presença só em memória e exposta como booleano', 'presença gravada no banco ou exposta com dados do Discord')
