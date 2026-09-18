@@ -13,6 +13,7 @@ import LoadingHud from '@/components/ui/LoadingHud'
 import { paginaLazy } from '@/lib/rotas'
 import FaixaAmbiente from '@/components/ui/FaixaAmbiente'
 import LimiteErro from '@/components/ui/LimiteErro'
+import TermoExclusividade from '@/components/ui/TermoExclusividade'
 
 // Páginas sob demanda: cada rota baixa só o próprio código (recharts, jspdf, dnd-kit…)
 const LoginPage = paginaLazy('/login')
@@ -88,6 +89,7 @@ export default function App() {
       {/* Respeita "reduzir movimento" do sistema: efeitos de transform viram só fade */}
       <MotionConfig reducedMotion="user">
       <FaixaAmbiente />
+      <TermoExclusividade />
       <SincronizacaoTempoReal />
       <BrowserRouter>
         <LimiteErro telaCheia>
