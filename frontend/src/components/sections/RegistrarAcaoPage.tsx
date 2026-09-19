@@ -17,6 +17,22 @@ function normalizarBusca(valor: string) {
   return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 }
 
+function erroApi(e: unknown, padrao: string) {
+  const data = (e as { response?: { data?: { error?: string; details?: string[] } } })?.response?.data
+  return data?.details?.[0]?.replace(/^[\w.]+: /, '') ?? data?.error ?? padrao
+}
+
+function linkImagemValido(valor: string) {
+  if (!valor) return true
+  if (valor.length > 2048 || /\s/.test(valor)) return false
+  try {
+    const url = new URL(valor)
+    return (url.protocol === 'https:' || url.protocol === 'http:') && Boolean(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 function buildBoletimModelo(a: Acao) {
   const dataBR = a.data.split('-').reverse().join('/')
   return [
@@ -107,6 +123,11 @@ export default function RegistrarAcaoPage() {
 
   async function onSubmit(data: FormData) {
     if (!tipo) { addToast('error', 'Escolha QRU convencional ou QRU fechado.'); return }
+    const imagemLimpa = imagem.trim()
+    if (!linkImagemValido(imagemLimpa)) {
+      addToast('error', 'Imagem deve ser um link http/https válido, sem espaços.')
+      return
+    }
     try {
       const res = await createAcao.mutateAsync({
         data: data.data,
@@ -114,15 +135,15 @@ export default function RegistrarAcaoPage() {
         tipo,
         ...(tipo === 'fechado' ? { resultado: data.resultado } : {}),
         local: local.trim() || undefined,
-        imagem: imagem.trim() || undefined,
+        imagem: imagemLimpa || undefined,
         participants: [],
         // O servidor resolve o @: quem tem cadastro na unidade pontua; os demais só são mencionados
         participantesDiscord: selectedMembros.map(m => m.usuario),
       })
       addToast('success', 'Apreensão registrada!')
       setRegistrado(res.data)
-    } catch {
-      addToast('error', 'Erro ao registrar apreensão.')
+    } catch (e) {
+      addToast('error', erroApi(e, 'Erro ao registrar apreensão.'))
     }
   }
 
