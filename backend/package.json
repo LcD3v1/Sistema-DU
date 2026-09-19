@@ -6,6 +6,7 @@
   "scripts": {
     "test:ranking": "npm run build && node --test tests/ranking.test.cjs",
     "test:ranking:browser": "node tests/ranking-browser.cjs",
+    "test:perfil:browser": "node tests/perfil-browser.cjs",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "cross-env NODE_ENV=production node dist/index.js",

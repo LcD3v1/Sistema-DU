@@ -35,8 +35,9 @@ function Stat({ icon: Icon, label, value, color = '#3a72c4' }: { icon: typeof Tr
 
 export default function ProfilePage() {
   const { data: me, isLoading: lme } = useMe()
-  const { data: membros, isLoading: lm } = useMembros()
-  const { data: rankingMember, isLoading: la } = useDirectoryQuery<RankingMember | null>('/me', { period: 'all', search: '', role: '', page: 1 }, false, !!me?.membroId && (me.admin || !!me.cargoPermId))
+  const qMembros = useMembros()
+  const { data: membros } = qMembros
+  const qRanking = useDirectoryQuery<RankingMember | null>('/me', { period: 'all', search: '', role: '', page: 1 }, false, !!me?.membroId && (me.admin || !!me.cargoPermId))
   const link = useLinkMembro()
   const setBanner = useSetBanner()
   const updateMeuMembro = useUpdateMeuMembro()
@@ -54,12 +55,18 @@ export default function ProfilePage() {
   const membrosList: Membro[] = membros ?? []
   const membro = me?.membroId ? membrosList.find(m => m.id === me.membroId) ?? null : null
 
+  const rankingMember = qRanking.data
   const desempenho = rankingMember ? {
     posicao: rankingMember.rank, sucedidas: rankingMember.wins, total: rankingMember.records,
     vitorias: rankingMember.wins, derrotas: rankingMember.losses, winRate: rankingMember.winRate,
   } : null
 
-  if (lme || lm || la) return <LoadingHud />
+  // Só a PRIMEIRA carga mostra a tela de carregamento. Uma consulta que falhou (403, 503…)
+  // volta a "carregando" a cada nova tentativa — e o sistema recarrega tudo sempre que
+  // alguém grava algo —, o que trocava a página inteira pelo loader e fazia o
+  // "Personalizar perfil" sumir (perdendo o que estava sendo digitado).
+  const primeiraCarga = (q: { isLoading: boolean; errorUpdateCount: number }) => q.isLoading && q.errorUpdateCount === 0
+  if (lme || primeiraCarga(qMembros) || primeiraCarga(qRanking)) return <LoadingHud />
   if (!me) return null
 
   const rankPos = desempenho?.posicao ?? null
