@@ -10,6 +10,8 @@ const DASHES = '-'.repeat(90)
 // Cabeçalho/rodapé alinhados à direita (mesmo visual do modelo enviado)
 const LARGURA = 100
 const alinharDir = (s: string) => ' '.repeat(Math.max(0, LARGURA - s.length)) + s
+// Emblema (⚡) centralizado em relação à régua de barras
+const centralizar = (s: string) => ' '.repeat(Math.max(0, Math.round((SLASHES.length - s.length) / 2))) + s
 
 function fmtDate(d: string) {
   if (!d) return ''
@@ -60,7 +62,7 @@ export default function GerarBoletimPage() {
 
   const textoCopia = useMemo(() => {
     return [
-      alinharDir('⚡'),
+      centralizar('⚡'),
       '',
       alinharDir('North Police Department'),
       '',
