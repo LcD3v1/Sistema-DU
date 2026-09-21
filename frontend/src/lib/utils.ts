@@ -7,7 +7,9 @@ export function formatDate(dateStr: string): string {
 }
 
 export function calcWinRate(acoes: Acao[]): number {
-  const relevantes = acoes.filter(a => a.resultado !== 'Empate')
+  // Só QRU fechado entra no win rate. Convencional (apreensão, sem resultado)
+  // e empate NÃO contam como vitória nem derrota.
+  const relevantes = acoes.filter(a => a.resultado === 'Vitória' || a.resultado === 'Derrota')
   if (relevantes.length === 0) return 0
   const vitorias = relevantes.filter(a => a.resultado === 'Vitória').length
   return Math.round((vitorias / relevantes.length) * 100)

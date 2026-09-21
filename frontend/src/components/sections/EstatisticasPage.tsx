@@ -107,7 +107,8 @@ export default function EstatisticasPage() {
         vitorias,
         derrotas,
         empates,
-        winRate: total > 0 ? Math.round((vitorias / total) * 100) : 0,
+        // Win rate só sobre QRU fechado (vitória/derrota) — convencional/empate não entram
+        winRate: vitorias + derrotas > 0 ? Math.round((vitorias / (vitorias + derrotas)) * 100) : 0,
       }
     }).filter(q => q.total > 0)
       .sort((a, b) => b.winRate - a.winRate)
