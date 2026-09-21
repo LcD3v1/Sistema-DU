@@ -7,6 +7,9 @@ import Brand from '@/components/ui/Brand'
 
 const SLASHES = '/'.repeat(120)
 const DASHES = '-'.repeat(90)
+// Cabeçalho/rodapé alinhados à direita (mesmo visual do modelo enviado)
+const LARGURA = 100
+const alinharDir = (s: string) => ' '.repeat(Math.max(0, LARGURA - s.length)) + s
 
 function fmtDate(d: string) {
   if (!d) return ''
@@ -57,18 +60,24 @@ export default function GerarBoletimPage() {
 
   const textoCopia = useMemo(() => {
     return [
-      'North Police Department',
-      oficialTxt,
+      alinharDir('⚡'),
+      '',
+      alinharDir('North Police Department'),
+      '',
+      alinharDir(oficialTxt),
+      '',
       SLASHES,
       '',
-      `📄 Relato da ocorrência: ${relato.trim() || '—'}`,
       '',
+      `📝 Relato da ocorrência: ${relato.trim()}`,
       `📦 Objetos apreendidos: ${objetos.trim() || 'N/A'}`,
-      `🚓 Veículos apreendidos: ${veiculos.trim() || 'N/A'}`,
+      `🚗 Veiculos apreendidos: ${veiculos.trim() || 'N/A'}`,
       `📝 Observações: ${observacoes.trim() || 'N/A'}`,
+      '',
       DASHES,
-      `${fmtDate(data)} - North Police Department`,
-      `Atenciosamente, ${assinaturaTxt}.`,
+      '',
+      alinharDir(`${fmtDate(data)} - North Police Department`),
+      alinharDir(`Atenciosamente, ${assinaturaTxt}.`),
     ].join('\n')
   }, [oficialTxt, relato, objetos, veiculos, observacoes, data, assinaturaTxt])
 
@@ -199,7 +208,7 @@ export default function GerarBoletimPage() {
 
             {/* Relato */}
             <p className="text-[13px] text-txt leading-relaxed text-justify mb-4">
-              <span className="text-red mr-1">📄</span>
+              <span className="text-red mr-1">📝</span>
               <span className="italic font-semibold text-gold3">Relato da ocorrência: </span>
               {relatoTxt}
             </p>
@@ -207,7 +216,7 @@ export default function GerarBoletimPage() {
             {/* Itens */}
             <div className="space-y-1.5 text-[13px] mb-4">
               <p className="border-l-2 border-gold/50 pl-2 text-txt"><span className="mr-1">📦</span><span className="text-gold3 font-medium">Objetos apreendidos:</span> {objetos.trim() || 'N/A'}</p>
-              <p className="border-l-2 border-red/50 pl-2 text-txt"><span className="mr-1">🚓</span><span className="text-red font-medium">Veículos apreendidos:</span> {veiculos.trim() || 'N/A'}</p>
+              <p className="border-l-2 border-red/50 pl-2 text-txt"><span className="mr-1">🚗</span><span className="text-red font-medium">Veiculos apreendidos:</span> {veiculos.trim() || 'N/A'}</p>
               <p className="border-l-2 border-blue/50 pl-2 text-txt"><span className="mr-1">📝</span><span className="text-blue font-medium">Observações:</span> {observacoes.trim() || 'N/A'}</p>
             </div>
 
