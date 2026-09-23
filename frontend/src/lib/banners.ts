@@ -33,7 +33,7 @@ export const TIER_BANNERS: TierBanner[] = [
   },
 ]
 
-// Liberados para todos (10 opções + as artes de corrida)
+// Liberados para todos (20 opções + as artes de corrida)
 export const PRESET_BANNERS: PresetBanner[] = [
   { key: 'midnight',  label: 'Meia-noite',   css: 'linear-gradient(120deg, #0c1526, #0a1120 55%, #05070c)' },
   { key: 'aco',       label: 'Aço azul',     css: 'linear-gradient(120deg, #0b1220, #1c2e52 60%, #3a72c4)' },
@@ -45,6 +45,17 @@ export const PRESET_BANNERS: PresetBanner[] = [
   { key: 'abismo',    label: 'Abismo',       css: 'radial-gradient(120% 120% at 20% 0%, #16233f, #05070c 70%)' },
   { key: 'neon',      label: 'Neon',         css: 'linear-gradient(120deg, #05070c, #0a1120 40%, #2a1a4a 85%)' },
   { key: 'gelo',      label: 'Gelo',         css: 'linear-gradient(120deg, #0a1420, #274a63 60%, #9cc0f5)' },
+  // + 10 novos liberados para todos os membros
+  { key: 'blindado',  label: 'Blindado',     css: 'linear-gradient(120deg, #0b0d12, #262b36 55%, #0b0d12)' },
+  { key: 'tatico',    label: 'Tático',       css: 'linear-gradient(120deg, #08120f, #0e2a24 50%, #0a1120)' },
+  { key: 'cobalto',   label: 'Cobalto',      css: 'linear-gradient(120deg, #050a18, #123a8a 55%, #3a72c4)' },
+  { key: 'titanio',   label: 'Titânio',      css: 'linear-gradient(120deg, #12161d, #2a3646 55%, #9cc0f5)' },
+  { key: 'escarlate', label: 'Escarlate',    css: 'linear-gradient(120deg, #14060a, #3a0f1a 50%, #0a0e1a)' },
+  { key: 'alvorada',  label: 'Alvorada',     css: 'linear-gradient(120deg, #070b16, #1a2b6b 50%, #b06a3a)' },
+  { key: 'vortex',    label: 'Vórtex',       css: 'radial-gradient(130% 130% at 80% 20%, #1d2f57, #05070c 70%)' },
+  { key: 'eclipse',   label: 'Eclipse',      css: 'radial-gradient(120% 120% at 50% 120%, #16233f, #05070c 60%)' },
+  { key: 'esmeralda', label: 'Esmeralda',    css: 'linear-gradient(120deg, #04120e, #0a3a2c 55%, #0a1120)' },
+  { key: 'purpura',   label: 'Púrpura',      css: 'linear-gradient(120deg, #0a0716, #2a1a4a 55%, #5b3aa0)' },
   { key: 'race-2',    label: 'Patrulha noturna', img: '/media/races/race-2.webp' },
   { key: 'race-1',    label: 'Perseguição',      img: '/media/races/race-1.webp' },
   { key: 'race-4',    label: 'Largada',          img: '/media/races/race-4.webp' },
