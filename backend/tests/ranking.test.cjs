@@ -189,7 +189,7 @@ test('hierarquia usa ordem configurada, não ordem alfabética', () => {
   assert.equal(build(data).members[0].id, 2)
 })
 test('patente interna equivalente reutiliza o cargo configurado sem duplicar grupos', () => {
-  const data = makeData(); data.cargosPermissao[1].nome = '(FAST) Officer'
+  const data = makeData(); data.cargosPermissao[1].nome = '(DU) Officer'
   const value = build(data)
   assert.equal(value.roles.length, 2)
   assert.equal(value.members.find(m => m.id === 3).roleId, '20')
@@ -569,7 +569,7 @@ test('anúncio: envio exige login e a permissão de editar anúncio; link públi
 })
 
 // ── Mensagens pelo bot (Components V2) e avisos no Discord ────────────────────
-test('mensagem: painel V2 da FAST nunca notifica ninguém', () => {
+test('mensagem: painel V2 da DU nunca notifica ninguém', () => {
   const { montarPainel } = require('../dist/discord/mensagens')
   const p = montarPainel({ titulo: 'Operação', mensagem: '@everyone <@&123> texto', rotulo: 'Comunicado', autor: '<@1>' })
   assert.equal(p.flags, 1 << 15)

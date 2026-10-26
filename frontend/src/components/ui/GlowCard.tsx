@@ -27,7 +27,7 @@ export default function GlowCard({ children, className = '', onClick }: Props) {
       {/* glow navy no hover/foco */}
       <div
         className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100"
-        style={{ boxShadow: '0 0 0 1px rgba(58,114,196,0.4), 0 22px 55px -26px rgba(58,114,196,0.55)' }}
+        style={{ boxShadow: '0 0 0 1px rgba(139, 92, 246,0.4), 0 22px 55px -26px rgba(139, 92, 246,0.55)' }}
       />
       <div className="relative">{children}</div>
     </motion.div>

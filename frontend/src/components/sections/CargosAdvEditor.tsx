@@ -103,13 +103,13 @@ export default function CargosAdvEditor() {
       {data.botConfigurado && faltando && (
         <button
           onClick={() => criar.mutate(undefined, {
-            onSuccess: () => addToast('success', 'Cargos ADV FAST 1, 2 e 3 prontos no servidor.'),
+            onSuccess: () => addToast('success', 'Cargos ADV DU 1, 2 e 3 prontos no servidor.'),
             onError: err => addToast('error', erroApi(err, 'Erro ao criar os cargos.')),
           })}
           disabled={ocupado || !data.podeGerenciar}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gold/40 bg-gold/10 text-gold3 text-xs font-mono hover:bg-gold/20 transition-colors disabled:opacity-50"
         >
-          <Wand2 size={13} /> Criar ADV FAST 1, 2 e 3 automaticamente
+          <Wand2 size={13} /> Criar ADV DU 1, 2 e 3 automaticamente
         </button>
       )}
     </div>

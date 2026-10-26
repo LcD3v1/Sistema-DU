@@ -12,7 +12,7 @@ import { confirmar, decidir } from '@/lib/dialogo'
 const STATUS_META: Record<AusenciaStatus, { label: string; cls: string; dot: string; icon: typeof Clock }> = {
   pendente:   { label: 'Pendente',   cls: 'text-orange-400 border-orange-400/40 bg-orange-400/10', dot: '#f39c12', icon: Hourglass },
   ativa:      { label: 'Ativa',      cls: 'text-green border-green/40 bg-green/10', dot: '#2ecc71', icon: PlayCircle },
-  programada: { label: 'Programada', cls: 'text-gold3 border-gold/40 bg-gold/10',   dot: '#3a72c4', icon: Clock },
+  programada: { label: 'Programada', cls: 'text-gold3 border-gold/40 bg-gold/10',   dot: '#8b5cf6', icon: Clock },
   encerrada:  { label: 'Encerrada',  cls: 'text-txt2 border-bdr2 bg-white/5',       dot: '#8b8b8b', icon: CheckCircle2 },
   recusada:   { label: 'Recusada',   cls: 'text-red border-red/40 bg-red/10',       dot: '#e74c3c', icon: XCircle },
 }
@@ -84,7 +84,7 @@ export default function AusenciasPage() {
         </div>
         <button
           onClick={() => navigate('/ausencias/nova')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-10px_rgba(58,114,196,0.7)]"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-10px_rgba(139, 92, 246,0.7)]"
         >
           <CalendarPlus size={16} /> Registrar ausência
         </button>

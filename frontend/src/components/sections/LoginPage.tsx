@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldX, CalendarClock, FileText } from 'lucide-react'
@@ -14,7 +13,7 @@ const REASONS: Record<string, string> = {
   discord_nao_vinculado: 'Acesso negado para este Discord. Contate o administrador.',
   discord_erro: 'Falha na autenticação com o Discord. Tente novamente.',
   fora_servidor: 'Você precisa fazer parte do servidor do Discord da unidade para acessar o painel.',
-  bot_fora_servidor: 'O bot da FAST não está no servidor da unidade — o painel está indisponível. Contate o Alto Comando.',
+  bot_fora_servidor: 'O bot da DU não está no servidor da unidade — o painel está indisponível. Contate o Alto Comando.',
 }
 
 function DiscordIcon({ size = 17 }: { size?: number }) {
@@ -25,45 +24,20 @@ function DiscordIcon({ size = 17 }: { size?: number }) {
   )
 }
 
-/* Fundo em vídeo */
-function VideoBackdrop() {
-  const ref = useRef<HTMLVideoElement>(null)
-
-  // O React nem sempre aplica o atributo `muted`; forçamos via propriedade e
-  // chamamos play() (retry no 1º toque) para garantir o autoplay do fundo.
-  useEffect(() => {
-    const v = ref.current
-    if (!v) return
-    v.muted = true
-    v.defaultMuted = true
-    const tryPlay = () => { if (document.visibilityState === 'visible') v.play().catch(() => {}) }
-    tryPlay()
-    // Aba oculta: pausa o vídeo (economiza CPU/bateria); volta ao reexibir
-    const onVisibility = () => { if (document.visibilityState === 'visible') tryPlay(); else v.pause() }
-    document.addEventListener('visibilitychange', onVisibility)
-    const onReady = () => tryPlay()
-    v.addEventListener('canplay', onReady)
-    document.addEventListener('pointerdown', tryPlay, { once: true })
-    document.addEventListener('keydown', tryPlay, { once: true })
-    return () => {
-      v.removeEventListener('canplay', onReady)
-      document.removeEventListener('visibilitychange', onVisibility)
-      document.removeEventListener('pointerdown', tryPlay)
-      document.removeEventListener('keydown', tryPlay)
-    }
-  }, [])
-
+/* Fundo: arte investigativa da DU com movimento lento (respeita reduzir movimento) */
+function FundoInvestigativo() {
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
-      {/* scale 1.35 recorta o letterbox gravado no arquivo (barras de 12,5% em cima/baixo) */}
-      <video ref={ref} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scale(1.35) translateZ(0)', transformOrigin: 'center' }} src="/media/login-bg.mp4" autoPlay muted loop playsInline preload="metadata" disablePictureInPicture />
-      {/* scrim central para legibilidade do conteúdo */}
+      <div className="absolute inset-[-4%] bg-cover bg-center motion-safe:animate-[du-pan_38s_ease-in-out_infinite_alternate]"
+           style={{ backgroundImage: 'url(/media/du/login-bg.webp)' }} />
+      {/* brilho roxo + scrim central para legibilidade */}
       <div className="absolute inset-0 pointer-events-none"
-           style={{ background: 'radial-gradient(70% 80% at 50% 50%, rgba(4,6,11,0.82) 0%, rgba(4,6,11,0.55) 55%, rgba(4,6,11,0.35) 100%)' }} />
-      {/* grão + vinheta */}
-      <div className="absolute inset-0 grain-noise opacity-[0.05] pointer-events-none" />
+           style={{ background: 'radial-gradient(60% 70% at 50% 55%, rgba(7,5,11,0.86) 0%, rgba(7,5,11,0.6) 55%, rgba(7,5,11,0.35) 100%)' }} />
+      <div className="absolute inset-0 pointer-events-none mix-blend-screen opacity-60"
+           style={{ background: 'radial-gradient(45% 40% at 50% 100%, rgba(139,92,246,0.35), transparent 70%)' }} />
+      <div className="absolute inset-0 grain-noise opacity-[0.06] pointer-events-none" />
       <div className="absolute inset-0 pointer-events-none"
-           style={{ background: 'radial-gradient(130% 100% at 50% 50%, transparent 45%, rgba(0,0,0,0.7) 100%)' }} />
+           style={{ background: 'radial-gradient(130% 100% at 50% 50%, transparent 45%, rgba(0,0,0,0.75) 100%)' }} />
     </div>
   )
 }
@@ -76,15 +50,15 @@ export default function LoginPage() {
 
   return (
     <div className="relative altura-tela w-full overflow-hidden bg-black text-white">
-      <VideoBackdrop />
+      <FundoInvestigativo />
 
       {/* ── Top bar ─────────────────────────────────────────────── */}
       <header className="relative z-30 flex items-center justify-between px-5 sm:px-8 lg:px-14 pt-5 sm:pt-6">
         <div className="flex items-center gap-3">
           <Brand size={40} />
           <div className="leading-tight">
-            <p className="wordmark text-sm text-white tracking-[0.14em]">FAST</p>
-            <p className="font-mono text-[8px] text-white/40 tracking-[0.2em]">NPD</p>
+            <p className="wordmark text-sm text-white tracking-[0.14em]">Detective Unit</p>
+            <p className="font-mono text-[8px] text-white/45 tracking-[0.2em] uppercase">Detroit Police Department</p>
           </div>
         </div>
       </header>
@@ -94,15 +68,16 @@ export default function LoginPage() {
         <div className="w-full max-w-xl flex flex-col items-center text-center">
           <div className="flex items-center gap-2 mb-5">
             <span className="h-px w-8 bg-gold" />
-            <span className="font-mono text-[11px] text-gold3 tracking-[0.3em] uppercase">North Police Department</span>
+            <span className="font-mono text-[11px] text-gold3 tracking-[0.3em] uppercase">Detroit Police Department</span>
             <span className="h-px w-8 bg-gold" />
           </div>
 
           <h1 className="wordmark text-[64px] sm:text-[84px] md:text-[112px] leading-[0.9] text-white mb-4"
               style={{ textShadow: '0 8px 50px rgba(0,0,0,0.7)' }}>
-            FAST
+            DU
           </h1>
-
+          <p className="wordmark text-lg sm:text-2xl tracking-[0.5em] text-gold3 -mt-1 mb-3 pl-[0.5em]">Detective Unit</p>
+          <p className="text-white/55 text-sm max-w-md mb-8">Relatórios, boletins, inquéritos e inteligência investigativa — tudo em um só lugar.</p>
 
           <div className="flex flex-col items-center gap-3">
             <motion.a href={DISCORD_URL} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
@@ -158,7 +133,7 @@ export default function LoginPage() {
         </span>
       </Link>
 
-      {/* ── Overlay Ranking/Membros ─────────────────────────────── */}
+      {/* ── Overlay Membros ─────────────────────────────── */}
       <PublicOverlay />
     </div>
   )

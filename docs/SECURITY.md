@@ -1,6 +1,6 @@
-# Segurança — FAST / North Police Department
+# Segurança — DU / Detroit Police Department
 
-Este documento descreve a arquitetura de segurança do painel FAST, como mantê‑lo
+Este documento descreve a arquitetura de segurança do painel DU, como mantê‑lo
 seguro, como atualizar dependências, como fazer deploy com segurança e como
 reagir em caso de incidente.
 

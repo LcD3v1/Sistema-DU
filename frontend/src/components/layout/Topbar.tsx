@@ -9,20 +9,19 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard':        'Visão geral',
   '/avisos':           'Avisos',
   '/perfil':           'Meu perfil',
-  '/acoes/nova':       'Cadastrar apreensão',
-  '/acoes/pendentes':  'Apreensões pendentes',
-  '/acoes/historico':  'Histórico de apreensões',
-  '/estatisticas':     'Estatísticas',
+  '/relatorios':       'Relatórios investigativos',
+  '/relatorios/novo':  'Cadastrar relatório',
+  '/boletins':         'Boletins',
+  '/inqueritos':       'Arquivo de Inquéritos',
+  '/galeria':          'Galeria da DU',
   '/membros':          'Membros da unidade',
-  '/ranking':          'Ranking',
   '/ausencias/nova':   'Registrar ausência',
   '/ausencias':        'Ausências',
   '/fardamento':       'Fardamento',
   '/recrutamento':     'Recrutamento',
   '/anuncio':          'Gerar anúncio',
-  '/boletim':          'Gerar boletim',
   '/protocolo':        'Protocolo operacional',
-  '/carteira':         'Gerar carteira',
+  '/carteira':         'Carteirinha da DU',
   '/mensagens':        'Enviar mensagem',
   '/cursos':           'Cursos internos',
   '/configuracoes':    'Configurações',
@@ -31,7 +30,7 @@ const PAGE_TITLES: Record<string, string> = {
 function resolveTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
   if (pathname.startsWith('/recrutamento/')) return 'Avaliação de recruta'
-  return 'FAST NPD'
+  return 'Detective Unit'
 }
 
 export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {

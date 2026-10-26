@@ -16,7 +16,7 @@ export default function TermosPage() {
   const logado = !!useAuthStore(s => s.token)
   const ativo = (DOCUMENTOS.find(d => `#${d.id}` === hash) ?? DOCUMENTOS[0])
 
-  useEffect(() => { document.title = `${ativo.titulo} · FAST` }, [ativo.titulo])
+  useEffect(() => { document.title = `${ativo.titulo} · DU` }, [ativo.titulo])
   useEffect(() => { window.scrollTo({ top: 0 }) }, [ativo.id])
 
   return (

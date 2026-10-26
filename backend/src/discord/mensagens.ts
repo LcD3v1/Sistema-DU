@@ -1,7 +1,7 @@
 import { discordFetch, listarForuns, GUILD_TEXT, GUILD_ANNOUNCEMENT } from './forum'
 
 /**
- * Mensagens do painel enviadas pelo bot em Components V2 (container da FAST):
+ * Mensagens do painel enviadas pelo bot em Components V2 (container da DU):
  *  - "Enviar mensagem": o membro escreve e escolhe o canal;
  *  - Avisos: todo aviso publicado vai também para o canal configurado.
  *
@@ -10,7 +10,7 @@ import { discordFetch, listarForuns, GUILD_TEXT, GUILD_ANNOUNCEMENT } from './fo
  */
 
 const IS_COMPONENTS_V2 = 1 << 15
-const COR_FAST = 0x3a72c4
+const COR_FAST = 0x8b5cf6
 const TIPOS_TEXTO = new Set([GUILD_TEXT, GUILD_ANNOUNCEMENT])
 export const MAX_TITULO = 100
 export const MAX_MENSAGEM = 3500   // o Discord aceita 4000 no total dos textos do container
@@ -29,7 +29,7 @@ function logoPublica(): string | null {
 }
 
 export function montarPainel(p: PainelMensagem) {
-  const cabecalho = [`-# ${p.rotulo.toUpperCase()} · FAST`, p.titulo?.trim() ? `## ${p.titulo.trim()}` : ''].filter(Boolean).join('\n')
+  const cabecalho = [`-# ${p.rotulo.toUpperCase()} · DU`, p.titulo?.trim() ? `## ${p.titulo.trim()}` : ''].filter(Boolean).join('\n')
   const logo = logoPublica()
   const topo = logo
     ? { type: 9, components: [{ type: 10, content: cabecalho }], accessory: { type: 11, media: { url: logo } } }
@@ -46,7 +46,7 @@ export function montarPainel(p: PainelMensagem) {
         { type: 14, divider: true, spacing: 1 },
         { type: 10, content: p.mensagem.trim().slice(0, MAX_MENSAGEM) },
         { type: 14, divider: true, spacing: 1 },
-        { type: 10, content: `-# Enviado por ${p.autor} · <t:${quando}:f> · FAST · North Police Department` },
+        { type: 10, content: `-# Enviado por ${p.autor} · <t:${quando}:f> · DU · Detroit Police Department` },
       ],
     }],
   }

@@ -1,4 +1,4 @@
-# Regras obrigatórias para IAs — Sistema FAST
+# Regras obrigatórias para IAs — Sistema DU
 
 **Segurança é a base deste projeto.** Leia antes de tocar em qualquer arquivo. Se uma
 mudança conflitar com estas regras, a regra vence — pare e avise o usuário.
@@ -50,6 +50,6 @@ Detalhes: `docs/SECURITY.md`.
 
 ## Antes de terminar
 ```bash
-cd backend && npx tsc --noEmit && npm run test:ranking && npm run security
+cd backend && npx tsc --noEmit && npm run test:ranking && npm run test:du && npm run security
 ```
 Tudo precisa passar. Nova proteção → acrescente a checagem em `backend/scripts/security-check.mjs`.

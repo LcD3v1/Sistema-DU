@@ -40,7 +40,7 @@ const PLACEHOLDERS = [
   'changeme', 'secret', 'your-secret-here',
 ]
 
-console.log('\n=== FAST — Verificação de Segurança ===\n')
+console.log('\n=== DU — Verificação de Segurança ===\n')
 
 // 1. JWT_SECRET
 console.log('[1] Segredo JWT (.env)')
@@ -544,5 +544,37 @@ check(/allowed_mentions: \{ parse: \[\] \}/.test(mensagensDiscordTs) && !/parse:
   'mensagens do bot nunca notificam @everyone/cargos', 'mensagem do bot pode notificar @everyone/cargos')
 check(/\.map\(\(\{ id, titulo, mensagem, autor, criadoEm \}\)/.test(ler('src/routes/avisos.ts')),
   'avisos listados campo a campo (sem IDs do Discord)', 'avisos saem crus (com IDs do Discord)')
+console.log('\n[DU] Relatórios, Boletins, Inquéritos, Galeria e arquivos')
+const arquivosTs = ler('src/routes/arquivos.ts')
+check(/router\.post\('\/', requireAuth,\s*\n?\s*express\.raw\(\{ type: 'application\/octet-stream', limit: MAX_BYTES_ARQUIVO \}\)/.test(arquivosTs)
+  && /contaPode\(peekData\(\), req\.user!\.contaId, area, 'editar'\)/.test(arquivosTs) && /AREAS_ARQUIVO\.includes\(area\)/.test(arquivosTs),
+  'envio de arquivo exige login, área/editar e limite de tamanho', 'envio de arquivo sem login/permissão/limite')
+check(/tipo\.confere\(bytes\)/.test(arquivosTs) && !/svg|html?['"]/i.test(arquivosTs.slice(arquivosTs.indexOf('const TIPOS'), arquivosTs.indexOf('function limparNome'))),
+  'arquivo conferido pelos bytes (sem SVG/HTML)', 'arquivo aceito sem conferir bytes ou aceita SVG/HTML')
+check(/router\.get\('\/:id', requireAuth/.test(arquivosTs) && /contaPode\(peekData\(\), req\.user!\.contaId, doc\.area, 'ver'\)/.test(arquivosTs)
+  && /'X-Content-Type-Options', 'nosniff'/.test(arquivosTs) && /sandbox/.test(arquivosTs) && /randomBytes\(18\)/.test(arquivosTs),
+  'download exige login + ver a área; ID aleatório, nosniff e CSP sandbox', 'download de arquivo sem permissão ou sem nosniff/sandbox')
+check(/expireAfterSeconds: 0/.test(arquivosTs) && /\$unset: \{ expiraEm/.test(arquivosTs),
+  'arquivo não vinculado expira sozinho (TTL)', 'arquivos órfãos nunca expiram')
+check(/app\.use\('\/api\/arquivos', \(req, res, next\) => \(req\.method === 'POST' \? arquivoLimiter/.test(index),
+  'envio de arquivo com limitador próprio', 'envio de arquivo sem limitador')
+for (const [arquivo, area, schema] of [
+  ['relatorios', 'relatorios', 'relatorioSchema'], ['boletins', 'boletins', 'boletimSchema'],
+  ['inqueritos', 'inqueritos', 'inqueritoSchema'], ['galeria', 'galeria', 'fotoGaleriaSchema'],
+]) {
+  const src = ler(`src/routes/${arquivo}.ts`)
+  const rotas = src.match(/router\.(get|post|put|delete)\([^\n]+/g) || []
+  check(rotas.length >= 4 && rotas.every(r => r.includes('requireAuth') && r.includes(`requireArea('${area}'`))
+    && rotas.filter(r => /router\.(post|put)/.test(r)).every(r => r.includes(`validateBody(${schema})`)),
+    `${arquivo}: toda rota com requireAuth + requireArea e escrita com Zod`, `${arquivo}: rota sem requireAuth/requireArea/Zod`)
+  check(/function publico\(/.test(src) && !/res\.(status\(\d+\)\.)?json\((novo|nova|rel|bol|inq|foto)\)/.test(src) && !/autorContaId: [a-z]\.autorContaId/.test(src.slice(src.indexOf('function publico'), src.indexOf('function publico') + 600)),
+    `${arquivo}: saída por DTO (sem autorContaId)`, `${arquivo}: devolve objeto cru do banco`)
+  check(/conferirArquivos\(/.test(src) && /sincronizarArquivos\(/.test(src),
+    `${arquivo}: anexos conferidos no banco antes de gravar`, `${arquivo}: confia nos anexos enviados pelo cliente`)
+}
+const relTs = ler('src/routes/relatorios.ts')
+check(/r\.sigiloso \|\| envolvido\(r, conta\) \|\| canArea\(conta, data, 'relatorios_gestao', 'ver'\)/.test(relTs)
+  && /\.filter\(r => podeVer\(r, conta, data\)\)/.test(relTs),
+  'relatório sigiloso só para autor, citados e gestão', 'relatório sigiloso visível a todos')
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

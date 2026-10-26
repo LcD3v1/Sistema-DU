@@ -39,7 +39,7 @@ router.get('/forum', requireAuth, requireArea('carteira', 'ver'), async (_req: R
       topicos: await listarTopicosForum(forumId),
     })
   } catch (err) {
-    console.error('[FAST][CARTEIRA] listar tópicos:', err instanceof Error ? err.message : err)
+    console.error('[DU][CARTEIRA] listar tópicos:', err instanceof Error ? err.message : err)
     res.status(502).json({ error: 'Não foi possível consultar o Discord agora.' })
   }
 })
@@ -52,7 +52,7 @@ router.get('/membros', requireAuth, requireArea('carteira', 'editar'), async (_r
     // semId: o painel recebe o @ e o nome, nunca o discordId de terceiros
     res.json({ configurado: true, membros: (await listarMembrosServidor()).map(semId) })
   } catch (err) {
-    console.error('[FAST][CARTEIRA] listar membros:', err instanceof Error ? err.message : err)
+    console.error('[DU][CARTEIRA] listar membros:', err instanceof Error ? err.message : err)
     res.status(502).json({ error: 'Não foi possível consultar os membros do Discord agora.' })
   }
 })
@@ -95,7 +95,7 @@ router.post('/postar', requireAuth, requireArea('carteira', 'editar'), validateB
       }
       await postarImagemNoTopico(topicoId, `carteira-${Date.now()}.png`, png, mensagem, marcar)
     } catch (err) {
-      console.error('[FAST][CARTEIRA] postar:', err instanceof Error ? err.message : err)
+      console.error('[DU][CARTEIRA] postar:', err instanceof Error ? err.message : err)
       res.status(502).json({ error: 'Não foi possível postar no Discord agora.' }); return
     }
 

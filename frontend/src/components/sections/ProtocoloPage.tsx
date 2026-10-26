@@ -6,8 +6,8 @@ const FLIPBOOK = 'https://heyzine.com/flip-book/79e82a2e02.html'
 
 const SECOES = [
   'Introdução', 'Juramento', 'Diretrizes Gerais', 'Hierarquia',
-  'Especialização da FAST', 'Organização de PTR', 'Acompanhamento',
-  'Acompanhamento 2.0', 'Viatura e Fardamento', 'Site da FAST', 'Conclusão',
+  'Especialização da DU', 'Organização de PTR', 'Acompanhamento',
+  'Acompanhamento 2.0', 'Viatura e Fardamento', 'Site da DU', 'Conclusão',
 ]
 
 export default function ProtocoloPage() {
@@ -17,10 +17,10 @@ export default function ProtocoloPage() {
     <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
       {/* ── Banner ─────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-gold/25 mb-6"
-           style={{ background: 'radial-gradient(120% 140% at 15% 0%, rgba(58,114,196,0.28), rgba(20,33,61,0.5) 40%, #070a12 80%)' }}>
+           style={{ background: 'radial-gradient(120% 140% at 15% 0%, rgba(139, 92, 246,0.28), rgba(20,33,61,0.5) 40%, #070a12 80%)' }}>
         <div className="absolute inset-0 grain-noise opacity-[0.05] pointer-events-none" />
         <div className="relative flex items-center gap-3 sm:gap-5 p-4 sm:p-6 md:p-8 flex-wrap">
-          <div className="shrink-0" style={{ filter: 'drop-shadow(0 0 24px rgba(58,114,196,0.4))' }}>
+          <div className="shrink-0" style={{ filter: 'drop-shadow(0 0 24px rgba(139, 92, 246,0.4))' }}>
             <Brand size={84} />
           </div>
           <div className="flex-1">
@@ -28,10 +28,10 @@ export default function ProtocoloPage() {
               <ShieldCheck size={13} /> Documento oficial
             </p>
             <h1 className="wordmark text-2xl md:text-3xl text-white tracking-wide">Protocolo Operacional</h1>
-            <p className="text-sm text-white/70 mt-1">Force Action Strike Terrestrial — North Police Department</p>
+            <p className="text-sm text-white/70 mt-1">Force Action Strike Terrestrial — Detroit Police Department</p>
           </div>
           <a href={FLIPBOOK} target="_blank" rel="noopener noreferrer"
-             className="hidden md:flex shrink-0 items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
+             className="hidden md:flex shrink-0 items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(139, 92, 246,0.7)]">
             <Maximize2 size={15} /> Abrir em tela cheia
           </a>
         </div>
@@ -59,7 +59,7 @@ export default function ProtocoloPage() {
         )}
         <iframe
           src={FLIPBOOK}
-          title="Protocolo Operacional FAST"
+          title="Protocolo Operacional DU"
           onLoad={() => setLoaded(true)}
           allowFullScreen
           className="w-full h-[72vh] min-h-[520px] block"

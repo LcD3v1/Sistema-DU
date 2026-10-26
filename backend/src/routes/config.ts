@@ -285,7 +285,7 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
   if (aprovadoCom) {
     // Aprovou agora → posta no canal de registro antes de responder (sem atraso)
     try { await postarAprovacao(conta.id, aprovadoCom, req.user!.username) } catch (err) {
-      console.error('[FAST][DISCORD] postar aprovação:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] postar aprovação:', err instanceof Error ? err.message : err)
     }
   } else if (conta.cargoPermId) tentarPostarRegistro(conta.id)
   res.json(conta)
@@ -420,7 +420,7 @@ async function respostaCargosAdv(res: Response): Promise<void> {
   try {
     res.json({ botConfigurado: true, ...(await infoCargosAdv()) })
   } catch (err) {
-    console.error('[FAST][DISCORD] cargos de ADV:', err instanceof Error ? err.message : err)
+    console.error('[DU][DISCORD] cargos de ADV:', err instanceof Error ? err.message : err)
     res.json({ botConfigurado: true, erro: 'Não foi possível consultar os cargos do servidor.', cargos: readData().cargosAdv ?? {}, roles: [], podeGerenciar: false })
   }
 }
@@ -429,11 +429,11 @@ router.get('/cargos-adv', requireAuth, adminOnly, cargosDiscordLimiter, async (_
   await respostaCargosAdv(res)
 })
 
-// Cria (ou reaproveita pelo nome) ADV FAST 1/2/3 para os níveis sem cargo
+// Cria (ou reaproveita pelo nome) ADV DU 1/2/3 para os níveis sem cargo
 router.post('/cargos-adv/criar', requireAuth, adminOnly, cargosDiscordLimiter, async (req: Request, res: Response): Promise<void> => {
   if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
   try { await garantirCargosAdv() } catch (err) {
-    console.error('[FAST][DISCORD] criar cargos de ADV:', err instanceof Error ? err.message : err)
+    console.error('[DU][DISCORD] criar cargos de ADV:', err instanceof Error ? err.message : err)
     res.status(502).json({ error: 'Não foi possível criar os cargos. Confira se o bot tem a permissão "Gerenciar Cargos".' }); return
   }
   audit('CONFIG_UPDATED', req, 'Cargos de advertência criados/verificados no Discord')
@@ -482,7 +482,7 @@ router.get('/canais', requireAuth, adminOnly, async (_req: Request, res: Respons
   try {
     res.json({ botConfigurado: true, canais: data.canais, foruns: await listarForuns() })
   } catch (err) {
-    console.error('[FAST][DISCORD] listar canais:', err instanceof Error ? err.message : err)
+    console.error('[DU][DISCORD] listar canais:', err instanceof Error ? err.message : err)
     res.json({ botConfigurado: true, erro: 'Não foi possível listar os canais do servidor. Verifique o token do bot e o ID do servidor.', canais: data.canais, foruns: [] })
   }
 })

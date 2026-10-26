@@ -115,6 +115,9 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
           <span className="inline-flex flex-col gap-0.5 leading-tight">
             <span>{nomeComDiscord(membro)}</span>
             {discordNome(membro) && <span className="text-[10px] text-txt3">{membro.policial}</span>}
+            {canEdit
+              ? <InlineCell field="codinome" value={membro.codinome ?? ''} canEdit onSave={v => onUpdate(membro.id, { codinome: v })} />
+              : membro.codinome && <span className="text-[11px] font-mono uppercase tracking-wider text-gold3">“{membro.codinome}”</span>}
           </span>
         </MembroNomeMenu>
         {membro.ausenteAte && (
@@ -278,19 +281,24 @@ export default function MembrosPage() {
 
   return (
     <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-6">
-      {/* Cabeçalho da página */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Efetivo da unidade</p>
-          <h1 className="text-2xl sm:text-3xl font-bold text-txt">Membros</h1>
-          <p className="text-sm text-txt2 mt-1">
-            {totalAtivos} {totalAtivos === 1 ? 'membro cadastrado' : 'membros cadastrados'} — gerencie patentes, status, advertências e perfis.
-          </p>
+      {/* Cabeçalho da página — arte temática da DU */}
+      <div className="relative overflow-hidden rounded-2xl border border-bdr">
+        <img src="/media/du/membros.webp" alt="" aria-hidden decoding="async" className="absolute inset-0 w-full h-full object-cover object-[center_35%]" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-bg via-bg/80 to-bg/10" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-transparent" />
+        <div className="relative flex items-end justify-between gap-4 flex-wrap px-5 sm:px-8 py-8 sm:py-12 min-h-44">
+          <div>
+            <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Efetivo da Detective Unit</p>
+            <h1 className="text-2xl sm:text-4xl font-bold text-txt">Investigadores</h1>
+            <p className="text-sm text-txt2 mt-1 max-w-xl">
+              {totalAtivos} {totalAtivos === 1 ? 'investigador cadastrado' : 'investigadores cadastrados'} — gerencie codinomes, patentes, status, advertências e perfis.
+            </p>
+          </div>
+          <button type="button" onClick={() => setDirectoryOpen(v => !v)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gold/40 text-sm font-medium text-gold3 bg-bg/60 backdrop-blur hover:bg-gold/15 transition-colors">
+            <Users size={16} /> {directoryOpen ? 'Fechar diretório' : 'Abrir diretório e perfis'}
+          </button>
         </div>
-        <button type="button" onClick={() => setDirectoryOpen(v => !v)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gold/30 text-sm font-medium text-gold3 bg-gold/10 hover:bg-gold/15 transition-colors">
-          <Users size={16} /> {directoryOpen ? 'Fechar diretório' : 'Abrir diretório e perfis'}
-        </button>
       </div>
 
       {directoryOpen && <RankingModule mode="members" />}

@@ -7,14 +7,14 @@ import { botConfigurado, discordFetch } from './forum'
  * espelha um cargo. Marcado → a pessoa tem o cargo; desmarcado → o bot tira.
  * Os níveis são independentes: tirar o 2 não mexe no 1 nem no 3.
  *
- * O bot cria sozinho `ADV FAST 1/2/3` quando ainda não há cargo configurado,
+ * O bot cria sozinho `ADV DU 1/2/3` quando ainda não há cargo configurado,
  * e o admin pode trocar por outros cargos em Configurações.
  */
 
 export const NIVEIS_ADV = ['1', '2', '3'] as const
 export type NivelAdvChave = typeof NIVEIS_ADV[number]
 
-const NOME_PADRAO = (n: NivelAdvChave) => `ADV FAST ${n}`
+const NOME_PADRAO = (n: NivelAdvChave) => `ADV DU ${n}`
 const COR: Record<NivelAdvChave, number> = { '1': 0xF5C542, '2': 0xFB923C, '3': 0xD0453A }
 const ADMINISTRATOR = 1n << 3n
 const MANAGE_ROLES = 1n << 28n
@@ -93,7 +93,7 @@ export async function garantirCargosAdv(): Promise<void> {
       name: NOME_PADRAO(n), color: COR[n], hoist: false, mentionable: false, permissions: '0',
     }).then(r => jsonOuErro<RoleApi>(r, `criar ${NOME_PADRAO(n)}`))
     novos[n] = criado.id
-    console.log(`[FAST][DISCORD] Cargo "${NOME_PADRAO(n)}" criado.`)
+    console.log(`[DU][DISCORD] Cargo "${NOME_PADRAO(n)}" criado.`)
   }
   if (!Object.keys(novos).length) return
   // Sem await daqui até writeData: não sobrescreve gravações concorrentes
@@ -143,7 +143,7 @@ export async function retirarCargoDeTodos(roleId: string): Promise<void> {
   for (const conta of peekData().contas) {
     if (!conta.discordId) continue
     const r = await discordFetch('DELETE', `/guilds/${guild()}/members/${conta.discordId}/roles/${roleId}`)
-    if (!r.ok && r.status !== 404) console.error(`[FAST][DISCORD] retirar cargo antigo de ADV: HTTP ${r.status}`)
+    if (!r.ok && r.status !== 404) console.error(`[DU][DISCORD] retirar cargo antigo de ADV: HTTP ${r.status}`)
   }
 }
 
@@ -152,7 +152,7 @@ export async function sincronizarTodosCargosAdv(): Promise<void> {
   for (const conta of peekData().contas) {
     if (!conta.discordId) continue
     try { await sincronizarCargosAdv(conta.discordId) } catch (err) {
-      console.error('[FAST][DISCORD] sincronizar cargos de ADV:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] sincronizar cargos de ADV:', err instanceof Error ? err.message : err)
     }
   }
 }

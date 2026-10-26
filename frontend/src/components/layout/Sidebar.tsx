@@ -1,12 +1,11 @@
 import { Link, NavLink } from 'react-router-dom'
 import {
-  LayoutGrid, FilePlus2, ClipboardCheck, History,
-  Users, Trophy, CalendarPlus, CalendarDays, UserPlus,
+  LayoutGrid, FilePlus2, FileSearch, FolderArchive, Images,
+  Users, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
-  Settings, ArrowUpRight, Code2, Bell, X, Send, FileText,
+  Settings, ArrowUpRight, Code2, Bell, X, Send,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useAcoes } from '@/hooks/useAcoes'
 import { useAvisos } from '@/hooks/useAvisos'
 import { usePerms } from '@/hooks/usePerms'
 import Brand from '@/components/ui/Brand'
@@ -21,6 +20,8 @@ interface NavItem {
   minNivel: Nivel
   area?: AreaId
   viewOnly?: boolean
+  /** Só aparece para quem pode EDITAR a área (ex.: cadastrar) */
+  editOnly?: boolean
   badge?: number
   external?: boolean
 }
@@ -38,19 +39,19 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: 'Apreensões',
+    title: 'Investigação',
     items: [
-      { to: '/acoes/nova',       icon: FilePlus2,      label: 'Cadastrar',       minNivel: 'membro', area: 'registrar_acao' },
-      { to: '/acoes/pendentes',  icon: ClipboardCheck, label: 'Pendentes',       minNivel: 'membro', area: 'pendentes' },
-      { to: '/acoes/historico',  icon: History,        label: 'Histórico',       minNivel: 'membro', area: 'historico' },
-      { to: '/relatorio',        icon: FileText,       label: 'Relatório da unidade', minNivel: 'membro', viewOnly: true, area: 'relatorio' },
+      { to: '/relatorios/novo', icon: FilePlus2,     label: 'Cadastrar relatório',  minNivel: 'membro', area: 'relatorios', editOnly: true },
+      { to: '/relatorios',      icon: FileSearch,    label: 'Relatórios',           minNivel: 'membro', area: 'relatorios' },
+      { to: '/boletins',        icon: ScrollText,    label: 'Boletins',             minNivel: 'membro', area: 'boletins' },
+      { to: '/inqueritos',      icon: FolderArchive, label: 'Arquivo de Inquéritos', minNivel: 'membro', area: 'inqueritos' },
+      { to: '/galeria',         icon: Images,        label: 'Galeria da DU',        minNivel: 'membro', area: 'galeria' },
     ],
   },
   {
     title: 'Efetivo',
     items: [
       { to: '/membros',        icon: Users,             label: 'Membros',            minNivel: 'membro', viewOnly: true, area: 'membros' },
-      { to: '/ranking',        icon: Trophy,            label: 'Ranking',            minNivel: 'membro', viewOnly: true, area: 'ranking' },
       { to: '/ausencias/nova', icon: CalendarPlus,      label: 'Registrar Ausência', minNivel: 'membro', area: 'ausencias' },
       { to: '/ausencias',      icon: CalendarDays,      label: 'Ausências',          minNivel: 'membro', area: 'ausencias' },
       { to: '/fardamento',     icon: Shirt,             label: 'Fardamento',         minNivel: 'membro', area: 'fardamento' },
@@ -58,14 +59,13 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: 'Interações',
+    title: 'Unidade',
     items: [
-      { to: '/anuncio',  icon: Megaphone,     label: 'Gerar anúncio',    minNivel: 'moderador', area: 'anuncio' },
-      { to: '/boletim',  icon: ScrollText,    label: 'Gerar boletim',    minNivel: 'membro', area: 'boletim' },
-      { to: '/protocolo', icon: BookOpen,     label: 'Protocolo',        minNivel: 'membro', viewOnly: true, area: 'protocolo' },
-      { to: '/carteira',  icon: CreditCard,   label: 'Gerar carteira',   minNivel: 'membro', area: 'carteira' },
-      { to: '/mensagens', icon: Send,         label: 'Enviar mensagem',  minNivel: 'membro', area: 'mensagens' },
-      { to: '/cursos',   icon: GraduationCap, label: 'Cursos Internos',  minNivel: 'membro', area: 'cursos' },
+      { to: '/cursos',    icon: GraduationCap, label: 'Cursos Internos',   minNivel: 'membro', area: 'cursos' },
+      { to: '/carteira',  icon: CreditCard,    label: 'Carteirinha DU',    minNivel: 'membro', area: 'carteira' },
+      { to: '/anuncio',   icon: Megaphone,     label: 'Gerar anúncio',     minNivel: 'moderador', area: 'anuncio' },
+      { to: '/protocolo', icon: BookOpen,      label: 'Protocolo',         minNivel: 'membro', viewOnly: true, area: 'protocolo' },
+      { to: '/mensagens', icon: Send,          label: 'Enviar mensagem',   minNivel: 'membro', area: 'mensagens' },
     ],
   },
   {
@@ -83,12 +83,10 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
-  const { data: pend } = useAcoes({ status: 'pendente', limit: 1 })
-  const pendingCount = pend?.total ?? 0
   const { data: avisosData } = useAvisos()
   const avisosNaoVistos = avisosData?.naoVistos ?? 0
 
-  const { canView, admin } = usePerms()
+  const { canView, canEdit, admin } = usePerms()
 
   const groups = GROUPS
     .map(g => ({
@@ -98,6 +96,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
         if (item.area === 'configuracoes') return admin
         // Demais áreas: conforme a permissão de "ver" do cargo
         if (item.area && !canView(item.area)) return false
+        if (item.area && item.editOnly && !canEdit(item.area)) return false
         return true
       }),
     }))
@@ -130,19 +129,20 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
       <div className="flex flex-col items-center pt-6 pb-5 px-3 gap-2 border-b border-bdr/60">
         <div className="relative flex items-center justify-center" style={{ width: 86, height: 86 }}>
           <div className="absolute inset-0 rounded-full pointer-events-none"
-               style={{ background: 'radial-gradient(circle, rgba(58,114,196,0.5), transparent 68%)', animation: 'logo-aura 3.2s ease-in-out infinite' }} />
+               style={{ background: 'radial-gradient(circle, rgba(139, 92, 246,0.5), transparent 68%)', animation: 'logo-aura 3.2s ease-in-out infinite' }} />
           <div className="absolute inset-1.5 rounded-full pointer-events-none"
                style={{
-                 background: 'conic-gradient(from 0deg, transparent 0deg, rgba(58,114,196,0.95) 90deg, transparent 210deg)',
+                 background: 'conic-gradient(from 0deg, transparent 0deg, rgba(139, 92, 246,0.95) 90deg, transparent 210deg)',
                  WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
                  mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
                  animation: 'logo-ring 5s linear infinite',
                }} />
-          <div style={{ animation: 'logo-float 4s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(58,114,196,0.5))' }}>
+          <div style={{ animation: 'logo-float 4s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(139, 92, 246,0.5))' }}>
             <Brand size={62} />
           </div>
         </div>
-        <p className="wordmark text-[15px] text-txt tracking-[0.18em] mt-1">Fast Unit</p>
+        <p className="wordmark text-[15px] text-txt tracking-[0.18em] mt-1">Detective Unit</p>
+        <p className="font-mono text-[9px] text-gold3/80 tracking-[0.3em] uppercase -mt-1">Detroit Police Dept.</p>
       </div>
 
       {/* Navegação */}
@@ -171,8 +171,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
                   }
                 >
                   {({ isActive }) => {
-                    const badge = item.to === '/acoes/pendentes' ? pendingCount
-                      : item.to === '/avisos' ? avisosNaoVistos
+                    const badge = item.to === '/avisos' ? avisosNaoVistos
                       : item.badge
                     return (
                     <>

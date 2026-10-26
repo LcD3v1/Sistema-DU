@@ -36,7 +36,7 @@ router.get('/', requireAuth, (req, res) => {
     })
   }
   res.json(membros.map(m => m.id === conta.membroId || detalhes ? comVinculo(data, m) : completo ? semDetalhesInternos(comVinculo(data, m)) : ({
-    id: m.id, policial: m.policial, badge: m.badge, patenteNPD: m.patenteNPD,
+    id: m.id, policial: m.policial, codinome: m.codinome ?? '', badge: m.badge, patenteNPD: m.patenteNPD,
     nomeServidor: contaDoMembro(data, m.id)?.nomeServidor ?? null,
     discordUsername: contaDoMembro(data, m.id)?.discordUsername ?? null,
     patenteInterna: m.patenteInterna, status: m.status, entrada: m.entrada,
@@ -362,6 +362,7 @@ router.post('/', requireAuth, requireArea('membros', 'editar'), validateBody(mem
     policial:       body.policial,
     patenteNPD:     body.patenteNPD,
     patenteInterna: body.patenteInterna,
+    codinome:       body.codinome,
     status:         body.status,
     entrada:        body.entrada ?? new Date().toISOString().slice(0, 10),
     promocao:       body.promocao ?? new Date().toISOString().slice(0, 10),
@@ -409,8 +410,8 @@ router.put('/:id', requireAuth, requireArea('membros', 'editar'), validateBody(m
   // Patente interna e advertências têm fluxos próprios (promover/advertência); só admin edita direto
   const ator = data.contas.find(c => c.id === req.user!.contaId)
   const allowed: (keyof Membro)[] = ator && isAdmin(ator, data)
-    ? ['badge','passaporte','policial','patenteNPD','patenteInterna','nivel','status','entrada','promocao','adv1','adv2','adv3']
-    : ['badge','passaporte','policial','patenteNPD','nivel','status','entrada','promocao']
+    ? ['badge','passaporte','policial','codinome','patenteNPD','patenteInterna','nivel','status','entrada','promocao','adv1','adv2','adv3']
+    : ['badge','passaporte','policial','codinome','patenteNPD','nivel','status','entrada','promocao']
   const body = req.body as Partial<Membro>
   const proibidos = (['patenteInterna', 'adv1', 'adv2', 'adv3'] as const).filter(f => f in body && !allowed.includes(f))
   if (proibidos.length) {

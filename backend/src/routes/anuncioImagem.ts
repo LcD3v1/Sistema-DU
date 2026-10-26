@@ -49,7 +49,7 @@ function colecao() {
     indices = Promise.all([
       col.createIndex({ criadoEm: 1 }, { expireAfterSeconds: EXPIRA_DIAS * 86_400 }),
       col.createIndex({ hash: 1 }),
-    ]).catch(err => { indices = undefined; console.error('[FAST][ANUNCIO] índices de imagem:', err instanceof Error ? err.message : err) })
+    ]).catch(err => { indices = undefined; console.error('[DU][ANUNCIO] índices de imagem:', err instanceof Error ? err.message : err) })
   }
   return col
 }
@@ -74,7 +74,7 @@ uploadRouter.post('/imagem', requireAuth, requireArea('anuncio', 'editar'), vali
       audit('ANUNCIO_IMAGEM_ENVIADA', req, `bytes=${img.bytes.length}; tipo=${img.ext}${existente ? '; reaproveitada' : ''}`)
       res.status(201).json({ caminho: `/img/${id}.${img.ext}` })
     } catch (err) {
-      console.error('[FAST][ANUNCIO] salvar imagem:', err instanceof Error ? err.message : err)
+      console.error('[DU][ANUNCIO] salvar imagem:', err instanceof Error ? err.message : err)
       res.status(500).json({ error: 'Não foi possível salvar a imagem.' })
     }
   })
@@ -99,7 +99,7 @@ publicoRouter.get('/:arquivo', async (req: Request, res: Response): Promise<void
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable')
     res.end(Buffer.from(doc.dados.buffer))
   } catch (err) {
-    console.error('[FAST][ANUNCIO] ler imagem:', err instanceof Error ? err.message : err)
+    console.error('[DU][ANUNCIO] ler imagem:', err instanceof Error ? err.message : err)
     res.status(500).end()
   }
 })

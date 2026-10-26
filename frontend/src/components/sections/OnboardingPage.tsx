@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
-import { User, CreditCard, Hash, Shield, Star, Check, Gauge } from 'lucide-react'
+import { User, CreditCard, Hash, Shield, Star, Check, Gauge, Fingerprint } from 'lucide-react'
 import Brand from '@/components/ui/Brand'
 import { useOnboarding, type OnboardingData } from '@/hooks/useMe'
 import { useAuthStore } from '@/store/authStore'
@@ -31,7 +31,7 @@ export default function OnboardingPage() {
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 grain-noise opacity-[0.05]" />
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[min(520px,100vw)] h-[min(520px,100vw)] rounded-full"
-             style={{ background: 'radial-gradient(circle, rgba(58,114,196,0.16), transparent 70%)' }} />
+             style={{ background: 'radial-gradient(circle, rgba(139, 92, 246,0.16), transparent 70%)' }} />
       </div>
 
       <motion.div
@@ -42,8 +42,8 @@ export default function OnboardingPage() {
       >
         <div className="flex flex-col items-center text-center mb-8">
           <div className="relative flex items-center justify-center mb-4" style={{ width: 78, height: 78 }}>
-            <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(58,114,196,0.45), transparent 68%)' }} />
-            <div style={{ filter: 'drop-shadow(0 0 12px rgba(58,114,196,0.5))' }}><Brand size={58} /></div>
+            <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(139, 92, 246,0.45), transparent 68%)' }} />
+            <div style={{ filter: 'drop-shadow(0 0 12px rgba(139, 92, 246,0.5))' }}><Brand size={58} /></div>
           </div>
           <div className="flex items-center gap-2 mb-2">
             <span className="h-px w-6 bg-gold" />
@@ -53,7 +53,7 @@ export default function OnboardingPage() {
           <h1 className="wordmark text-3xl text-txt tracking-wide">Complete seu cadastro</h1>
           <p className="text-txt-muted text-sm mt-2 max-w-sm leading-relaxed">
             {username && <>Olá, <span className="text-gold3">{username}</span>. </>}
-            Preencha seus dados de policial. Eles ficam vinculados ao seu perfil e são usados no ranking da unidade.
+            Preencha seus dados de investigador. Eles ficam vinculados ao seu perfil e aparecem nos relatórios, boletins e na carteirinha da DU.
           </p>
         </div>
 
@@ -61,7 +61,7 @@ export default function OnboardingPage() {
           className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-5">
 
           <div className="grid grid-cols-[1fr_120px] gap-4">
-            <Field label="NOME DO POLICIAL" icon={<User size={14} />} error={errors.policial?.message}>
+            <Field label="NOME DO INVESTIGADOR" icon={<User size={14} />} error={errors.policial?.message}>
               <input {...register('policial', { required: 'Nome obrigatório' })}
                 className="fld" placeholder="Ex.: Peter Wolf" />
             </Field>
@@ -75,6 +75,10 @@ export default function OnboardingPage() {
             </Field>
           </div>
 
+          <Field label="CODINOME" icon={<Fingerprint size={14} />}>
+            <input {...register('codinome')} maxLength={40} className="fld" placeholder="Ex.: Raven" />
+          </Field>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="BADGE" icon={<Shield size={14} />}>
               <input {...register('badge')} className="fld" placeholder="Ex.: 4521" />
@@ -85,7 +89,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="PATENTE NPD" icon={<Star size={14} />}>
+            <Field label="PATENTE DPD" icon={<Star size={14} />}>
               <input {...register('patenteNPD')} className="fld" placeholder="Ex.: Soldado" />
             </Field>
             <Field label="CARGO / PATENTE INTERNA" icon={<CreditCard size={14} />}>
@@ -120,7 +124,7 @@ export default function OnboardingPage() {
           transition: border-color .15s;
         }
         .fld::placeholder { color: rgba(255,255,255,0.25); }
-        .fld:focus { border-color: var(--color-gold, #3a72c4); }
+        .fld:focus { border-color: var(--color-gold, #8b5cf6); }
       `}</style>
     </div>
   )

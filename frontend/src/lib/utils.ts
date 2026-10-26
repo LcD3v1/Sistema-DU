@@ -18,7 +18,7 @@ export function calcWinRate(acoes: Acao[]): number {
 export function getResultadoColor(resultado: string): string {
   if (resultado === 'Vitória') return '#27ae60'
   if (resultado === 'Derrota') return '#b8433a'
-  return '#2980b9'
+  return '#7c3aed'
 }
 
 export function downloadBlob(content: string, filename: string, mimeType: string): void {

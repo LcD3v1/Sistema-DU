@@ -28,6 +28,7 @@ const COLECOES = [
   'membros', 'acoes', 'recrutas', 'contas', 'ausencias',
   'avisos', 'fardamentos', 'cargosPermissao', 'anuncioSituacoes',
   'notificacoes', 'solicitacoesPerfil',
+  'relatorios', 'boletins', 'inqueritos', 'galeria',
 ] as const
 type Colecao = typeof COLECOES[number]
 type ItemDoc = Document & { _id: number }
@@ -55,12 +56,12 @@ const DEFAULT_DATA: FastData = {
   fardamentos: [],
   cargosPermissao: [],
   anuncioSituacoes: [
-    { id: 1, label: 'Área Restrita', titulo: 'N.P.D INFORMA:', texto: 'A área do [LOCAL] se encontra restrita pelas próximas horas, por estar sob atividade criminosa. Mantenham-se afastados — risco iminente de bala perdida! ESTE AVISO SERÁ ÚNICO! Att. [ASSINATURA]' },
-    { id: 2, label: 'Operação em andamento', titulo: 'N.P.D INFORMA:', texto: 'Uma operação policial está em andamento na região do [LOCAL]. Solicitamos que a população evite a área e coopere com as autoridades. Att. [ASSINATURA]' },
-    { id: 3, label: 'Toque de recolher', titulo: 'N.P.D INFORMA:', texto: 'Fica decretado toque de recolher na região do [LOCAL] a partir deste momento. A circulação está restrita até novo aviso. Att. [ASSINATURA]' },
-    { id: 4, label: 'Foragido / Procurado', titulo: 'N.P.D INFORMA:', texto: 'Indivíduo foragido e possivelmente armado foi avistado nas proximidades do [LOCAL]. Em caso de avistamento, acione a NPD imediatamente e não se aproxime. Att. [ASSINATURA]' },
-    { id: 5, label: 'Ponto de bloqueio', titulo: 'N.P.D INFORMA:', texto: 'Ponto de bloqueio montado no [LOCAL]. Reduza a velocidade, mantenha a calma e tenha os documentos em mãos. Att. [ASSINATURA]' },
-    { id: 6, label: 'Comunicado geral', titulo: 'N.P.D INFORMA:', texto: 'Comunicado oficial da NPD à população do [LOCAL]: reforçamos o compromisso com a segurança da região. Denúncias podem ser feitas às autoridades. Att. [ASSINATURA]' },
+    { id: 1, label: 'Área Restrita', titulo: 'D.P.D INFORMA:', texto: 'A área do [LOCAL] se encontra restrita pelas próximas horas, por estar sob atividade criminosa. Mantenham-se afastados — risco iminente de bala perdida! ESTE AVISO SERÁ ÚNICO! Att. [ASSINATURA]' },
+    { id: 2, label: 'Operação em andamento', titulo: 'D.P.D INFORMA:', texto: 'Uma operação policial está em andamento na região do [LOCAL]. Solicitamos que a população evite a área e coopere com as autoridades. Att. [ASSINATURA]' },
+    { id: 3, label: 'Toque de recolher', titulo: 'D.P.D INFORMA:', texto: 'Fica decretado toque de recolher na região do [LOCAL] a partir deste momento. A circulação está restrita até novo aviso. Att. [ASSINATURA]' },
+    { id: 4, label: 'Foragido / Procurado', titulo: 'D.P.D INFORMA:', texto: 'Indivíduo foragido e possivelmente armado foi avistado nas proximidades do [LOCAL]. Em caso de avistamento, acione a DPD imediatamente e não se aproxime. Att. [ASSINATURA]' },
+    { id: 5, label: 'Ponto de bloqueio', titulo: 'D.P.D INFORMA:', texto: 'Ponto de bloqueio montado no [LOCAL]. Reduza a velocidade, mantenha a calma e tenha os documentos em mãos. Att. [ASSINATURA]' },
+    { id: 6, label: 'Comunicado geral', titulo: 'D.P.D INFORMA:', texto: 'Comunicado oficial da DPD à população do [LOCAL]: reforçamos o compromisso com a segurança da região. Denúncias podem ser feitas às autoridades. Att. [ASSINATURA]' },
   ],
   nextMemId: 200,
   nextAcId: 1,
@@ -78,16 +79,24 @@ const DEFAULT_DATA: FastData = {
   nextNotifId: 1,
   solicitacoesPerfil: [],
   nextSolPerfilId: 1,
+  relatorios: [],
+  boletins: [],
+  inqueritos: [],
+  galeria: [],
+  nextRelatorioId: 1,
+  nextBoletimId: 1,
+  nextInqueritoId: 1,
+  nextFotoId: 1,
 }
 
 const FAST_PERMISSION_ROLES = [
-  '(FAST) Commander',
-  '(FAST) Deputy Commander',
-  '(FAST) Coordinator',
-  '(FAST) Veteran',
-  '(FAST) Senior',
-  '(FAST) Officer',
-  '(FAST) Probationary',
+  '(DU) Commander',
+  '(DU) Deputy Commander',
+  '(DU) Coordinator',
+  '(DU) Veteran',
+  '(DU) Senior',
+  '(DU) Officer',
+  '(DU) Probationary',
 ] as const
 
 function canonicalFastRoleName(nome: string) {
@@ -139,9 +148,9 @@ export async function initData(): Promise<void> {
     let inicial: FastData = clone(DEFAULT_DATA)
     if (fs.existsSync(LEGACY_PATH)) {
       inicial = { ...inicial, ...JSON.parse(fs.readFileSync(LEGACY_PATH, 'utf-8')) }
-      console.log(`[FAST][DB] Banco vazio — importando dados de ${LEGACY_PATH}`)
+      console.log(`[DU][DB] Banco vazio — importando dados de ${LEGACY_PATH}`)
     } else {
-      console.log('[FAST][DB] Banco vazio — iniciando com dados padrão')
+      console.log('[DU][DB] Banco vazio — iniciando com dados padrão')
     }
     cache = inicial
     await flush()
@@ -157,7 +166,7 @@ export async function initData(): Promise<void> {
     metaSalvo = JSON.stringify(separar(carregado).meta)
     cache = carregado
   }
-  console.log(`[FAST][DB] MongoDB conectado (banco "${db.databaseName}")`)
+  console.log(`[DU][DB] MongoDB conectado (banco "${db.databaseName}")`)
 }
 
 export function readData(): FastData {
@@ -198,7 +207,7 @@ function agendarFlush(): void {
       pendente = false
       try { await flush(); persistenceFailed = false } catch (err) {
         persistenceFailed = true
-        console.error('[FAST][DB] Falha ao gravar no MongoDB:', err instanceof Error ? err.message : err)
+        console.error('[DU][DB] Falha ao gravar no MongoDB:', err instanceof Error ? err.message : err)
         pendente = true
         await new Promise(r => setTimeout(r, 3000))
       }
@@ -238,7 +247,7 @@ async function flush(): Promise<void> {
  * Coleção avulsa, fora do cache e do diff do FastData (não entra no readData/backup):
  * arquivos grandes, como as imagens enviadas no Gerar anúncio. null antes do initData.
  */
-export function colecaoAvulsa<T extends Document>(nome: 'anuncioImagens') {
+export function colecaoAvulsa<T extends Document>(nome: 'anuncioImagens' | 'arquivos') {
   return db ? db.collection<T>(nome) : null
 }
 
@@ -279,23 +288,25 @@ export function ensureNivelMigration(): void {
 
   data.nivelMigrado = true
   writeData(data)
-  console.log('[FAST] Migração nível→cargos concluída (cargo Administrador criado/atribuído).')
+  console.log('[DU] Migração nível→cargos concluída (cargo Administrador criado/atribuído).')
 }
 
 function defaultPermsForFastRole(nome: string) {
-  if (nome === '(FAST) Commander' || nome === '(FAST) Deputy Commander') return fullPermMap()
+  if (nome === '(DU) Commander' || nome === '(DU) Deputy Commander') return fullPermMap()
   return normalizePermMap({
     dashboard: { ver: true },
     avisos: { ver: true },
-    ranking: { ver: true },
-    estatisticas: { ver: true },
+    relatorios: { ver: true, editar: true },
+    boletins: { ver: true },
+    inqueritos: { ver: true },
+    galeria: { ver: true, editar: true },
+    cursos: { ver: true },
     membros: { ver: true },
-    historico: { ver: true },
   })
 }
 
 /**
- * Garante a hierarquia oficial FAST nos cargos de permissão.
+ * Garante a hierarquia oficial DU nos cargos de permissão.
  * Não sobrescreve permissões já editadas; só cria o que faltar e reordena os
  * cargos oficiais no topo, na ordem da hierarquia.
  */
@@ -310,11 +321,11 @@ export function ensureFastPermissionRoles(): void {
       .filter(c => canonicalFastRoleName(c.nome) === canon)
       .sort((a, b) => a.id - b.id)
   }
-  let commander = byName('(FAST) Commander')
+  let commander = byName('(DU) Commander')
   const legacyAdmin = data.cargosPermissao.find(c => c.admin && c.nome.toLowerCase() === 'administrador')
 
   if (!commander && legacyAdmin) {
-    legacyAdmin.nome = '(FAST) Commander'
+    legacyAdmin.nome = '(DU) Commander'
     legacyAdmin.admin = true
     legacyAdmin.permissoes = normalizePermMap(legacyAdmin.permissoes)
     commander = legacyAdmin
@@ -347,8 +358,8 @@ export function ensureFastPermissionRoles(): void {
       cargo = {
         id: data.nextCargoPermId++,
         nome,
-        admin: nome === '(FAST) Commander',
-        padrao: nome === '(FAST) Probationary',
+        admin: nome === '(DU) Commander',
+        padrao: nome === '(DU) Probationary',
         permissoes: defaultPermsForFastRole(nome),
       } satisfies CargoPermissao
       data.cargosPermissao.push(cargo)
@@ -359,7 +370,7 @@ export function ensureFastPermissionRoles(): void {
         cargo.permissoes = normalized
         mudou = true
       }
-      if (nome === '(FAST) Commander' && cargo.admin !== true) {
+      if (nome === '(DU) Commander' && cargo.admin !== true) {
         cargo.admin = true
         mudou = true
       }
@@ -377,7 +388,7 @@ export function ensureFastPermissionRoles(): void {
     mudou = true
   }
 
-  const probationary = byName('(FAST) Probationary')
+  const probationary = byName('(DU) Probationary')
   if (probationary && !data.cargosPermissao.some(c => c.padrao)) {
     probationary.padrao = true
     mudou = true
@@ -385,7 +396,7 @@ export function ensureFastPermissionRoles(): void {
 
   if (mudou) {
     writeData(data)
-    console.log('[FAST] Cargos de permissão FAST sincronizados.')
+    console.log('[DU] Cargos de permissão DU sincronizados.')
   }
 }
 
@@ -407,11 +418,11 @@ export function ensureDefaultAdmin(): void {
     data.contas.push({ id: 1, username: 'admin', nivel: 'admin', ativo: true })
     data.nextContaId = 2
     mudou = true
-    console.log('[FAST] Conta dona criada — será vinculada ao Discord de DISCORD_OWNER_ID no primeiro login.')
+    console.log('[DU] Conta dona criada — será vinculada ao Discord de DISCORD_OWNER_ID no primeiro login.')
   }
   if (mudou) writeData(data)
   const dono = data.contas.find(c => c.id === 1)
   if (dono && !dono.discordId && !process.env.DISCORD_OWNER_ID) {
-    console.warn('[FAST][ATENÇÃO] A conta dona ainda não tem Discord vinculado e DISCORD_OWNER_ID não está definido — ninguém terá acesso de administrador.')
+    console.warn('[DU][ATENÇÃO] A conta dona ainda não tem Discord vinculado e DISCORD_OWNER_ID não está definido — ninguém terá acesso de administrador.')
   }
 }

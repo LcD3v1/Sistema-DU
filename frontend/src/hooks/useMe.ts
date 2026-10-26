@@ -54,6 +54,7 @@ export function useMe() {
 export interface OnboardingData {
   nivel: number
   policial: string
+  codinome?: string
   badge?: string
   passaporte?: string
   patenteNPD?: string

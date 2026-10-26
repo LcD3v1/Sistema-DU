@@ -5,11 +5,14 @@ import { validateBody, livroSchema, livroUpdateSchema } from '../middleware/vali
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { notificarArea } from '../notificacoes'
-import { Livro } from '../types'
+import { ArquivoRef, Livro } from '../types'
+import { conferirArquivos, sincronizarArquivos } from './arquivos'
+import { erroArquivos } from '../registros'
 
 /**
  * Cursos Internos — biblioteca de livros. Cada livro é um link (PDF, Google Drive,
- * Docs, site…) que abre em outra aba; o backend nunca busca a URL (sem SSRF).
+ * Docs, site…) que abre em outra aba e/ou arquivos enviados do computador
+ * (routes/arquivos.ts); o backend nunca busca a URL (sem SSRF).
  * Guardado no documento de configuração (meta), por isso o teto de livros e a capa
  * só por link — nada de imagem enviada inchando o documento.
  */
@@ -20,7 +23,7 @@ const router = Router()
 /** Saída da API: lista branca (sem criadoPor). */
 function livroPublico(l: Livro) {
   return { id: l.id, titulo: l.titulo, autor: l.autor, descricao: l.descricao, categoria: l.categoria,
-    url: l.url, capa: l.capa, cor: l.cor, criadoEm: l.criadoEm }
+    url: l.url, arquivos: l.arquivos ?? [], capa: l.capa, cor: l.cor, criadoEm: l.criadoEm }
 }
 
 function idDaRota(req: Request, res: Response): number | undefined {
@@ -37,7 +40,9 @@ router.get('/livros', requireAuth, requireArea('cursos', 'ver'), (_req, res) => 
 })
 
 // POST /api/cursos/livros — adiciona um livro pelo link
-router.post('/livros', requireAuth, requireArea('cursos', 'editar'), validateBody(livroSchema), (req: Request, res: Response): void => {
+router.post('/livros', requireAuth, requireArea('cursos', 'editar'), validateBody(livroSchema), async (req: Request, res: Response): Promise<void> => {
+  const arquivos = await conferirArquivos((req.body as { arquivos: string[] }).arquivos, 'cursos')
+  if (!arquivos) { erroArquivos(res); return }
   const data = readData()
   const livros = data.livros ?? []
   if (livros.length >= MAX_LIVROS) { res.status(409).json({ error: `A biblioteca chegou ao limite de ${MAX_LIVROS} livros.` }); return }
@@ -56,32 +61,42 @@ router.post('/livros', requireAuth, requireArea('cursos', 'editar'), validateBod
     `"${novo.titulo}" foi adicionado à biblioteca.`, '/cursos')
   writeData(data)
   audit('CONFIG_UPDATED', req, `Livro adicionado: #${novo.id}`)
+  await sincronizarArquivos([], arquivos)
   res.status(201).json(livroPublico(novo))
 })
 
 // PUT /api/cursos/livros/:id — edita
-router.put('/livros/:id', requireAuth, requireArea('cursos', 'editar'), validateBody(livroUpdateSchema), (req: Request, res: Response): void => {
+router.put('/livros/:id', requireAuth, requireArea('cursos', 'editar'), validateBody(livroUpdateSchema), async (req: Request, res: Response): Promise<void> => {
   const id = idDaRota(req, res); if (id === undefined) return
   const data = readData()
   const livro = (data.livros ?? []).find(l => l.id === id)
   if (!livro) { res.status(404).json({ error: 'Livro não encontrado' }); return }
-  const body = req.body as Partial<Omit<Livro, 'id' | 'criadoEm' | 'criadoPor'>>
+  const body = req.body as Partial<Omit<Livro, 'id' | 'criadoEm' | 'criadoPor' | 'arquivos'>> & { arquivos?: string[] }
+  const antes: ArquivoRef[] = livro.arquivos ?? []
+  if (body.arquivos !== undefined) {
+    const novos = await conferirArquivos(body.arquivos, 'cursos')
+    if (!novos) { erroArquivos(res); return }
+    livro.arquivos = novos
+  }
   for (const campo of ['titulo', 'autor', 'descricao', 'categoria', 'url', 'capa', 'cor'] as const) {
     if (body[campo] !== undefined) livro[campo] = body[campo]!
   }
+  if (!livro.url && !(livro.arquivos ?? []).length) { res.status(400).json({ error: 'Informe um link ou envie um arquivo' }); return }
   writeData(data)
+  await sincronizarArquivos(antes, livro.arquivos ?? [])
   audit('CONFIG_UPDATED', req, `Livro atualizado: #${id}`)
   res.json(livroPublico(livro))
 })
 
 // DELETE /api/cursos/livros/:id
-router.delete('/livros/:id', requireAuth, requireArea('cursos', 'editar'), (req: Request, res: Response): void => {
+router.delete('/livros/:id', requireAuth, requireArea('cursos', 'editar'), async (req: Request, res: Response): Promise<void> => {
   const id = idDaRota(req, res); if (id === undefined) return
   const data = readData()
-  const antes = data.livros?.length ?? 0
+  const removido = (data.livros ?? []).find(l => l.id === id)
+  if (!removido) { res.status(404).json({ error: 'Livro não encontrado' }); return }
   data.livros = (data.livros ?? []).filter(l => l.id !== id)
-  if (data.livros.length === antes) { res.status(404).json({ error: 'Livro não encontrado' }); return }
   writeData(data)
+  await sincronizarArquivos(removido.arquivos ?? [], [])
   audit('CONFIG_UPDATED', req, `Livro removido: #${id}`)
   res.json({ ok: true })
 })

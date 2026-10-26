@@ -26,6 +26,7 @@ export interface Membro {
   advertencias?: Advertencia[]
   historicoCargos?: MudancaCargo[]
   nivel?: number                      // nível informado pelo próprio membro (fonte única)
+  codinome?: string                   // codinome do investigador (destaque no perfil e na carteirinha)
 }
 
 export interface MudancaCargo {
@@ -111,14 +112,100 @@ export interface LinkPerfil {
   emoji?: string
 }
 
-/** Livro da biblioteca de Cursos Internos: um link (PDF, Drive, Docs, site…). */
+/** Arquivo enviado do computador (PDF, documento, imagem…). Bytes ficam na coleção avulsa `arquivos`. */
+export interface ArquivoRef {
+  id: string         // aleatório (144 bits) — só sai da API para quem vê o registro
+  nome: string
+  mime: string
+  tamanho: number
+}
+
+/** Link extra de um registro (documento, evidência, vídeo…). */
+export interface LinkRegistro {
+  rotulo: string
+  url: string        // só http/https (security/perfil.ts → ehLinkPerfil)
+}
+
+/** Histórico de alterações de um registro investigativo (teto de itens, nunca editado). */
+export interface AlteracaoRegistro {
+  em: string         // ISO
+  por: string
+  acao: 'criado' | 'editado' | 'status'
+  detalhe?: string
+}
+
+export interface RegistroBase {
+  id: number
+  numero: string              // identificação exibida (ex.: BO-DU-2026-0001)
+  titulo: string
+  investigadores: number[]    // IDs de membros responsáveis
+  links: LinkRegistro[]
+  arquivos: ArquivoRef[]
+  autorContaId: number        // interno — não sai da API
+  autorNome: string
+  criadoEm: string
+  atualizadoEm?: string
+  historico: AlteracaoRegistro[]
+}
+
+/** Relatório produzido por um investigador durante uma investigação. */
+export interface Relatorio extends RegistroBase {
+  tipo: string                // Campo, Vigilância, Entrevista, Análise…
+  data: string                // YYYY-MM-DD
+  conteudo: string
+  inqueritoId?: number
+  boletimId?: number
+  sigiloso: boolean           // só autor, investigadores citados e gestão de relatórios veem
+}
+
+export type StatusBoletim = 'aberto' | 'em_investigacao' | 'concluido' | 'arquivado'
+
+/** Boletim produzido pela unidade. */
+export interface Boletim extends RegistroBase {
+  status: StatusBoletim
+  data: string                // YYYY-MM-DD (data dos fatos)
+  local: string
+  descricao: string
+  observacoes: string
+  imagens: string[]           // links http/https de imagens
+  inqueritoId?: number
+}
+
+export type StatusInquerito = 'em_andamento' | 'concluido' | 'arquivado'
+
+/** Inquérito do Arquivo de Inquéritos (mesmo modelo de estante dos Cursos Internos). */
+export interface Inquerito extends RegistroBase {
+  status: StatusInquerito
+  categoria: string
+  descricao: string
+  envolvidos: string          // suspeitos, vítimas, testemunhas (texto livre)
+  capa: string                // link de imagem ou ''
+  cor: string
+}
+
+/** Foto da Galeria da DU. */
+export interface FotoGaleria {
+  id: number
+  imagem: string              // link http/https; '' quando a foto foi enviada (arquivo)
+  arquivo?: ArquivoRef
+  titulo: string
+  descricao: string
+  categoria: string
+  data: string                // YYYY-MM-DD
+  autorContaId: number        // interno — não sai da API
+  autorNome: string
+  criadoEm: string
+}
+
+/** Livro da biblioteca de Cursos Internos: um link (PDF, Drive, Docs, site…) e/ou arquivos enviados. */
 export interface Livro {
   id: number
   titulo: string
   autor: string
   descricao: string
   categoria: string
-  url: string        // só http/https (security/perfil.ts → ehLinkPerfil)
+  url: string        // só http/https (security/perfil.ts → ehLinkPerfil) ou '' quando há arquivo
+  arquivos?: ArquivoRef[]
   capa: string       // link http/https de imagem ou '' (capa gerada com título + cor)
   cor: string        // cor da capa gerada (#rrggbb)
   criadoEm: string
@@ -218,6 +305,7 @@ export type TipoNotificacao =
   | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
   | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
   | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro' | 'curso'
+  | 'relatorio' | 'boletim' | 'inquerito' | 'galeria'
 
 export interface Notificacao {
   id: number
@@ -230,7 +318,7 @@ export interface Notificacao {
   criadaEm: string
 }
 
-export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteNPD' | 'patenteInterna' | 'nivel'
+export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteNPD' | 'patenteInterna' | 'nivel' | 'codinome'
 
 export interface SolicitacaoPerfil {
   id: number
@@ -308,6 +396,14 @@ export interface FastData {
   nextSolPerfilId: number
   livros?: Livro[]          // Cursos Internos: biblioteca (guardada no documento de configuração)
   nextLivroId?: number
+  relatorios: Relatorio[]
+  boletins: Boletim[]
+  inqueritos: Inquerito[]
+  galeria: FotoGaleria[]
+  nextRelatorioId: number
+  nextBoletimId: number
+  nextInqueritoId: number
+  nextFotoId: number
   painelApreensoes?: PainelApreensoes
   historicoRankings?: RankingArquivado[]
   cargosAdv?: CargosAdv

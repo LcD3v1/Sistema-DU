@@ -28,10 +28,10 @@ const RankingCard = memo(function RankingCard({ member, onSelect, podium = false
   const index = (member.rank ?? 1) - 1
   const medal = medals[index] ?? 'var(--gold3)'
   const MedalIcon = index === 0 ? Crown : index === 1 ? Medal : Award
-  const banner = resolveBanner(null, member.rank)
+  const banner = resolveBanner(null, member.name)
   if (podium) return <motion.button layout={!reduced} initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
     onClick={() => onSelect(member.id)} aria-label={`Ver perfil de ${member.name}, ${member.rank}º lugar`}
-    className={`ranking-hover relative min-w-0 overflow-hidden rounded-2xl border p-4 sm:p-5 text-center ${index === 0 ? 'border-gold/50 sm:pb-8 shadow-[0_16px_40px_-20px_rgba(58,114,196,0.6)]' : 'border-bdr'}`}>
+    className={`ranking-hover relative min-w-0 overflow-hidden rounded-2xl border p-4 sm:p-5 text-center ${index === 0 ? 'border-gold/50 sm:pb-8 shadow-[0_16px_40px_-20px_rgba(139, 92, 246,0.6)]' : 'border-bdr'}`}>
     {banner.img ? <img src={banner.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" /> : <div className="absolute inset-0" style={{ background: banner.css }} />}
     {banner.overlay && <div className="absolute inset-0" style={{ background: banner.overlay }} />}
     <div className="absolute inset-0 bg-gradient-to-b from-black/35 to-black/95" />

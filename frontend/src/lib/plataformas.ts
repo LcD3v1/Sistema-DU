@@ -26,7 +26,7 @@ const PLATAFORMAS: { hosts: string[]; p: Plataforma }[] = [
   { hosts: ['ko-fi.com'], p: { nome: 'Ko-fi', cor: '#ff6433', emoji: 'si:kofi' } },
 ]
 
-const OUTRO: Plataforma = { nome: 'Link', cor: '#8fb8ee', emoji: '🔗' }
+const OUTRO: Plataforma = { nome: 'Link', cor: '#c4b5fd', emoji: '🔗' }
 
 /** Só http/https — o backend já valida; aqui é a segunda barreira antes de virar href. */
 export function linkSeguro(url: string): boolean {

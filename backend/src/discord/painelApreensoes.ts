@@ -113,7 +113,7 @@ function montarEmbed(data: FastData) {
       '',
       `Total de apreensões: **${r.total}**`,
     ].join('\n').slice(0, 4000),
-    footer: { text: 'FAST · North Police Department' },
+    footer: { text: 'DU · Detroit Police Department' },
     timestamp: new Date().toISOString(),
   }
 }

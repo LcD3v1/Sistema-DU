@@ -3,24 +3,24 @@
 /* Wordmark próprio — Chakra Petch (angular/tático), difere do Azonix da referência */
 
 @theme {
-  --color-bg:    #050505;
-  --color-sb:    #0a0a0a;
-  --color-card:  #0e0e0e;
-  --color-card2: #151515;
-  --color-bdr:   #1c1c1c;
-  --color-bdr2:  #272727;
-  --color-bdrg:  #383838;
+  --color-bg:    #07050b;
+  --color-sb:    #0b0812;
+  --color-card:  #100c17;
+  --color-card2: #17121f;
+  --color-bdr:   #221a2e;
+  --color-bdr2:  #2e243c;
+  --color-bdrg:  #43355a;
   --color-txt:   #ededed;
-  --color-txt2:  #8b8b8b;
-  --color-txt3:  #565656;
-  --color-gold:  #3a72c4;
-  --color-gold2: #5b93de;
-  --color-gold3: #9cc0f5;
-  --color-navy:  #14213d;
-  --color-navy2: #1c2e52;
+  --color-txt2:  #9a90ad;
+  --color-txt3:  #615874;
+  --color-gold:  #8b5cf6;
+  --color-gold2: #a78bfa;
+  --color-gold3: #d4c4ff;
+  --color-navy:  #1f1235;
+  --color-navy2: #2d1a4d;
   --color-green: #2ecc71;
   --color-red:   #d0453a;
-  --color-blue:  #3a72c4;
+  --color-blue:  #8b5cf6;
 }
 
 @property --angle {
@@ -30,26 +30,26 @@
 }
 
 :root {
-  --bg:    #050505;
-  --sb:    #0a0a0a;
-  --card:  #0e0e0e;
-  --card2: #151515;
-  --bdr:   #1c1c1c;
-  --bdr2:  #272727;
-  --bdrg:  #383838;
+  --bg:    #07050b;
+  --sb:    #0b0812;
+  --card:  #100c17;
+  --card2: #17121f;
+  --bdr:   #221a2e;
+  --bdr2:  #2e243c;
+  --bdrg:  #43355a;
   --txt:   #ededed;
-  --txt2:  #8b8b8b;
-  --txt3:  #565656;
-  --gold:  #3a72c4;
-  --gold2: #5b93de;
-  --gold3: #9cc0f5;
-  --navy:  #14213d;
-  --navy2: #1c2e52;
+  --txt2:  #9a90ad;
+  --txt3:  #615874;
+  --gold:  #8b5cf6;
+  --gold2: #a78bfa;
+  --gold3: #d4c4ff;
+  --navy:  #1f1235;
+  --navy2: #2d1a4d;
   --green: #2ecc71;
   --red:   #d0453a;
-  --blue:  #3a72c4;
+  --blue:  #8b5cf6;
   /* rgba base do accent para glows */
-  --accent-rgb: 58, 114, 196;
+  --accent-rgb: 139, 92, 246;
 }
 
 *, *::before, *::after {
@@ -84,7 +84,7 @@ h1, h2, h3 {
   font-family: 'Geist Mono', ui-monospace, 'Share Tech Mono', monospace;
 }
 
-/* Wordmark FAST — Chakra Petch (própria) */
+/* Wordmark DU — Chakra Petch (própria) */
 .wordmark {
   font-family: 'Chakra Petch', 'Orbitron', sans-serif;
   font-weight: 700;
@@ -96,6 +96,7 @@ h1, h2, h3 {
 @keyframes logo-aura  { 0%,100% { opacity: .4; transform: scale(1); } 50% { opacity: .9; transform: scale(1.12); } }
 @keyframes logo-ring  { to { transform: rotate(360deg); } }
 @keyframes logo-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes du-pan { from { transform: scale(1.04) translate3d(-1.5%, 0, 0); } to { transform: scale(1.1) translate3d(1.5%, -1%, 0); } }
 
 /* ── Fundo animado da login (assets próprios, sem vídeo) ───────── */
 @keyframes fast-beams {
@@ -292,16 +293,16 @@ input[type=range].hud-slider::-moz-range-thumb {
   height: 11px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid var(--gold, #3a72c4);
+  border: 2px solid var(--gold, #8b5cf6);
   cursor: pointer;
-  box-shadow: 0 0 6px rgba(58,114,196,0.6);
+  box-shadow: 0 0 6px rgba(139, 92, 246,0.6);
 }
 .fast-range::-moz-range-thumb {
   width: 11px;
   height: 11px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid var(--gold, #3a72c4);
+  border: 2px solid var(--gold, #8b5cf6);
   cursor: pointer;
 }
 

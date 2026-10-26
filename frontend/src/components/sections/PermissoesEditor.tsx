@@ -53,7 +53,7 @@ function PermGrid({ value, onToggle }: { value: PermMap; onToggle: (area: string
           const p = value[id] ?? { ver: false, editar: false }
           return (
             <div key={id} className={`flex items-center px-3 py-2 ${i % 2 ? 'bg-card2/20' : ''}`}>
-              <span className="flex-1 text-sm text-txt">{label}{id === 'zerar_rankings' && <small className="block text-xs text-txt3">Marque Editar para permitir zerar. Administradores já têm acesso.</small>}</span>
+              <span className="flex-1 text-sm text-txt">{label}</span>
               <span className="w-14 flex justify-center">
                 <PermCheck checked={p.ver} onChange={v => { onToggle(id, 'ver', v); if (!v && p.editar) onToggle(id, 'editar', false) }} />
               </span>

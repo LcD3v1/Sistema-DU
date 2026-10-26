@@ -2,9 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { Construction } from 'lucide-react'
 
 const LABELS: Record<string, string> = {
-  '/acoes/pendentes': 'Pendentes',
   '/qrus': "Cadastrar QRU's",
-  '/ranking': 'Ranking',
   '/ausencias/nova': 'Registrar Ausência',
   '/ausencias': 'Ausências',
   '/corridas': 'Corridas',

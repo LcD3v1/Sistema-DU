@@ -89,7 +89,7 @@ export async function listarForuns(): Promise<ForumChannel[]> {
     .map(c => ({ id: c.id, name: c.name, type: c.type, parentId: c.parent_id ?? null }))
 }
 
-const rodape = () => ({ text: 'FAST · North Police Department' })
+const rodape = () => ({ text: 'DU · Detroit Police Department' })
 const agora = () => new Date().toISOString()
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 const campo = (name: string, value: string | undefined, inline = true) =>
@@ -217,7 +217,7 @@ export async function postarRegistro(data: FastData, m: Membro, discordId?: stri
         campo('Nome', mencionarMembro(data, m)),
         campo('ID do jogador', m.passaporte),
         campo('Distintivo', m.badge),
-        campo('Patente NPD', m.patenteNPD),
+        campo('Patente DPD', m.patenteNPD),
         campo('Patente interna', m.patenteInterna),
       ],
       footer: rodape(),
@@ -325,7 +325,7 @@ const fmtDataHora = (date = new Date()) => fmtDataHoraIntl.format(date)
 export async function postarExoneracao(data: FastData, m: Membro, registradoPor: string, motivo?: string): Promise<void> {
   await postarNoTopico(data, m, {
     title: '⛔ EXONERAÇÃO · Desligamento registrado',
-    description: 'Membro exonerado da Unidade FAST.',
+    description: 'Membro exonerado da Detective Unit.',
     color: COR_EXONERACAO,
     fields: [
       campo('Membro', mencionarMembro(data, m), false),
@@ -344,7 +344,7 @@ export async function postarMudancaCargo(
   const promo = tipo === 'promocao'
   await postarNoTopico(data, m, {
     title: promo ? '⬆️ PROMOÇÃO · Novo cargo' : '⬇️ REBAIXAMENTO · Novo cargo',
-    description: promo ? 'Membro promovido na Unidade FAST.' : 'Membro rebaixado na Unidade FAST.',
+    description: promo ? 'Membro promovido na Detective Unit.' : 'Membro rebaixado na Detective Unit.',
     color: promo ? COR_PROMOCAO : COR_REBAIXAMENTO,
     fields: [
       campo('Membro', mencionarMembro(data, m), false),
@@ -399,7 +399,7 @@ export async function postarAdvertencia(data: FastData, m: Membro, acao: AcaoAdv
 }
 
 const ROTULO_CAMPO: Record<string, string> = {
-  nivel: 'Nível', policial: 'Nome', badge: 'Distintivo', passaporte: 'ID do jogador', patenteNPD: 'Patente NPD', patenteInterna: 'Patente interna',
+  nivel: 'Nível', policial: 'Nome', badge: 'Distintivo', passaporte: 'ID do jogador', patenteNPD: 'Patente DPD', patenteInterna: 'Patente interna',
 }
 
 export async function postarPerfilAtualizado(
@@ -480,7 +480,7 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
       ...(acao.resultado ? [campo('Resultado', acao.resultado)] : []),
       ...(acao.local ? [campo('Local', acao.local, false)] : []),
     ],
-    footer: { text: `FAST - North Police Department · ${fmtDataHora()}` },
+    footer: { text: `DU - Detroit Police Department · ${fmtDataHora()}` },
     timestamp: agora(),
   }
   if (acao.imagem && /^https?:\/\//.test(acao.imagem)) embed.image = { url: acao.imagem }
@@ -493,7 +493,7 @@ export async function postarApreensao(data: FastData, acao: Acao, aprovadoPor: s
 
 /** Executa uma chamada ao Discord sem bloquear/derrubar a requisição. */
 export function emSegundoPlano(rotulo: string, fn: () => Promise<void>): void {
-  fn().catch(err => console.error(`[FAST][DISCORD] ${rotulo}:`, err instanceof Error ? err.message : err))
+  fn().catch(err => console.error(`[DU][DISCORD] ${rotulo}:`, err instanceof Error ? err.message : err))
 }
 
 /**
@@ -529,7 +529,7 @@ export async function postarAprovacao(contaId: number, cargo: string, por: strin
   if (!m) return false
   await postarNoTopico(data, m, {
     title: '✅ APROVADO · Set liberado',
-    description: 'Cadastro aprovado pelo comando da Unidade FAST.',
+    description: 'Cadastro aprovado pelo comando da Detective Unit.',
     color: COR_PROMOCAO,
     fields: [
       campo('Membro', mencionarMembro(data, m), false),
@@ -569,7 +569,7 @@ async function repararUmaVez(): Promise<void> {
     .map(c => c.membroId as number)
   for (const membroId of alvos) {
     try { await garantirTopicoRegistro(membroId) } catch (err) {
-      console.error('[FAST][DISCORD] reparar registro:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] reparar registro:', err instanceof Error ? err.message : err)
     }
   }
 }

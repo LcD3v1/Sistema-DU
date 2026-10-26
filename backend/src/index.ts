@@ -8,7 +8,7 @@ import cors from 'cors'
 import hpp from 'hpp'
 import { securityHeaders, permissionsPolicy, apiHeaders, forcarHttps } from './middleware/securityHeaders'
 import {
-  globalLimiter, apiLimiter, mutationLimiter, uploadLimiter, publicLimiter, rankingLimiter, backupLimiter, revisaoLimiter,
+  globalLimiter, apiLimiter, mutationLimiter, uploadLimiter, arquivoLimiter, publicLimiter, rankingLimiter, backupLimiter, revisaoLimiter,
 } from './middleware/rateLimiter'
 import { sanitizeBody } from './middleware/sanitize'
 import { audit } from './security/audit'
@@ -34,6 +34,11 @@ import cursosRoutes from './routes/cursos'
 import carteiraRoutes from './routes/carteira'
 import notificacoesRoutes from './routes/notificacoes'
 import mensagensRoutes from './routes/mensagens'
+import arquivosRoutes from './routes/arquivos'
+import relatoriosRoutes from './routes/relatorios'
+import boletinsRoutes from './routes/boletins'
+import inqueritosRoutes from './routes/inqueritos'
+import galeriaRoutes from './routes/galeria'
 import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPublica } from './routes/anuncioImagem'
 
 const app = express()
@@ -89,6 +94,8 @@ app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? uploadLimiter(req, re
 app.use('/api/public', (req, res, next) => (ehRevisao(req) ? next() : publicLimiter(req, res, next))) // inclui /api/public/directory
 app.use('/api/ranking', rankingLimiter)
 app.use('/api/config/backup', backupLimiter)
+// Envio de arquivos (corpo cru de até 10 MB, parser só na própria rota)
+app.use('/api/arquivos', (req, res, next) => (req.method === 'POST' ? arquivoLimiter(req, res, next) : next()))
 app.use('/api/auth', authRoutes)
 app.use('/api/public', publicRoutes)
 app.use('/api/ranking', createRankingRouter())
@@ -105,6 +112,11 @@ app.use('/api/carteira', carteiraRoutes)
 app.use('/api/notificacoes', notificacoesRoutes)
 app.use('/api/anuncio', anuncioImagemUpload)
 app.use('/api/mensagens', mensagensRoutes)
+app.use('/api/arquivos', arquivosRoutes)
+app.use('/api/relatorios', relatoriosRoutes)
+app.use('/api/boletins', boletinsRoutes)
+app.use('/api/inqueritos', inqueritosRoutes)
+app.use('/api/galeria', galeriaRoutes)
 
 // Link público das fotos do Gerar anúncio (o jogo abre sem login; limite: globalLimiter)
 app.use('/img', anuncioImagemPublica)
@@ -152,9 +164,9 @@ if (existsSync(frontendDist)) {
     const ambiente = process.env.AMBIENTE === 'local' ? 'local' : 'producao'
     res.type('html').send(indexHtml.replace(/__SITE_URL__/g, urlDoSite(req)).replace(/__AMBIENTE__/g, ambiente))
   })
-  console.log('[FAST] Servindo frontend de:', frontendDist)
+  console.log('[DU] Servindo frontend de:', frontendDist)
 } else {
-  console.log('[FAST] Frontend dist não encontrado — rode: npm run build')
+  console.log('[DU] Frontend dist não encontrado — rode: npm run build')
 }
 
 // ── Tratador global de erros ──────────────────────────────────────────────────
@@ -182,7 +194,7 @@ app.use((err: Error & { type?: string; status?: number }, req: Request, res: Res
     return
   }
   // Mensagem/stack só no console fora de produção; em produção apenas o nome do erro
-  console.error('[FAST][ERRO]', PROD ? (err?.name ?? 'Error') : err?.message)
+  console.error('[DU][ERRO]', PROD ? (err?.name ?? 'Error') : err?.message)
   if (!PROD && err?.stack) console.error(err.stack)
   try { audit('UNAUTHORIZED_ACCESS', req, `Erro não tratado: ${err?.name ?? 'desconhecido'}`) } catch { /* noop */ }
   if (res.headersSent) return
@@ -199,8 +211,8 @@ async function iniciar(): Promise<void> {
   ensureNivelMigration()
   ensureFastPermissionRoles()
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[FAST] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
-    console.log(`[FAST] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
+    console.log(`[DU] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
+    console.log(`[DU] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
   iniciarGateway()
   // Membros aprovados sem tópico válido no fórum de registro atual (ex.: troca de servidor)
@@ -208,9 +220,9 @@ async function iniciar(): Promise<void> {
 
   // Rotina (1 min): ausências (início/fim do período) e limpeza de notificações
   const rotina = () => {
-    try { verificarAusencias() } catch (err) { console.error('[FAST] rotina de ausências:', err) }
+    try { verificarAusencias() } catch (err) { console.error('[DU] rotina de ausências:', err) }
     // Notificações com mais de 7 dias são apagadas
-    try { const d = lerDados(); if (limparNotificacoesAntigas(d)) gravarDados(d) } catch (err) { console.error('[FAST] limpeza de notificações:', err) }
+    try { const d = lerDados(); if (limparNotificacoesAntigas(d)) gravarDados(d) } catch (err) { console.error('[DU] limpeza de notificações:', err) }
   }
   rotina()
   setInterval(rotina, 60_000)
@@ -222,6 +234,6 @@ for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
 }
 
 iniciar().catch(err => {
-  console.error('[FAST] Erro ao inicializar:', err instanceof Error ? err.message : err)
+  console.error('[DU] Erro ao inicializar:', err instanceof Error ? err.message : err)
   process.exit(1)
 })

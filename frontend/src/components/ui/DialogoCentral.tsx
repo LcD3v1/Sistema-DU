@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, Info, ShieldAlert, Check, X, Scale } from 
 import { useDialogo, type Tom, type Pedido } from '@/lib/dialogo'
 
 const TOM: Record<Tom, { icon: typeof Info; cor: string; botao: string }> = {
-  info:    { icon: Info,          cor: '#3a72c4', botao: 'bg-gold text-white hover:bg-gold2' },
+  info:    { icon: Info,          cor: '#8b5cf6', botao: 'bg-gold text-white hover:bg-gold2' },
   sucesso: { icon: CheckCircle2,  cor: '#2ecc71', botao: 'bg-green/20 border border-green/50 text-green hover:bg-green/30' },
   aviso:   { icon: AlertTriangle, cor: '#f39c12', botao: 'bg-orange-400/20 border border-orange-400/50 text-orange-400 hover:bg-orange-400/30' },
   perigo:  { icon: ShieldAlert,   cor: '#e74c3c', botao: 'bg-red/20 border border-red/50 text-red hover:bg-red/30' },
@@ -62,7 +62,7 @@ function Card({ atual, fechar }: { atual: Pedido; fechar: () => void }) {
   const decisao = atual.tipo === 'decidir'
   const tom: Tom = atual.tipo === 'confirmar' ? (atual.opcoes.tom ?? 'info') : 'info'
   const Icon = decisao ? Scale : TOM[tom].icon
-  const cor = decisao ? '#3a72c4' : TOM[tom].cor
+  const cor = decisao ? '#8b5cf6' : TOM[tom].cor
   const pedeMotivo = atual.tipo === 'confirmar'
     ? (atual.opcoes.motivo ?? 'nenhum') !== 'nenhum'
     : reprovando

@@ -87,7 +87,7 @@ export default function TermoAceite() {
                   {me?.termos?.aceita ? 'Nossos termos foram atualizados' : 'Antes de continuar'}
                 </h2>
                 <p className="text-[13px] text-txt2 mt-1.5 leading-relaxed">
-                  Para usar o sistema FAST, confirme que leu e concorda com os documentos abaixo.
+                  Para usar o sistema DU, confirme que leu e concorda com os documentos abaixo.
                 </p>
               </div>
             </div>

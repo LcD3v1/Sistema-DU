@@ -75,8 +75,8 @@ router.get('/perfil/:slug', (req, res) => {
   const banner = conta?.banner && (imagemValida(conta.banner) || /^[\w.-]{1,40}$/.test(conta.banner)) ? conta.banner : null
 
   res.json({
-    slug: row.slug, nome: row.name, avatar: row.avatar, badge: row.badge, nivel: row.level,
-    cargo: row.hierarchy.replace(/^\(FAST\)\s*/i, ''), patente: row.role, membroDesde: row.joinedAt, status: row.status,
+    slug: row.slug, nome: row.name, codinome: membro?.codinome ?? '', avatar: row.avatar, badge: row.badge, nivel: row.level,
+    cargo: row.hierarchy.replace(/^\(DU\)\s*/i, ''), patente: row.role, membroDesde: row.joinedAt, status: row.status,
     apreensoes: { d7: contar(7), d15: contar(15), d30: contar(30), total: minhas.length },
     // QRUs aprovadas: só nome, data, resultado e a foto do boletim (sem local/participantes)
     ultimasApreensoes: minhas.slice(0, 60).map(a => ({

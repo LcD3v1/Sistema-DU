@@ -87,7 +87,7 @@ router.get('/participantes', requireAuth, requireArea('registrar_acao', 'editar'
   try {
     res.json({ configurado: true, membros: (await listarMembrosServidor()).map(semId) })
   } catch (err) {
-    console.error('[FAST][ACOES] listar membros do servidor:', err instanceof Error ? err.message : err)
+    console.error('[DU][ACOES] listar membros do servidor:', err instanceof Error ? err.message : err)
     res.status(502).json({ error: 'Não foi possível consultar os membros do Discord agora.' })
   }
 })
@@ -108,7 +108,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
       if (achados.some(m => !m)) { res.status(400).json({ error: 'Participante indisponível no servidor do Discord.' }); return }
       doServidor = achados as typeof doServidor
     } catch (err) {
-      console.error('[FAST][ACOES] resolver participantes:', err instanceof Error ? err.message : err)
+      console.error('[DU][ACOES] resolver participantes:', err instanceof Error ? err.message : err)
       res.status(502).json({ error: 'Não foi possível consultar os membros do Discord agora.' }); return
     }
   }

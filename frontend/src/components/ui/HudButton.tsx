@@ -9,7 +9,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS = {
-  primary: 'bg-gold text-white hover:bg-gold2 shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]',
+  primary: 'bg-gold text-white hover:bg-gold2 shadow-[0_10px_30px_-12px_rgba(139, 92, 246,0.7)]',
   danger:  'bg-red text-white hover:brightness-110 shadow-[0_10px_30px_-12px_rgba(208,69,58,0.6)]',
   ghost:   'border border-bdr2 text-txt2 hover:text-txt hover:border-bdrg bg-transparent',
 }

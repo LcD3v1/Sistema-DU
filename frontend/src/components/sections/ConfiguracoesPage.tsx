@@ -323,12 +323,12 @@ function SituacoesEditor({
   onUpdate: (id: number, patch: Partial<Omit<SituacaoAnuncio, 'id'>>) => void
   onDelete: (id: number) => void
 }) {
-  const [novo, setNovo] = useState({ label: '', titulo: 'N.P.D INFORMA:', texto: '' })
+  const [novo, setNovo] = useState({ label: '', titulo: 'D.P.D INFORMA:', texto: '' })
 
   function add() {
     if (!novo.label.trim() || !novo.texto.trim()) return
-    onAdd({ label: novo.label.trim(), titulo: novo.titulo.trim() || 'N.P.D INFORMA:', texto: novo.texto.trim() })
-    setNovo({ label: '', titulo: 'N.P.D INFORMA:', texto: '' })
+    onAdd({ label: novo.label.trim(), titulo: novo.titulo.trim() || 'D.P.D INFORMA:', texto: novo.texto.trim() })
+    setNovo({ label: '', titulo: 'D.P.D INFORMA:', texto: '' })
   }
 
   return (

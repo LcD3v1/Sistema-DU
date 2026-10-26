@@ -185,7 +185,7 @@ export default function MusicPlayer() {
                   <input
                     type="range" min={0} max={100} value={pct} onChange={seek}
                     className="fast-range flex-1 h-1 cursor-pointer"
-                    style={{ background: `linear-gradient(to right, #3a72c4 ${pct}%, rgba(255,255,255,0.15) ${pct}%)` }}
+                    style={{ background: `linear-gradient(to right, #8b5cf6 ${pct}%, rgba(255,255,255,0.15) ${pct}%)` }}
                     aria-label="Progresso"
                   />
                   <span className="font-mono text-[9px] text-white/40 tabular-nums w-7">{fmt(dur)}</span>
@@ -197,7 +197,7 @@ export default function MusicPlayer() {
                     type="range" min={0} max={1} step={0.01} value={muted ? 0 : vol}
                     onChange={e => { setMuted(false); if (audioRef.current) audioRef.current.muted = false; setVol(Number(e.target.value)) }}
                     className="fast-range w-14 h-1 cursor-pointer"
-                    style={{ background: `linear-gradient(to right, #3a72c4 ${(muted ? 0 : vol) * 100}%, rgba(255,255,255,0.15) ${(muted ? 0 : vol) * 100}%)` }}
+                    style={{ background: `linear-gradient(to right, #8b5cf6 ${(muted ? 0 : vol) * 100}%, rgba(255,255,255,0.15) ${(muted ? 0 : vol) * 100}%)` }}
                     aria-label="Nível de volume"
                   />
                 </div>

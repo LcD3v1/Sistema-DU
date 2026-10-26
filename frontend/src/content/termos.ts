@@ -33,12 +33,12 @@ export const DOCUMENTOS: Documento[] = [
   {
     id: 'uso',
     titulo: 'Termos de Uso',
-    resumo: 'As regras para acessar e usar o sistema da unidade FAST.',
+    resumo: 'As regras para acessar e usar o sistema da Detective Unit (DU).',
     secoes: [
       {
         titulo: '1. Quem somos',
         texto: [
-          `O sistema FAST é um sistema privado, de propriedade exclusiva da ${EMPRESAS} ("nós"), que o criaram, mantêm e operam. O uso é cedido à unidade FAST do North Police Department ("unidade") — a unidade usa o sistema, mas ele não pertence a ela nem a nenhum usuário.`,
+          `O sistema DU é um sistema privado, de propriedade exclusiva da ${EMPRESAS} ("nós"), que o criaram, mantêm e operam. O uso é cedido à Detective Unit (DU) do Detroit Police Department ("unidade") — a unidade usa o sistema, mas ele não pertence a ela nem a nenhum usuário.`,
           'Ao acessar o site, entrar com o Discord ou usar qualquer recurso do painel, você concorda com estes Termos de Uso e com a Política de Privacidade, a Política de Cookies, a Política de Propriedade Intelectual, a Licença de Uso e os Termos de Responsabilidade. Se não concordar, não use o sistema.',
         ],
       },
@@ -95,7 +95,7 @@ export const DOCUMENTOS: Documento[] = [
         texto: ['Ao entrar com o Discord, pedimos apenas a permissão "identify". Não recebemos o seu e‑mail, senha, mensagens privadas nem a lista dos seus servidores.'],
         itens: [
           { t: 'Identificação.', d: 'ID, nome de usuário e foto do perfil do Discord.' },
-          { t: 'Dados no servidor da unidade.', d: 'Apelido, foto e cargos no servidor, lidos pelo bot da FAST para manter o painel sincronizado com a hierarquia.' },
+          { t: 'Dados no servidor da unidade.', d: 'Apelido, foto e cargos no servidor, lidos pelo bot da DU para manter o painel sincronizado com a hierarquia.' },
         ],
       },
       {
@@ -162,7 +162,7 @@ export const DOCUMENTOS: Documento[] = [
         titulo: '1. O que são',
         texto: [
           'Cookies são pequenos arquivos que o site grava no seu navegador. O armazenamento local (localStorage e sessionStorage) funciona de forma parecida, mas só é lido pelo próprio site.',
-          'O sistema FAST usa apenas o essencial para funcionar. Não usamos cookies de publicidade, de rastreamento, de redes sociais nem de análise de comportamento.',
+          'O sistema DU usa apenas o essencial para funcionar. Não usamos cookies de publicidade, de rastreamento, de redes sociais nem de análise de comportamento.',
         ],
       },
       {
@@ -204,7 +204,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '1. Sistema privado e exclusivo',
         texto: [
-          `Todo o sistema FAST faz parte da ${EMPRESAS}. Ele é um produto privado, de propriedade exclusiva das duas empresas, e não está à venda, não é de código aberto e não é distribuído a terceiros.`,
+          `Todo o sistema DU faz parte da ${EMPRESAS}. Ele é um produto privado, de propriedade exclusiva das duas empresas, e não está à venda, não é de código aberto e não é distribuído a terceiros.`,
           'A unidade e os seus membros recebem apenas uma permissão de uso, pessoal, limitada e revogável. Usar o sistema não transfere nenhuma parte dele a quem usa.',
           'O sistema é protegido pela Lei de Software (Lei nº 9.609/1998) e pela Lei de Direitos Autorais (Lei nº 9.610/1998), além das leis equivalentes dos EUA.',
         ],
@@ -239,7 +239,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '5. Marcas e identidade',
         texto: [
-          'Os nomes Nata Studios e Nextech, seus logotipos e a identidade visual do sistema são de uso exclusivo das empresas. O nome e o brasão da unidade FAST pertencem à unidade e são exibidos no sistema com autorização dela.',
+          'Os nomes Nata Studios e Nextech, seus logotipos e a identidade visual do sistema são de uso exclusivo das empresas. O nome e o brasão da Detective Unit (DU) pertencem à unidade e são exibidos no sistema com autorização dela.',
         ],
       },
       {
@@ -271,7 +271,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '1. Partes e objeto',
         texto: [
-          `Esta licença é concedida pela ${EMPRESAS} ("licenciantes") à organização que contrata ou recebe o sistema ("cliente") — neste caso, a unidade FAST do North Police Department — e vale para cada membro autorizado pelo cliente ("usuário").`,
+          `Esta licença é concedida pela ${EMPRESAS} ("licenciantes") à organização que contrata ou recebe o sistema ("cliente") — neste caso, a Detective Unit (DU) do Detroit Police Department — e vale para cada membro autorizado pelo cliente ("usuário").`,
           'O objeto é o direito de usar o sistema pela internet, na versão hospedada e mantida pelas licenciantes. O cliente não recebe cópia do software, código‑fonte nem acesso à infraestrutura.',
         ],
       },

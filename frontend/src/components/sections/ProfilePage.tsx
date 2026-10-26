@@ -1,19 +1,19 @@
 import { useRef, useState } from 'react'
 import {
-  Shield, Trophy, Target, Crosshair, CalendarDays, BadgeCheck, Link2, UserCog, Award, Percent,
-  Image as ImageIcon, Crown, Check, Lock, Upload, X, Pencil, Save, Hourglass, XCircle, Gauge, Send,
+  CalendarDays, BadgeCheck, Link2, UserCog, FileSearch, ScrollText, FolderArchive, Images, Lock, ArrowRight,
+  Image as ImageIcon, Check, Upload, X, Pencil, Save, Hourglass, XCircle, Gauge, Send, Fingerprint,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useMe, useLinkMembro, useSetBanner, useUpdateMeuMembro, useMinhaSolicitacaoPerfil, useSolicitarNivel } from '@/hooks/useMe'
 import { ROTULO_CAMPO } from '@/lib/perfil'
 import { useMembros } from '@/hooks/useMembros'
-import { useDirectoryQuery } from '@/modules/ranking/queries'
-import type { Member as RankingMember } from '@/modules/ranking/types'
 import { useUIStore } from '@/store/uiStore'
 import LoadingHud from '@/components/ui/LoadingHud'
-import { resolveBanner, unlockedTiers, PRESET_BANNERS, TIER_BANNERS } from '@/lib/banners'
+import { resolveBanner, PRESET_BANNERS } from '@/lib/banners'
+import { usePerms } from '@/hooks/usePerms'
+import { relatoriosApi, boletinsApi, inqueritosApi, galeriaApi, dataBR } from '@/hooks/useInvestigacao'
 import type { Membro } from '@/types'
 import PersonalizarPerfil from '@/components/perfil/PersonalizarPerfil'
-import MinhasQrus from '@/components/perfil/MinhasQrus'
 import LinksPerfil from '@/components/perfil/LinksPerfil'
 import EmojiPerfil from '@/components/perfil/EmojiPerfil'
 
@@ -21,9 +21,9 @@ function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
 function fileToDataUrl(file: File, cb: (s: string) => void) { const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(file) }
 
-function Stat({ icon: Icon, label, value, color = '#3a72c4' }: { icon: typeof Trophy; label: string; value: string | number; color?: string }) {
-  return (
-    <div className="bg-card border border-bdr rounded-xl p-4">
+function Stat({ icon: Icon, label, value, color = '#8b5cf6', to }: { icon: typeof FileSearch; label: string; value: string | number; color?: string; to?: string }) {
+  const corpo = (
+    <div className="bg-card border border-bdr rounded-xl p-4 h-full hover:border-gold/40 transition-colors">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: color + '18', border: `1px solid ${color}40` }}><Icon size={15} style={{ color }} /></div>
         <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase">{label}</p>
@@ -31,13 +31,18 @@ function Stat({ icon: Icon, label, value, color = '#3a72c4' }: { icon: typeof Tr
       <p className="text-2xl font-bold text-txt">{value}</p>
     </div>
   )
+  return to ? <Link to={to} className="block">{corpo}</Link> : corpo
 }
 
 export default function ProfilePage() {
   const { data: me, isLoading: lme } = useMe()
   const qMembros = useMembros()
   const { data: membros } = qMembros
-  const qRanking = useDirectoryQuery<RankingMember | null>('/me', { period: 'all', search: '', role: '', page: 1 }, false, !!me?.membroId && (me.admin || !!me.cargoPermId))
+  const { canView } = usePerms()
+  const { data: relatorios } = relatoriosApi.useLista(canView('relatorios'))
+  const { data: boletins } = boletinsApi.useLista(canView('boletins'))
+  const { data: inqueritos } = inqueritosApi.useLista(canView('inqueritos'))
+  const { data: fotos } = galeriaApi.useLista(canView('galeria'))
   const link = useLinkMembro()
   const setBanner = useSetBanner()
   const updateMeuMembro = useUpdateMeuMembro()
@@ -49,30 +54,28 @@ export default function ProfilePage() {
   const [editMembro, setEditMembro] = useState(false)
   const [editNivel, setEditNivel] = useState(false)
   const [novoNivel, setNovoNivel] = useState('')
-  const [form, setForm] = useState({ nivel: '', policial: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
+  const [form, setForm] = useState({ nivel: '', policial: '', codinome: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
   const bannerInput = useRef<HTMLInputElement>(null)
 
   const membrosList: Membro[] = membros ?? []
   const membro = me?.membroId ? membrosList.find(m => m.id === me.membroId) ?? null : null
 
-  const rankingMember = qRanking.data
-  const desempenho = rankingMember ? {
-    posicao: rankingMember.rank, sucedidas: rankingMember.wins, total: rankingMember.records,
-    vitorias: rankingMember.wins, derrotas: rankingMember.losses, winRate: rankingMember.winRate,
-  } : null
 
   // Só a PRIMEIRA carga mostra a tela de carregamento. Uma consulta que falhou (403, 503…)
   // volta a "carregando" a cada nova tentativa — e o sistema recarrega tudo sempre que
   // alguém grava algo —, o que trocava a página inteira pelo loader e fazia o
   // "Personalizar perfil" sumir (perdendo o que estava sendo digitado).
   const primeiraCarga = (q: { isLoading: boolean; errorUpdateCount: number }) => q.isLoading && q.errorUpdateCount === 0
-  if (lme || primeiraCarga(qMembros) || primeiraCarga(qRanking)) return <LoadingHud />
+  if (lme || primeiraCarga(qMembros)) return <LoadingHud />
   if (!me) return null
 
-  const rankPos = desempenho?.posicao ?? null
   const nome = me.nomeServidor || membro?.policial || me.username
-  const banner = resolveBanner(me.banner, rankPos)
-  const tiers = unlockedTiers(rankPos)
+  const banner = resolveBanner(me.banner, nome)
+  const doMembro = <T extends { investigadores: number[] }>(lista: T[] | undefined) => membro ? (lista ?? []).filter(x => x.investigadores.includes(membro.id)) : []
+  const meusRel = doMembro(relatorios)
+  const meusBol = doMembro(boletins)
+  const meusInq = doMembro(inqueritos)
+  const minhasFotos = (fotos ?? []).filter(f => f.podeEditar)
 
   function onBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return
@@ -100,7 +103,7 @@ export default function ProfilePage() {
   }
   function abrirEdicao() {
     if (!membro) return
-    setForm({ nivel: me?.nivelMembro ? String(me.nivelMembro) : '', policial: membro.policial, badge: membro.badge, passaporte: membro.passaporte, patenteNPD: membro.patenteNPD, patenteInterna: membro.patenteInterna })
+    setForm({ nivel: me?.nivelMembro ? String(me.nivelMembro) : '', policial: membro.policial, codinome: membro.codinome ?? '', badge: membro.badge, passaporte: membro.passaporte, patenteNPD: membro.patenteNPD, patenteInterna: membro.patenteInterna })
     setEditMembro(true)
   }
   function salvarEdicao() {
@@ -127,14 +130,6 @@ export default function ProfilePage() {
         {banner.overlay && <div className="absolute inset-0" style={{ background: banner.overlay }} />}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(5,5,5,0.85) 0%, rgba(5,7,12,0.5) 55%, rgba(5,7,12,0.1) 100%)' }} />
 
-        {/* selo de tier */}
-        {banner.tier && (
-          <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm border font-mono text-[11px] tracking-wider uppercase"
-               style={{ color: banner.tier.glow, borderColor: banner.tier.glow + '66', background: banner.tier.glow + '1a' }}>
-            <Crown size={13} /> {banner.tier.label} · {banner.tier.sub}
-          </div>
-        )}
-
         {/* editar banner */}
         <button onClick={() => setPickBanner(v => !v)}
           className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur border border-white/15 text-white/80 text-xs hover:text-white transition-colors">
@@ -150,11 +145,15 @@ export default function ProfilePage() {
           </div>
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">{nome}{me.emojisPerfil?.length ? <span className="ml-2 inline-flex items-center gap-1.5 align-middle" aria-hidden="true">{me.emojisPerfil.map((e, i) => <EmojiPerfil key={i} valor={e} />)}</span> : null}</h1>
+            {membro?.codinome && (
+              <p className="mt-1.5 inline-flex items-center gap-2 rounded-md border border-gold/50 bg-gold/15 px-3 py-1 font-display text-base sm:text-lg uppercase tracking-[0.22em] text-gold3 shadow-[0_0_24px_-8px_rgba(139,92,246,0.9)]">
+                <Fingerprint size={16} className="text-gold2" /> {membro.codinome}
+              </p>
+            )}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-blue border-blue/40 bg-blue/10'}`}>{me.admin ? 'Administrador' : 'Membro'}</span>
+              <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-gold3 border-gold/40 bg-gold/10'}`}>{me.admin ? 'Administrador' : 'Investigador'}</span>
               {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}
               {me.nivelMembro !== null && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono flex items-center gap-1"><Gauge size={11} /> Nv. {me.nivelMembro}</span>}
-              {rankPos && <span className="px-2.5 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold3 text-[11px] font-mono flex items-center gap-1"><Trophy size={11} /> {rankPos}º no ranking</span>}
             </div>
             <LinksPerfil links={me.links ?? []} className="mt-3" />
           </div>
@@ -169,30 +168,8 @@ export default function ProfilePage() {
             <button onClick={() => setPickBanner(false)} className="text-txt3 hover:text-txt"><X size={16} /></button>
           </div>
 
-          {/* Tiers exclusivos */}
-          <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase mb-2">Exclusivos do ranking</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-            {TIER_BANNERS.map(t => {
-              const unlocked = tiers.some(u => u.key === t.key)
-              const active = me.banner === t.key
-              return (
-                <button key={t.key} disabled={!unlocked} onClick={() => escolherBanner(t.key)}
-                  className={`relative h-20 rounded-lg overflow-hidden border text-left transition ${active ? 'border-gold ring-2 ring-gold/40' : 'border-white/10'} ${unlocked ? 'hover:border-gold/50' : 'opacity-45 cursor-not-allowed'}`}>
-                  <img src={t.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0" style={{ background: t.overlay }} />
-                  <div className="absolute inset-0 p-2 flex flex-col justify-between">
-                    <span className="font-mono text-[10px] text-white/90 tracking-wider uppercase flex items-center gap-1"><Crown size={11} /> {t.label}</span>
-                    <span className="text-[10px] text-white/70">{t.sub}</span>
-                  </div>
-                  {!unlocked && <span className="absolute top-2 right-2 text-white/80"><Lock size={13} /></span>}
-                  {active && <span className="absolute top-2 right-2 text-gold3"><Check size={14} /></span>}
-                </button>
-              )
-            })}
-          </div>
-
           {/* Presets */}
-          <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase mb-2">Padrão</p>
+          <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase mb-2">Artes da DU e fundos roxos</p>
           <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-5">
             {PRESET_BANNERS.map(p => {
               const active = me.banner === p.key
@@ -258,10 +235,11 @@ export default function ProfilePage() {
                 <p className="text-[11px] text-txt3">As alterações só valem depois da aprovação de um superior.</p>
                 {([
                   ['nivel', 'Nível', 'Ex.: 48'],
-                  ['policial', 'Nome do policial', 'Ex.: Peter Wolf'],
+                  ['policial', 'Nome do investigador', 'Ex.: Peter Wolf'],
+                  ['codinome', 'Codinome', 'Ex.: Raven'],
                   ['badge', 'Badge', 'Ex.: 4521'],
                   ['passaporte', 'Passaporte / ID', 'Ex.: 10293'],
-                  ['patenteNPD', 'Patente NPD', 'Ex.: Soldado'],
+                  ['patenteNPD', 'Patente DPD', 'Ex.: Soldado'],
                   ['patenteInterna', 'Cargo / patente interna', 'Ex.: Operador'],
                 ] as const).map(([key, label, ph]) => (
                   <div key={key} className="flex flex-col gap-1">
@@ -286,6 +264,7 @@ export default function ProfilePage() {
               <>
                 <dl className="space-y-3 text-sm">
                   <div className="flex justify-between"><dt className="text-txt2">Nome</dt><dd className="text-txt font-medium">{membro.policial}</dd></div>
+                  <div className="flex justify-between"><dt className="text-txt2 flex items-center gap-1"><Fingerprint size={12} /> Codinome</dt><dd className="text-gold3 font-medium">{membro.codinome || '—'}</dd></div>
                   <div>
                     <div className="flex justify-between items-center gap-2">
                       <dt className="text-txt2 flex items-center gap-1"><Gauge size={12} /> Nível</dt>
@@ -329,7 +308,7 @@ export default function ProfilePage() {
               </>
             ) : (
               <div>
-                <p className="text-xs text-txt3 mb-3">Vincule seu perfil de membro para ver seu desempenho e ranking.</p>
+                <p className="text-xs text-txt3 mb-3">Vincule seu perfil de membro para ver sua atividade investigativa.</p>
                 <div className="flex gap-2">
                   <select value={sel} onChange={e => setSel(e.target.value)} className="input-gold flex-1 bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm font-mono text-txt">
                     <option value="">Selecione o membro...</option>
@@ -344,45 +323,59 @@ export default function ProfilePage() {
           <PersonalizarPerfil me={me} onAbrirFundo={() => { setPickBanner(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
         </div>
 
-        {/* Desempenho */}
+        {/* Atividade investigativa */}
         <div className="lg:col-span-2 space-y-4">
           <div>
-            <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Desempenho operacional</p>
-            <h2 className="text-xl font-semibold text-txt">Estatísticas</h2>
+            <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Detective Unit</p>
+            <h2 className="text-xl font-semibold text-txt">Atividade investigativa</h2>
           </div>
-          {membro && desempenho ? (
+          {membro ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Stat icon={Trophy} label="Ranking" value={desempenho.posicao ? `${desempenho.posicao}º` : '—'} color="#f5c451" />
-                <Stat icon={Target} label="QRUs sucedidas" value={desempenho.sucedidas} color="#3a72c4" />
-                <Stat icon={Percent} label="Aproveitamento" value={`${desempenho.winRate}%`} color="#2ecc71" />
-                <Stat icon={Crosshair} label="Total de ações" value={desempenho.total} color="#8fb8ee" />
+                {canView('relatorios') && <Stat icon={FileSearch} label="Relatórios" value={meusRel.length} to="/relatorios" />}
+                {canView('boletins') && <Stat icon={ScrollText} label="Boletins" value={meusBol.length} color="#f5c451" to="/boletins" />}
+                {canView('inqueritos') && <Stat icon={FolderArchive} label="Inquéritos" value={meusInq.length} color="#c4b5fd" to="/inqueritos" />}
+                {canView('galeria') && <Stat icon={Images} label="Fotos publicadas" value={minhasFotos.length} color="#2ecc71" to="/galeria" />}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-card border border-bdr rounded-xl p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-2"><Award size={16} className="text-green" /><span className="text-sm text-txt2">Vitórias</span></div>
-                  <span className="text-2xl font-bold text-green">{desempenho.vitorias}</span>
+              {canView('relatorios') && (
+                <div className="bg-card border border-bdr rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-txt flex items-center gap-2"><FileSearch size={15} className="text-gold" /> Meus relatórios recentes</h3>
+                    <Link to="/relatorios" className="text-xs text-gold3 hover:text-gold2 inline-flex items-center gap-1">Ver todos <ArrowRight size={12} /></Link>
+                  </div>
+                  {meusRel.length === 0 ? <p className="text-sm text-txt3 py-4 text-center">Você ainda não aparece em nenhum relatório.</p> : (
+                    <ul className="divide-y divide-bdr">
+                      {meusRel.slice(0, 6).map(r => (
+                        <li key={r.id} className="py-2.5 flex items-center gap-3">
+                          <span className="font-mono text-[11px] text-gold3 w-32 shrink-0 truncate">{r.numero}</span>
+                          <span className="flex-1 min-w-0 truncate text-sm text-txt">{r.sigiloso && <Lock size={11} className="inline mr-1 text-red" />}{r.titulo}</span>
+                          <span className="text-[11px] text-txt3 font-mono shrink-0">{dataBR(r.data)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                <div className="bg-card border border-bdr rounded-xl p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-2"><Shield size={16} className="text-red" /><span className="text-sm text-txt2">Derrotas</span></div>
-                  <span className="text-2xl font-bold text-red">{desempenho.derrotas}</span>
+              )}
+              {canView('inqueritos') && meusInq.length > 0 && (
+                <div className="bg-card border border-bdr rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-txt flex items-center gap-2 mb-3"><FolderArchive size={15} className="text-gold" /> Inquéritos em que atuo</h3>
+                  <ul className="divide-y divide-bdr">
+                    {meusInq.slice(0, 6).map(i => (
+                      <li key={i.id} className="py-2.5 flex items-center gap-3">
+                        <span className="font-mono text-[11px] text-gold3 w-32 shrink-0 truncate">{i.numero}</span>
+                        <span className="flex-1 min-w-0 truncate text-sm text-txt">{i.titulo}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-              <div className="bg-card border border-bdr rounded-xl p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-mono text-[11px] text-txt2 tracking-wider uppercase">Aproveitamento</span>
-                  <span className="text-sm font-bold text-gold3">{desempenho.winRate}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-bdr overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-gold to-gold3" style={{ width: `${desempenho.winRate}%` }} /></div>
-              </div>
+              )}
             </>
           ) : (
             <div className="border border-bdr rounded-xl bg-card py-16 text-center">
-              <Trophy size={30} className="text-txt3 mx-auto mb-3" />
-              <p className="text-txt2 text-sm">Vincule seu perfil de membro para ver seu desempenho.</p>
+              <FileSearch size={30} className="text-txt3 mx-auto mb-3" />
+              <p className="text-txt2 text-sm">Vincule seu perfil de membro para ver sua atividade.</p>
             </div>
           )}
-          {membro && <MinhasQrus ativo={!!me.membroId} />}
         </div>
       </div>
     </div>

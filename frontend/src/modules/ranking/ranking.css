@@ -1,7 +1,7 @@
 .ranking-module button, .ranking-module input, .ranking-module select { font-family: inherit; }
 .ranking-module button:focus-visible, .ranking-module input:focus-visible, .ranking-module select:focus-visible { outline: 2px solid var(--gold2); outline-offset: 3px; }
 .ranking-hover { transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease; }
-.ranking-hover:hover { transform: translateY(-2px); border-color: var(--gold); background-color: rgba(58,114,196,.06); }
+.ranking-hover:hover { transform: translateY(-2px); border-color: var(--gold); background-color: rgba(139, 92, 246,.06); }
 @media (max-width: 639px) {
   .ranking-podium > :has([aria-label^="Posição 1,"]), .ranking-podium > :has([aria-label="Posição 1"]) { order: -1; }
 }

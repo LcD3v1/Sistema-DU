@@ -9,17 +9,20 @@ import ModalOverlay from '@/components/ui/ModalOverlay'
 import HudButton from '@/components/ui/HudButton'
 import { confirmar } from '@/lib/dialogo'
 import { linkSeguro } from '@/lib/plataformas'
+import { EditorArquivos, ListaArquivos } from '@/components/investigacao/Campos'
+import type { ArquivoRef } from '@/hooks/useInvestigacao'
 
 /**
  * Cursos Internos — biblioteca de livros. Quem edita cola o link (PDF, Google
- * Drive, Docs, site…) e ele vira um livro na estante; o clique abre os detalhes
- * e o botão "Abrir livro" abre o link em outra aba.
+ * Drive, Docs, site…) e/ou envia arquivos do computador, e ele vira um livro na
+ * estante; o clique abre os detalhes, o link e os arquivos.
  */
 
 const EASE = [0.16, 1, 0.3, 1] as const
-const CORES = ['#3a72c4', '#1f8a5b', '#b8860b', '#8e3b46', '#6b3fa0', '#0f766e', '#c2410c', '#334155']
+const CORES = ['#8b5cf6', '#1f8a5b', '#b8860b', '#8e3b46', '#6b3fa0', '#0f766e', '#c2410c', '#334155']
 
-const VAZIO: LivroInput = { titulo: '', autor: '', descricao: '', categoria: '', url: '', capa: '', cor: CORES[0] }
+type FormLivro = Omit<LivroInput, 'arquivos'> & { arquivos: ArquivoRef[] }
+const VAZIO: FormLivro = { titulo: '', autor: '', descricao: '', categoria: '', url: '', arquivos: [], capa: '', cor: CORES[0] }
 
 const normalizar = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 
@@ -69,7 +72,7 @@ export default function CursosPage() {
   const [busca, setBusca] = useState('')
   const [categoria, setCategoria] = useState('')
   const [aberto, setAberto] = useState<Livro | null>(null)
-  const [form, setForm] = useState<LivroInput | null>(null)
+  const [form, setForm] = useState<FormLivro | null>(null)
   const [editId, setEditId] = useState<number | null>(null)
 
   const categorias = useMemo(() => [...new Set((livros ?? []).map(l => l.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [livros])
@@ -82,7 +85,7 @@ export default function CursosPage() {
   function abrirNovo() { setEditId(null); setForm({ ...VAZIO }) }
   function abrirEdicao(l: Livro) {
     setAberto(null); setEditId(l.id)
-    setForm({ titulo: l.titulo, autor: l.autor, descricao: l.descricao, categoria: l.categoria, url: l.url, capa: l.capa, cor: l.cor })
+    setForm({ titulo: l.titulo, autor: l.autor, descricao: l.descricao, categoria: l.categoria, url: l.url, arquivos: l.arquivos ?? [], capa: l.capa, cor: l.cor })
   }
   function mudarLink(url: string) {
     setForm(f => {
@@ -93,8 +96,9 @@ export default function CursosPage() {
   }
   function salvar() {
     if (!form) return
-    const body = { ...form, url: form.url.trim(), capa: form.capa.trim(), titulo: form.titulo.trim() }
-    if (!linkSeguro(body.url)) { addToast('error', 'Cole o link do livro (começando com http:// ou https://).'); return }
+    const body = { ...form, url: form.url.trim(), capa: form.capa.trim(), titulo: form.titulo.trim(), arquivos: form.arquivos.map(a => a.id) }
+    if (body.url && !linkSeguro(body.url)) { addToast('error', 'O link precisa começar com http:// ou https://.'); return }
+    if (!body.url && body.arquivos.length === 0) { addToast('error', 'Cole o link do livro ou envie um arquivo do computador.'); return }
     if (!body.titulo) { addToast('error', 'Dê um título ao livro.'); return }
     if (body.capa && !linkSeguro(body.capa)) { addToast('error', 'A capa precisa ser um link de imagem http/https.'); return }
     const ok = () => { addToast('success', editId ? 'Livro atualizado!' : 'Livro adicionado à biblioteca!'); setForm(null) }
@@ -197,6 +201,7 @@ export default function CursosPage() {
                   <BookOpen size={16} /> Abrir livro <ExternalLink size={13} className="opacity-70" />
                 </a>
               )}
+              {(aberto.arquivos ?? []).length > 0 && <ListaArquivos arquivos={aberto.arquivos} />}
               {podeEditar && (
                 <div className="flex gap-2 pt-2 border-t border-bdr">
                   <button onClick={() => abrirEdicao(aberto)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt"><Pencil size={13} /> Editar</button>
@@ -213,12 +218,15 @@ export default function CursosPage() {
         {form && (
           <div className="flex flex-col sm:flex-row gap-5">
             <div className="space-y-3 flex-1 min-w-0">
-              <Campo rotulo="Link do livro *" dica="PDF, Google Drive, Docs ou qualquer site (http/https).">
+              <Campo rotulo="Link do livro" dica="PDF, Google Drive, Docs ou qualquer site (http/https). Opcional se enviar arquivos.">
                 <div className="relative">
                   <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt3" />
                   <input autoFocus value={form.url} onChange={e => mudarLink(e.target.value)} placeholder="https://..." inputMode="url" maxLength={2048}
                     className={`input-gold w-full bg-card2 border rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-txt ${form.url && !linkSeguro(form.url.trim()) ? 'border-red/60' : 'border-bdr2'}`} />
                 </div>
+              </Campo>
+              <Campo rotulo="Arquivos do computador" dica="PDF, Word, PowerPoint, planilhas, imagens, áudio e vídeo.">
+                <EditorArquivos area="cursos" arquivos={form.arquivos} onChange={arquivos => setForm(f => f && { ...f, arquivos, titulo: f.titulo || (arquivos[0]?.nome.replace(/\.[a-z0-9]+$/i, '').slice(0, 120) ?? '') })} />
               </Campo>
               <Campo rotulo="Título *"><input value={form.titulo} maxLength={120} onChange={e => setForm({ ...form, titulo: e.target.value })} placeholder="Ex.: Manual de Abordagem" className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm text-txt" /></Campo>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

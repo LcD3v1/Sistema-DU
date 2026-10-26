@@ -16,7 +16,7 @@ interface CanaisResp { botConfigurado: boolean; canais: { id: string; name: stri
 const erroApi = (err: unknown, padrao: string) =>
   (err as { response?: { data?: { error?: string } } }).response?.data?.error || padrao
 
-/** Envia uma mensagem pelo bot, no painel da FAST (Components V2), no canal escolhido. */
+/** Envia uma mensagem pelo bot, no painel da DU (Components V2), no canal escolhido. */
 export default function EnviarMensagemPage() {
   const navigate = useNavigate()
   const { addToast } = useUIStore()
@@ -56,11 +56,11 @@ export default function EnviarMensagemPage() {
         <div>
           <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Discord</p>
           <h1 className="text-2xl sm:text-3xl font-bold text-txt">Enviar mensagem</h1>
-          <p className="text-sm text-txt2 mt-1">Escreva, escolha o canal e o bot da FAST publica no painel oficial.</p>
+          <p className="text-sm text-txt2 mt-1">Escreva, escolha o canal e o bot da DU publica no painel oficial.</p>
         </div>
         <div className="flex items-center gap-2 text-txt2">
           <Brand size={30} />
-          <span className="font-mono text-[11px] tracking-[0.15em] uppercase">FAST / Mensagem</span>
+          <span className="font-mono text-[11px] tracking-[0.15em] uppercase">DU / Mensagem</span>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ export default function EnviarMensagemPage() {
 
             <div className="flex justify-end pt-1">
               <button type="submit" disabled={!pronto}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_30px_-12px_rgba(139, 92, 246,0.7)]">
                 {enviar.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Enviar no Discord
               </button>
             </div>
@@ -126,11 +126,11 @@ export default function EnviarMensagemPage() {
             </div>
             <div className="rounded-lg bg-[#2b2d31] p-4">
               <div className="flex rounded-lg overflow-hidden bg-[#232428] border border-black/20">
-                <div className="w-1 shrink-0 bg-[#3a72c4]" />
+                <div className="w-1 shrink-0 bg-[#8b5cf6]" />
                 <div className="flex-1 min-w-0 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[11px] text-[#949ba4] uppercase tracking-wide">Comunicado · FAST</p>
+                      <p className="text-[11px] text-[#949ba4] uppercase tracking-wide">Comunicado · DU</p>
                       {titulo.trim() && <p className="text-lg font-bold text-[#f2f3f5] mt-1 break-words">{titulo.trim()}</p>}
                     </div>
                     <Brand size={40} />
@@ -141,7 +141,7 @@ export default function EnviarMensagemPage() {
                   </p>
                   <div className="my-3 h-px bg-[#3f4147]" />
                   <p className="text-[11px] text-[#949ba4]">
-                    Enviado por {usuario?.username || 'você'} · agora · FAST · North Police Department
+                    Enviado por {usuario?.username || 'você'} · agora · DU · Detroit Police Department
                   </p>
                 </div>
               </div>

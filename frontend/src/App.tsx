@@ -18,22 +18,18 @@ import TermoAceite from '@/components/ui/TermoAceite'
 // Páginas sob demanda: cada rota baixa só o próprio código (recharts, jspdf, dnd-kit…)
 const LoginPage = paginaLazy('/login')
 const PerfilPublicoPage = paginaLazy('/perfil-publico')
-const HistoricoRankingPage = paginaLazy('/historico-ranking')
 const TermosPage = paginaLazy('/termos')
 const DashboardPage = paginaLazy('/dashboard')
+const RelatoriosPage = paginaLazy('/relatorios')
+const BoletinsPage = paginaLazy('/boletins')
+const InqueritosPage = paginaLazy('/inqueritos')
+const GaleriaPage = paginaLazy('/galeria')
 const AvisosPage = paginaLazy('/avisos')
 const ProfilePage = paginaLazy('/perfil')
-const RegistrarAcaoPage = paginaLazy('/acoes/nova')
-const HistoricoPage = paginaLazy('/acoes/historico')
-const PendentesPage = paginaLazy('/acoes/pendentes')
-const EstatisticasPage = paginaLazy('/estatisticas')
-const RelatorioUnidadePage = paginaLazy('/relatorio')
-const RankingPage = paginaLazy('/ranking')
 const RegistrarAusenciaPage = paginaLazy('/ausencias/nova')
 const AusenciasPage = paginaLazy('/ausencias')
 const FardamentoPage = paginaLazy('/fardamento')
 const GerarAnuncioPage = paginaLazy('/anuncio')
-const GerarBoletimPage = paginaLazy('/boletim')
 const ProtocoloPage = paginaLazy('/protocolo')
 const GerarCarteiraPage = paginaLazy('/carteira')
 const EnviarMensagemPage = paginaLazy('/mensagens')
@@ -103,7 +99,6 @@ export default function App() {
           } />
           <Route path="/auth/discord" element={<DiscordCallback />} />
           <Route path="/perfil/:slug" element={<PerfilPublicoPage />} />
-          <Route path="/historico-ranking" element={<HistoricoRankingPage />} />
           <Route path="/termos" element={<TermosPage />} />
           <Route path="/" element={
             <ProtectedRoute><AppShell /></ProtectedRoute>
@@ -118,20 +113,21 @@ export default function App() {
             <Route path="perfil" element={
               <ProtectedRoute><ProfilePage /></ProtectedRoute>
             } />
-            <Route path="acoes/nova" element={
-              <ProtectedRoute area="registrar_acao"><RegistrarAcaoPage /></ProtectedRoute>
+            <Route path="relatorios" element={
+              <ProtectedRoute key="lista" area="relatorios"><RelatoriosPage /></ProtectedRoute>
             } />
-            <Route path="acoes/historico" element={
-              <ProtectedRoute area="historico"><HistoricoPage /></ProtectedRoute>
+            <Route path="relatorios/novo" element={
+              <ProtectedRoute key="novo" area="relatorios"><RelatoriosPage /></ProtectedRoute>
             } />
-            <Route path="acoes/pendentes" element={
-              <ProtectedRoute area="pendentes"><PendentesPage /></ProtectedRoute>
+            <Route path="boletins" element={
+              <ProtectedRoute area="boletins"><BoletinsPage /></ProtectedRoute>
             } />
-            <Route path="estatisticas" element={<EstatisticasPage />} />
-            <Route path="relatorio" element={
-              <ProtectedRoute area="relatorio"><RelatorioUnidadePage /></ProtectedRoute>
+            <Route path="inqueritos" element={
+              <ProtectedRoute area="inqueritos"><InqueritosPage /></ProtectedRoute>
             } />
-            <Route path="ranking" element={<RankingPage />} />
+            <Route path="galeria" element={
+              <ProtectedRoute area="galeria"><GaleriaPage /></ProtectedRoute>
+            } />
             <Route path="ausencias/nova" element={
               <ProtectedRoute area="ausencias"><RegistrarAusenciaPage /></ProtectedRoute>
             } />
@@ -143,9 +139,6 @@ export default function App() {
             } />
             <Route path="anuncio" element={
               <ProtectedRoute area="anuncio"><GerarAnuncioPage /></ProtectedRoute>
-            } />
-            <Route path="boletim" element={
-              <ProtectedRoute area="boletim"><GerarBoletimPage /></ProtectedRoute>
             } />
             <Route path="protocolo" element={
               <ProtectedRoute area="protocolo"><ProtocoloPage /></ProtectedRoute>

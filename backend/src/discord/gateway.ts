@@ -54,25 +54,25 @@ export function processarSaida(discordId: string, origem: string): void {
 
   audit('DISCORD_MEMBER_LEFT', undefined,
     `${origem} | Discord ${discordId} | conta ${conta.username} (#${conta.id})${membro ? ` | membro ${membro.policial} (#${membro.id})` : ''} — exonerado`)
-  console.log(`[FAST][DISCORD] ${conta.username} saiu do servidor — exonerado automaticamente.`)
+  console.log(`[DU][DISCORD] ${conta.username} saiu do servidor — exonerado automaticamente.`)
 }
 
 function prepararCargosAdv(): void {
   garantirCargosAdv().then(sincronizarTodosCargosAdv).catch(err =>
-    console.error('[FAST][DISCORD] cargos de advertência:', err instanceof Error ? err.message : err,
+    console.error('[DU][DISCORD] cargos de advertência:', err instanceof Error ? err.message : err,
       '— confira se o bot tem a permissão "Gerenciar Cargos".'))
 }
 
 export function iniciarGateway(): void {
   if (!botConfigurado()) {
-    console.log('[FAST][DISCORD] Bot não configurado — detecção de saída do servidor desativada.')
+    console.log('[DU][DISCORD] Bot não configurado — detecção de saída do servidor desativada.')
     return
   }
   if (process.env.DISCORD_GATEWAY === 'off') {
-    console.log('[FAST][DISCORD] Gateway desligado (DISCORD_GATEWAY=off) — sem eventos em tempo real; presença do bot consultada pela API.')
+    console.log('[DU][DISCORD] Gateway desligado (DISCORD_GATEWAY=off) — sem eventos em tempo real; presença do bot consultada pela API.')
     verificarBotNoServidor(true).then(
-      ok => console.log(`[FAST][DISCORD] Bot ${ok ? 'está' : 'NÃO está'} no servidor da unidade.`),
-      err => console.error('[FAST][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err),
+      ok => console.log(`[DU][DISCORD] Bot ${ok ? 'está' : 'NÃO está'} no servidor da unidade.`),
+      err => console.error('[DU][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err),
     )
     return
   }
@@ -92,7 +92,7 @@ function conectar(comPresenca: boolean): void {
   const semPresenca = () => {
     if (!comPresenca || refeito) return
     refeito = true
-    console.warn('[FAST][DISCORD] "Presence Intent" não está ativado no Developer Portal — reconectando sem online/offline.')
+    console.warn('[DU][DISCORD] "Presence Intent" não está ativado no Developer Portal — reconectando sem online/offline.')
     client.destroy().catch(() => {}).finally(() => conectar(false))
   }
   client.on(Events.ShardDisconnect, ev => { if (ev.code === GatewayCloseCodes.DisallowedIntents) semPresenca() })
@@ -103,13 +103,13 @@ function conectar(comPresenca: boolean): void {
   })
 
   // Presença do bot no servidor (libera/bloqueia o painel)
-  client.on(Events.GuildCreate, g => { if (g.id === guildId) { definirBotNoServidor(true); console.log('[FAST][DISCORD] Bot adicionado ao servidor — painel liberado.'); prepararCargosAdv() } })
-  client.on(Events.GuildDelete, g => { if (g.id === guildId) { definirBotNoServidor(false); console.warn('[FAST][DISCORD] Bot removido do servidor — acesso ao painel bloqueado.') } })
+  client.on(Events.GuildCreate, g => { if (g.id === guildId) { definirBotNoServidor(true); console.log('[DU][DISCORD] Bot adicionado ao servidor — painel liberado.'); prepararCargosAdv() } })
+  client.on(Events.GuildDelete, g => { if (g.id === guildId) { definirBotNoServidor(false); console.warn('[DU][DISCORD] Bot removido do servidor — acesso ao painel bloqueado.') } })
 
   client.on(Events.GuildMemberRemove, member => {
     if (member.guild.id !== guildId) return
     try { processarSaida(member.id, 'Saída do servidor') } catch (err) {
-      console.error('[FAST][DISCORD] processar saída:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] processar saída:', err instanceof Error ? err.message : err)
     }
   })
 
@@ -131,17 +131,17 @@ function conectar(comPresenca: boolean): void {
         if (!_antes.roles.cache.equals(depois.roles.cache)) audit('ROLE_CHANGED', undefined, `discord=${depois.id}; guild=${guildId}`)
       }
     } catch (err) {
-      console.error('[FAST][DISCORD] atualizar identidade:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] atualizar identidade:', err instanceof Error ? err.message : err)
     }
   })
 
   // Ao conectar, confere quem saiu enquanto o sistema estava desligado.
   client.once(Events.ClientReady, async c => {
-    console.log(`[FAST][DISCORD] Bot conectado como ${c.user.tag}`)
+    console.log(`[DU][DISCORD] Bot conectado como ${c.user.tag}`)
     try {
       const guild = await c.guilds.fetch(guildId).catch(err => {
         definirBotNoServidor(false)
-        console.warn('[FAST][DISCORD] Bot NÃO está no servidor da unidade — acesso ao painel bloqueado.')
+        console.warn('[DU][DISCORD] Bot NÃO está no servidor da unidade — acesso ao painel bloqueado.')
         throw err
       })
       definirBotNoServidor(true)
@@ -168,10 +168,10 @@ function conectar(comPresenca: boolean): void {
           processarSaida(conta.discordId, 'Verificação ao iniciar')
         }
       }
-      // Cargos de advertência: cria ADV FAST 1/2/3 se faltarem e corrige quem estiver diferente do painel
+      // Cargos de advertência: cria ADV DU 1/2/3 se faltarem e corrige quem estiver diferente do painel
       prepararCargosAdv()
     } catch (err) {
-      console.error('[FAST][DISCORD] verificação inicial de membros:', err instanceof Error ? err.message : err,
+      console.error('[DU][DISCORD] verificação inicial de membros:', err instanceof Error ? err.message : err,
         '— confira se o "Server Members Intent" está ativado no Developer Portal.')
     }
   })
@@ -192,7 +192,7 @@ function conectar(comPresenca: boolean): void {
       // Exonerado é bloqueio total, mesmo que o cargo antigo permitisse.
       if (!conta || conta.exonerado || conta.ativo === false) {
         audit('UNAUTHORIZED_ACCESS', undefined, `Botão do painel de apreensões sem conta ativa (Discord ${interaction.user.id})`)
-        await negar('Você não tem acesso ao painel da FAST.')
+        await negar('Você não tem acesso ao painel da DU.')
         return
       }
       const permitido = interaction.customId === ID_BOTAO_RESETAR
@@ -212,13 +212,13 @@ function conectar(comPresenca: boolean): void {
         await atualizarPainel()
       }
     } catch (err) {
-      console.error('[FAST][DISCORD] botão do painel de apreensões:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] botão do painel de apreensões:', err instanceof Error ? err.message : err)
     }
   })
 
-  client.on(Events.Error, err => console.error('[FAST][DISCORD] gateway:', err.message))
+  client.on(Events.Error, err => console.error('[DU][DISCORD] gateway:', err.message))
   client.login(process.env.DISCORD_BOT_TOKEN).catch(err => {
     if ((err as { code?: string })?.code === 'DisallowedIntents') { semPresenca(); return }
-    console.error('[FAST][DISCORD] falha ao conectar o bot:', err instanceof Error ? err.message : err)
+    console.error('[DU][DISCORD] falha ao conectar o bot:', err instanceof Error ? err.message : err)
   })
 }

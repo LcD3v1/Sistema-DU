@@ -1,6 +1,6 @@
-# FAST — North Police Department
+# DU — Detroit Police Department
 
-Painel de gestão operacional da unidade FAST (RP): apreensões, efetivo, ranking,
+Painel de gestão operacional da Detective Unit (DU) (RP): apreensões, efetivo, ranking,
 ausências, promoções, recrutamento, avisos, geradores (anúncio/boletim/carteira),
 protocolo e um sistema de cargos de permissão granular.
 

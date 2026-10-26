@@ -11,7 +11,7 @@
 const path = require('path')
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true })
 // Redação de segredos em qualquer log (URI do Mongo, tokens). Requer build (dist/).
-try { require('../dist/security/redact').protectConsole() } catch { console.warn('[FAST] build ausente: logs sem redação — rode npm run build') }
+try { require('../dist/security/redact').protectConsole() } catch { console.warn('[DU] build ausente: logs sem redação — rode npm run build') }
 const { MongoClient } = require('mongodb')
 
 const ORIGEM = process.env.MONGODB_DB_PRODUCAO || process.env.MONGODB_DB || 'fast'
@@ -36,11 +36,11 @@ const DESTINO = process.env.MONGODB_DB_LOCAL || 'fast-local'
       if (docs.length) await destino.collection(nome).insertMany(docs, { ordered: false })
       resumo.push(`${nome}: ${docs.length}`)
     }
-    console.log(`[FAST] Dados reais copiados de "${ORIGEM}" → "${DESTINO}" (${resumo.join(' · ')})`)
+    console.log(`[DU] Dados reais copiados de "${ORIGEM}" → "${DESTINO}" (${resumo.join(' · ')})`)
   } finally {
     await cliente.close()
   }
 })().catch(err => {
-  console.error('[FAST] Falha ao copiar dados da produção:', err.message)
+  console.error('[DU] Falha ao copiar dados da produção:', err.message)
   process.exit(1)
 })

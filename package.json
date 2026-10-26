@@ -1,7 +1,7 @@
 {
   "name": "unidade-fast",
   "version": "1.0.0",
-  "description": "FAST — North Police Department · Sistema de Gestão Operacional",
+  "description": "DU — Detroit Police Department · Sistema de Gestão Operacional",
   "scripts": {
     "build": "npm run install:all && cd frontend && npm run build && cd ../backend && npm run build",
     "start": "npm run build && cd backend && npm start",

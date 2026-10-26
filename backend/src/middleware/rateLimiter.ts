@@ -91,6 +91,10 @@ export const mutationLimiter = limitador('mutacao', 60_000, 40,
 export const uploadLimiter = limitador('upload', 15 * 60_000, 20,
   'Muitos envios de arquivo. Tente novamente em alguns minutos.', 10, { skip: req => !MUTACAO.has(req.method) })
 
+// Arquivos de inquéritos/boletins/relatórios/cursos/galeria (até 10 MB cada): 60 / 15 min por IP
+export const arquivoLimiter = limitador('arquivo', 15 * 60_000, 60,
+  'Muitos envios de arquivo. Tente novamente em alguns minutos.', 6)
+
 // Mensagem enviada pelo bot (vai para o Discord, que também limita): 10 / 1 min por IP
 export const mensagemDiscordLimiter = limitador('mensagem_discord', 60_000, 10,
   'Muitas mensagens seguidas. Aguarde um minuto.', 5)

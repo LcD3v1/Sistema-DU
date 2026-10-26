@@ -11,23 +11,20 @@ type Loader = () => Promise<{ default: ComponentType }>
 const carregadores = {
   '/login': () => import('@/components/sections/LoginPage'),
   '/perfil-publico': () => import('@/components/sections/PerfilPublicoPage'),
-  '/historico-ranking': () => import('@/components/sections/HistoricoRankingPage'),
   '/termos': () => import('@/components/sections/TermosPage'),
   '/onboarding': () => import('@/components/sections/OnboardingPage'),
   '/dashboard': () => import('@/components/sections/DashboardPage'),
+  '/relatorios': () => import('@/components/sections/RelatoriosPage'),
+  '/relatorios/novo': () => import('@/components/sections/RelatoriosPage'),
+  '/boletins': () => import('@/components/sections/BoletinsPage'),
+  '/inqueritos': () => import('@/components/sections/InqueritosPage'),
+  '/galeria': () => import('@/components/sections/GaleriaPage'),
   '/avisos': () => import('@/components/sections/AvisosPage'),
   '/perfil': () => import('@/components/sections/ProfilePage'),
-  '/acoes/nova': () => import('@/components/sections/RegistrarAcaoPage'),
-  '/acoes/historico': () => import('@/components/sections/HistoricoPage'),
-  '/acoes/pendentes': () => import('@/components/sections/PendentesPage'),
-  '/estatisticas': () => import('@/components/sections/EstatisticasPage'),
-  '/relatorio': () => import('@/components/sections/RelatorioUnidadePage'),
-  '/ranking': () => import('@/components/sections/RankingPage'),
   '/ausencias/nova': () => import('@/components/sections/RegistrarAusenciaPage'),
   '/ausencias': () => import('@/components/sections/AusenciasPage'),
   '/fardamento': () => import('@/components/sections/FardamentoPage'),
   '/anuncio': () => import('@/components/sections/GerarAnuncioPage'),
-  '/boletim': () => import('@/components/sections/GerarBoletimPage'),
   '/protocolo': () => import('@/components/sections/ProtocoloPage'),
   '/carteira': () => import('@/components/sections/GerarCarteiraPage'),
   '/mensagens': () => import('@/components/sections/EnviarMensagemPage'),
@@ -49,7 +46,7 @@ export function precarregarRota(rota: string): void {
   fn().catch(() => iniciados.delete(rota))
 }
 
-const CHAVE_RECARGA = 'fast:recarga-chunk'
+const CHAVE_RECARGA = 'du:recarga-chunk'
 
 /** Após um deploy, chunks antigos somem: recarrega a página uma vez para pegar os novos. */
 function comRecarga(fn: Loader): Loader {

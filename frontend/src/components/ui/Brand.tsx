@@ -1,5 +1,5 @@
 import { useLogo } from '@/hooks/useConfig'
-import emblem from '@/assets/fast-emblem.webp'
+import emblem from '@/assets/du-emblem.svg'
 
 export default function Brand({ size = 56, className = '' }: { size?: number; className?: string }) {
   const { data: logoData } = useLogo()
@@ -7,7 +7,7 @@ export default function Brand({ size = 56, className = '' }: { size?: number; cl
   return (
     <img
       src={src}
-      alt="FAST NPD"
+      alt="Detective Unit · DPD"
       width={size}
       height={size}
       className={`object-contain shrink-0 select-none ${className}`}

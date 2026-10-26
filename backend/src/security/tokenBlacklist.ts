@@ -38,7 +38,7 @@ export function revokeToken(jti: string, expiresAt: number): void {
   guardar(hash, expiresAt)
   if (colecao) {
     colecao.updateOne({ _id: hash }, { $set: { expiraEm: new Date(expiresAt) } }, { upsert: true })
-      .catch(() => console.error('[FAST][SEGURANÇA] falha ao persistir revogação de sessão'))
+      .catch(() => console.error('[DU][SEGURANÇA] falha ao persistir revogação de sessão'))
   }
 }
 
@@ -69,7 +69,7 @@ export async function iniciarPersistenciaRevogacoes(): Promise<void> {
     }
     colecao = c
   } catch {
-    console.error('[FAST][SEGURANÇA] revogação persistente indisponível — usando só memória')
+    console.error('[DU][SEGURANÇA] revogação persistente indisponível — usando só memória')
   }
 }
 

@@ -24,7 +24,7 @@ const PLACEHOLDERS = new Set([
 const PROD = process.env.NODE_ENV === 'production'
 
 function fail(msg: string): never {
-  console.error('\n[FAST][SEGURANÇA] Falha de configuração — o servidor não vai iniciar.')
+  console.error('\n[DU][SEGURANÇA] Falha de configuração — o servidor não vai iniciar.')
   console.error('  → ' + msg)
   console.error('  Gere um segredo forte com:')
   console.error('    node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"')
@@ -50,19 +50,19 @@ function validateDiscord(): void {
   const some = DISCORD_CLIENT_ID || DISCORD_CLIENT_SECRET || DISCORD_REDIRECT_URI
   const all = DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI
   if (!all) {
-    console.warn(`[FAST][ATENÇÃO] Discord OAuth ${some ? 'parcialmente configurado' : 'não configurado'} — o login é SÓ via Discord, então ninguém conseguirá entrar até preencher DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET e DISCORD_REDIRECT_URI.`)
+    console.warn(`[DU][ATENÇÃO] Discord OAuth ${some ? 'parcialmente configurado' : 'não configurado'} — o login é SÓ via Discord, então ninguém conseguirá entrar até preencher DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET e DISCORD_REDIRECT_URI.`)
   }
 }
 
 function validateMongo(): void {
   const uri = process.env.MONGODB_URI
   if (!uri) {
-    console.error('\n[FAST][CONFIG] MONGODB_URI não está definido — o servidor não vai iniciar.')
+    console.error('\n[DU][CONFIG] MONGODB_URI não está definido — o servidor não vai iniciar.')
     console.error('  Defina a string de conexão do MongoDB no arquivo backend/.env.\n')
     process.exit(1)
   }
   if (uri.includes('<db_username>') || uri.includes('<db_password>')) {
-    console.error('\n[FAST][CONFIG] MONGODB_URI ainda contém <db_username> — substitua pelo usuário do banco.\n')
+    console.error('\n[DU][CONFIG] MONGODB_URI ainda contém <db_username> — substitua pelo usuário do banco.\n')
     process.exit(1)
   }
 }
@@ -79,7 +79,7 @@ validateDiscord()
 
 // Aviso extra em produção sobre CORS aberto/origem padrão.
 if (PROD && !process.env.ALLOWED_ORIGIN) {
-  console.warn('[FAST][SEGURANÇA] ALLOWED_ORIGIN não definido em produção — usando same-origin (CORS desligado).')
+  console.warn('[DU][SEGURANÇA] ALLOWED_ORIGIN não definido em produção — usando same-origin (CORS desligado).')
 }
 
 // Chave de criptografia em repouso (opcional): se definida, precisa ser válida (32 bytes)
@@ -102,10 +102,10 @@ if (PROD) {
     ['FIREWALL_ISENTAR_LOOPBACK', /^(on|true|1)$/i],
   ] as const) {
     if (desligado.test(process.env[nome]?.trim() ?? '')) {
-      console.warn(`[FAST][SEGURANÇA] ${nome} enfraquece a proteção em produção — revise o .env.`)
+      console.warn(`[DU][SEGURANÇA] ${nome} enfraquece a proteção em produção — revise o .env.`)
     }
   }
   if (process.env.DISCORD_EXIGIR_SERVIDOR === 'off') {
-    console.warn('[FAST][SEGURANÇA] DISCORD_EXIGIR_SERVIDOR=off é ignorado em produção.')
+    console.warn('[DU][SEGURANÇA] DISCORD_EXIGIR_SERVIDOR=off é ignorado em produção.')
   }
 }

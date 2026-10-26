@@ -129,7 +129,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
     if (!ehDono) {
       let botPresente = false
       try { botPresente = await verificarBotNoServidor() } catch (err) {
-        console.error('[FAST][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err)
+        console.error('[DU][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err)
         res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
       }
       if (!botPresente) {
@@ -137,7 +137,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
         res.redirect(`${FRONTEND_URL}/login?reason=bot_fora_servidor`); return
       }
       try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
-        console.error('[FAST][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
+        console.error('[DU][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
         res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
       }
       if (!membroServidor && !dispensaServidor(me.id)) {
@@ -148,7 +148,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
     } else {
       // Dono: identidade do servidor é opcional (não bloqueia o acesso)
       try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
-        console.error('[FAST][DISCORD] identidade no servidor:', err instanceof Error ? err.message : err)
+        console.error('[DU][DISCORD] identidade no servidor:', err instanceof Error ? err.message : err)
       }
     }
 
@@ -213,7 +213,7 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
         garantirAcessoDono(conta, data)
         audit('DISCORD_ACCOUNT_CREATED', req, `Dono ${username} criado com acesso total`)
       }
-      if (!ehDono) notificar(data, conta.id, 'cadastro', 'Bem-vindo à FAST!',
+      if (!ehDono) notificar(data, conta.id, 'cadastro', 'Bem-vindo à DU!',
         'Preencha seu cadastro para enviá-lo ao comando. Após a aprovação, você recebe seu cargo e o acesso ao painel.', '/perfil')
       if (!ehDono) notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Novo acesso pelo Discord',
         `${displayName} entrou pelo Discord e está preenchendo o cadastro.`, '/configuracoes')
@@ -348,7 +348,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   if (conta.onboarded !== false && conta.membroId && data.membros.some(m => m.id === conta.membroId)) {
     res.status(409).json({ error: 'Cadastro já concluído. Envie uma alteração de perfil para aprovação.' }); return
   }
-  const body = req.body as { nivel: number; policial: string; badge: string; passaporte: string; patenteNPD: string; patenteInterna: string }
+  const body = req.body as { nivel: number; policial: string; badge: string; passaporte: string; patenteNPD: string; patenteInterna: string; codinome: string }
 
   let membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
   const novo = !membro
@@ -366,6 +366,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
       id: data.nextMemId,
       badge: body.badge, passaporte: body.passaporte, policial: body.policial,
       patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel,
+      codinome: body.codinome,
       status: 'Ativo',
       entrada: new Date().toISOString().slice(0, 10),
       promocao: new Date().toISOString().slice(0, 10),
@@ -376,7 +377,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     data.nextMemId++
     conta.membroId = membro.id
   } else {
-    Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel })
+    Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel, codinome: body.codinome })
   }
   conta.onboarded = true
 
@@ -469,7 +470,7 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
   const membro = data.membros.find(m => m.id === conta.membroId)
   if (!membro) { res.status(404).json({ error: 'Membro não encontrado' }); return }
 
-  const campos: CampoPerfil[] = ['nivel', 'policial', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
+  const campos: CampoPerfil[] = ['nivel', 'policial', 'codinome', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
   const body = req.body as Partial<Record<CampoPerfil, string | number>>
   const alteracoes = campos
     .filter(k => body[k] !== undefined && String(body[k]) !== String(membro[k] ?? ''))

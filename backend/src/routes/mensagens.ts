@@ -24,12 +24,12 @@ router.get('/canais', requireAuth, requireArea('mensagens', 'ver'), async (_req:
   try {
     res.json({ botConfigurado: true, canais: await canaisDeTexto() })
   } catch (err) {
-    console.error('[FAST][DISCORD] listar canais (mensagens):', err instanceof Error ? err.message : err)
+    console.error('[DU][DISCORD] listar canais (mensagens):', err instanceof Error ? err.message : err)
     res.status(502).json({ error: 'Não foi possível consultar os canais do Discord.' })
   }
 })
 
-// POST /api/mensagens — o bot manda o painel da FAST no canal escolhido
+// POST /api/mensagens — o bot manda o painel da DU no canal escolhido
 router.post('/', requireAuth, requireArea('mensagens', 'editar'), mensagemDiscordLimiter, validateBody(mensagemDiscordSchema),
   async (req: Request, res: Response): Promise<void> => {
     if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
@@ -44,7 +44,7 @@ router.post('/', requireAuth, requireArea('mensagens', 'editar'), mensagemDiscor
       audit('MENSAGEM_DISCORD_ENVIADA', req, `canal=${canalId}; caracteres=${mensagem.length}`)
       res.status(201).json({ ok: true })
     } catch (err) {
-      console.error('[FAST][DISCORD] enviar mensagem:', err instanceof Error ? err.message : err)
+      console.error('[DU][DISCORD] enviar mensagem:', err instanceof Error ? err.message : err)
       res.status(502).json({ error: 'O Discord não aceitou a mensagem. Confira se o bot pode escrever nesse canal.' })
     }
   })

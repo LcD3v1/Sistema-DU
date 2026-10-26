@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useNotificacoes'
 
 const ICONE: Record<TipoNotificacao, { icon: typeof Bell; cor: string }> = {
-  solicitacao:        { icon: Send,          cor: '#3a72c4' },
+  solicitacao:        { icon: Send,          cor: '#8b5cf6' },
   pendente_aprovacao: { icon: Hourglass,     cor: '#f39c12' },
   aprovada:           { icon: CheckCircle2,  cor: '#2ecc71' },
   recusada:           { icon: XCircle,       cor: '#e74c3c' },
@@ -19,8 +19,8 @@ const ICONE: Record<TipoNotificacao, { icon: typeof Bell; cor: string }> = {
   rebaixamento:       { icon: ChevronsDown,  cor: '#e67e22' },
   advertencia:        { icon: AlertTriangle, cor: '#f1c40f' },
   ausencia:           { icon: CalendarDays,  cor: '#3498db' },
-  cadastro:           { icon: UserCheck,     cor: '#3a72c4' },
-  aviso:              { icon: Megaphone,     cor: '#3a72c4' },
+  cadastro:           { icon: UserCheck,     cor: '#8b5cf6' },
+  aviso:              { icon: Megaphone,     cor: '#8b5cf6' },
   fardamento:         { icon: Shirt,         cor: '#9b59b6' },
   recrutamento:       { icon: UserPlus,      cor: '#1abc9c' },
   apreensao:          { icon: ClipboardCheck, cor: '#5865f2' },

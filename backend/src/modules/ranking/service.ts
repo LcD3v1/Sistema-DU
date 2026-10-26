@@ -23,7 +23,7 @@ function validDate(value: string): boolean {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value.slice(0, 10)
 }
 const RESULTADOS = new Set(['Vitória', 'Derrota', 'Empate'])
-const roleName = (value: string) => value.replace(/^\(FAST\)\s*/i, '').trim().toLocaleLowerCase('pt-BR')
+const roleName = (value: string) => value.replace(/^\(DU\)\s*/i, '').trim().toLocaleLowerCase('pt-BR')
 export function periodStart(period: Filters['period'], now: Date): string {
   if (period === 'all') return ''
   const today = new Date(`${day(now)}T12:00:00Z`)

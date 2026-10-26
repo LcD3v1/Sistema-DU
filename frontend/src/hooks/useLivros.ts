@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
+import type { ArquivoRef } from './useInvestigacao'
 
 export interface Livro {
   id: number
@@ -9,12 +10,13 @@ export interface Livro {
   descricao: string
   categoria: string
   url: string
+  arquivos: ArquivoRef[]
   capa: string
   cor: string
   criadoEm: string
 }
 
-export type LivroInput = Omit<Livro, 'id' | 'criadoEm'>
+export type LivroInput = Omit<Livro, 'id' | 'criadoEm' | 'arquivos'> & { arquivos: string[] }
 
 export function useLivros() {
   return useQuery<Livro[]>({

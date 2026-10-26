@@ -7,18 +7,18 @@ import { useAnuncioSituacoes } from '@/hooks/useConfig'
 import Brand from '@/components/ui/Brand'
 import LoadingHud from '@/components/ui/LoadingHud'
 
-/** Brasão padrão do anúncio: escudo NPD, com fallback pro emblema FAST se não existir. */
+/** Brasão padrão do anúncio: escudo DPD, com fallback pro emblema DU se não existir. */
 function DefaultEmblem({ size = 56 }: { size?: number }) {
   const [erro, setErro] = useState(false)
   if (erro) return <Brand size={size} />
-  return <img src="/media/npd-shield.png" alt="" width={size} height={size} className="object-contain" style={{ width: size, height: size }} onError={() => setErro(true)} />
+  return <img src="/media/dpd-shield.png" alt="" width={size} height={size} className="object-contain" style={{ width: size, height: size }} onError={() => setErro(true)} />
 }
 
 const TIPOS_FOTO = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const MAX_FOTO = 3 * 1024 * 1024
 
-/** Logo padrão da NPD já preenchida no campo de imagem — editável para trocar por outro link. */
-const LOGO_NPD = 'https://fastunit.shardweb.app/media/npd-shield.png'
+/** Logo padrão da DPD já preenchida no campo de imagem — editável para trocar por outro link. */
+const LOGO_NPD = `${window.location.origin}/media/dpd-shield.png`
 
 function resolve(template: string, local: string, assinatura: string) {
   return template
@@ -119,7 +119,7 @@ export default function GerarAnuncioPage() {
         </div>
         <div className="flex items-center gap-2 text-txt2">
           <Brand size={30} />
-          <span className="font-mono text-[11px] tracking-[0.15em] uppercase">FAST / Anúncio</span>
+          <span className="font-mono text-[11px] tracking-[0.15em] uppercase">DU / Anúncio</span>
         </div>
       </div>
 
@@ -204,7 +204,7 @@ export default function GerarAnuncioPage() {
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-1">
-              <button onClick={() => copiar(mensagemCompleta, 'Texto copiado!')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(58,114,196,0.7)]">
+              <button onClick={() => copiar(mensagemCompleta, 'Texto copiado!')} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(139, 92, 246,0.7)]">
                 <Copy size={15} /> Copiar como texto
               </button>
             </div>
@@ -218,7 +218,7 @@ export default function GerarAnuncioPage() {
             <span className="flex items-center gap-1.5 font-mono text-[10px] text-txt3 tracking-wider uppercase"><Info size={12} /> Atualização automática</span>
           </div>
 
-          <div className="rounded-xl border border-gold/30 bg-gradient-to-br from-navy2/30 to-black/40 p-4 shadow-[0_20px_50px_-24px_rgba(58,114,196,0.5)]">
+          <div className="rounded-xl border border-gold/30 bg-gradient-to-br from-navy2/30 to-black/40 p-4 shadow-[0_20px_50px_-24px_rgba(139, 92, 246,0.5)]">
             <div className="flex items-start gap-3">
               <div className="shrink-0 rounded-lg overflow-hidden border border-gold/30 bg-black/40 p-1">
                 {imagem.trim()
@@ -226,7 +226,7 @@ export default function GerarAnuncioPage() {
                   : <DefaultEmblem size={56} />}
               </div>
               <div className="min-w-0">
-                <p className="wordmark text-gold3 text-sm tracking-wide mb-1">{titulo || 'N.P.D INFORMA:'}</p>
+                <p className="wordmark text-gold3 text-sm tracking-wide mb-1">{titulo || 'D.P.D INFORMA:'}</p>
                 <p className="text-[13px] text-txt leading-relaxed whitespace-pre-wrap break-words">{previewTexto}</p>
               </div>
             </div>
@@ -239,7 +239,7 @@ export default function GerarAnuncioPage() {
             </div>
             <div className="rounded-lg border border-bdr bg-card2/50 p-3">
               <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase mb-1">Imagem</p>
-              <p className="text-sm text-txt truncate">{imagem.trim() ? imagem : 'Brasão padrão NPD'}</p>
+              <p className="text-sm text-txt truncate">{imagem.trim() ? imagem : 'Brasão padrão DPD'}</p>
             </div>
           </div>
         </div>

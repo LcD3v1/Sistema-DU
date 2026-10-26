@@ -63,6 +63,7 @@ export const membroSchema = z.object({
   policial:       safeStr(1, 100),
   patenteNPD:     safeStrOpt(50).default(''),
   patenteInterna: safeStrOpt(50).default(''),
+  codinome:       safeStrOpt(40).default(''),
   status:         z.enum(['Ativo', 'Inativo', 'Ausência']).default('Ativo'),
   entrada:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   promocao:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -78,6 +79,7 @@ export const membroUpdateSchema = z.object({
   policial:       safeStr(1, 100).optional(),
   patenteNPD:     safeStrOpt(50).optional(),
   patenteInterna: safeStrOpt(50).optional(),
+  codinome:       safeStrOpt(40).optional(),
   status:         z.enum(['Ativo', 'Inativo', 'Ausência']).optional(),
   entrada:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   promocao:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -156,6 +158,7 @@ export const onboardingSchema = z.object({
   passaporte:     safeStrOpt(20).default(''),
   patenteNPD:     safeStrOpt(50).default(''),
   patenteInterna: safeStrOpt(50).default(''),
+  codinome:       safeStrOpt(40).default(''),
 })
 
 export const membroSelfSchema = z.object({
@@ -165,6 +168,7 @@ export const membroSelfSchema = z.object({
   passaporte:     safeStrOpt(20).optional(),
   patenteNPD:     safeStrOpt(50).optional(),
   patenteInterna: safeStrOpt(50).optional(),
+  codinome:       safeStrOpt(40).optional(),
 }).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
   message: 'Nenhum campo fornecido',
 })
@@ -195,18 +199,87 @@ const camposLivro = {
   capa:      capaLivro,
   cor:       corLivro,
 }
+// ── Módulos investigativos (DU) ──────────────────────────────────────────────
+const dataDia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida')
+const linkRegistro = z.object({
+  rotulo: safeStrOpt(60).default(''),
+  url:    z.string().max(MAX_URL_LIVRO).transform(s => s.trim()).refine(s => ehLinkPerfil(s, MAX_URL_LIVRO), 'Link inválido (use http:// ou https://)'),
+}).strict()
+const linksRegistro = z.array(linkRegistro).max(30, 'No máximo 30 links')
+/** IDs devolvidos por POST /api/arquivos (conferidos no banco antes de gravar). */
+const idsArquivos = z.array(z.string().regex(/^[A-Za-z0-9_-]{24}$/, 'Arquivo inválido')).max(20, 'No máximo 20 arquivos')
+const investigadoresIds = z.array(z.number().int().positive()).max(30, 'No máximo 30 investigadores')
+const linkImagem = z.string().max(MAX_URL_IMAGEM).transform(s => s.trim()).refine(ehLinkImagem, 'Imagem deve ser um link http/https')
+const idOpcional = z.number().int().positive().nullable().optional()
+
+export const relatorioSchema = z.object({
+  titulo:         safeStr(1, 150),
+  tipo:           safeStrOpt(40).default(''),
+  data:           dataDia,
+  conteudo:       safeStr(1, 20_000),
+  investigadores: investigadoresIds.default([]),
+  inqueritoId:    idOpcional,
+  boletimId:      idOpcional,
+  links:          linksRegistro.default([]),
+  arquivos:       idsArquivos.default([]),
+  sigiloso:       z.boolean().default(false),
+}).strict()
+
+export const boletimSchema = z.object({
+  numero:         safeStrOpt(40).default(''),           // vazio = gerado (BO-DU-ANO-0001)
+  titulo:         safeStr(1, 150),
+  status:         z.enum(['aberto', 'em_investigacao', 'concluido', 'arquivado']).default('aberto'),
+  data:           dataDia,
+  local:          safeStrOpt(150).default(''),
+  investigadores: investigadoresIds.default([]),
+  descricao:      safeStr(1, 20_000),
+  observacoes:    safeStrOpt(5_000).default(''),
+  imagens:        z.array(linkImagem).max(30, 'No máximo 30 imagens').default([]),
+  links:          linksRegistro.default([]),
+  arquivos:       idsArquivos.default([]),
+  inqueritoId:    idOpcional,
+}).strict()
+
+export const inqueritoSchema = z.object({
+  numero:         safeStrOpt(40).default(''),           // vazio = gerado (IP-DU-ANO-0001)
+  titulo:         safeStr(1, 150),
+  status:         z.enum(['em_andamento', 'concluido', 'arquivado']).default('em_andamento'),
+  categoria:      safeStrOpt(40).default(''),
+  descricao:      safeStrOpt(20_000).default(''),
+  envolvidos:     safeStrOpt(5_000).default(''),
+  capa:           z.string().max(MAX_URL_IMAGEM).transform(s => s.trim()).refine(s => s === '' || ehLinkImagem(s), 'Capa deve ser um link de imagem http/https').default(''),
+  cor:            z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor inválida').default('#8b5cf6'),
+  investigadores: investigadoresIds.default([]),
+  links:          linksRegistro.default([]),
+  arquivos:       idsArquivos.default([]),
+}).strict()
+
+export const fotoGaleriaSchema = z.object({
+  imagem:    z.string().max(MAX_URL_IMAGEM).transform(s => s.trim()).refine(s => s === '' || ehLinkImagem(s), 'Imagem deve ser um link http/https').default(''),
+  arquivo:   z.string().regex(/^[A-Za-z0-9_-]{24}$/, 'Arquivo inválido').or(z.literal('')).default(''),
+  titulo:    safeStr(1, 120),
+  descricao: safeStrOpt(1_000).default(''),
+  categoria: safeStrOpt(40).default(''),
+  data:      dataDia,
+}).strict().refine(b => Boolean(b.imagem) !== Boolean(b.arquivo), { message: 'Envie uma foto do computador ou cole um link de imagem' })
+
 export const livroSchema = z.object({
   ...camposLivro,
+  url:       z.string().max(MAX_URL_LIVRO).transform(s => s.trim()).refine(s => s === '' || ehLinkPerfil(s, MAX_URL_LIVRO), 'Link inválido (use http:// ou https://)').default(''),
+  arquivos:  idsArquivos.default([]),
   autor:     camposLivro.autor.default(''),
   descricao: camposLivro.descricao.default(''),
   categoria: camposLivro.categoria.default(''),
   capa:      camposLivro.capa.default(''),
-  cor:       camposLivro.cor.default('#3a72c4'),
-}).strict()
+  cor:       camposLivro.cor.default('#8b5cf6'),
+}).strict().refine(b => b.url !== '' || b.arquivos.length > 0, { message: 'Informe um link ou envie um arquivo' })
 // Edição: só os campos enviados (sem valores padrão, para não apagar o que não veio)
 export const livroUpdateSchema = z.object({
   titulo: camposLivro.titulo.optional(), autor: camposLivro.autor.optional(), descricao: camposLivro.descricao.optional(),
-  categoria: camposLivro.categoria.optional(), url: camposLivro.url.optional(), capa: camposLivro.capa.optional(),
+  categoria: camposLivro.categoria.optional(),
+  url: z.string().max(MAX_URL_LIVRO).transform(s => s.trim()).refine(s => s === '' || ehLinkPerfil(s, MAX_URL_LIVRO), 'Link inválido (use http:// ou https://)').optional(),
+  arquivos: idsArquivos.optional(),
+  capa: camposLivro.capa.optional(),
   cor: camposLivro.cor.optional(),
 }).strict().refine(b => Object.values(b).some(v => v !== undefined), { message: 'Nenhum campo fornecido' })
 

@@ -10,6 +10,7 @@ export interface Membro {
   badge: string
   passaporte: string
   policial: string
+  codinome?: string
   patenteNPD: string
   patenteInterna: string
   status: StatusMembro
