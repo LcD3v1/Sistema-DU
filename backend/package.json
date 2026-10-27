@@ -5,15 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test:ranking": "npm run build && node --test tests/ranking.test.cjs",
-    "test:du": "npm run build && node --test tests/du.test.cjs",
+    "test:du": "npm run build && node --test tests/du.test.cjs tests/dados.test.cjs",
     "test:ranking:browser": "node tests/ranking-browser.cjs",
     "test:perfil:browser": "node tests/perfil-browser.cjs",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "start:shardcloud": "cross-env NODE_ENV=production PUBLIC_URL=https://fastunit.shardweb.app FRONTEND_URL=https://fastunit.shardweb.app DISCORD_REDIRECT_URI=https://fastunit.shardweb.app/api/auth/discord/callback node dist/index.js",
-    "copiar:producao": "node scripts/copiar-producao-para-local.cjs",
-    "testar:local": "npm run copiar:producao && cross-env NODE_ENV=development AMBIENTE=local PORT=3000 PUBLIC_URL=http://localhost:3000 FRONTEND_URL=http://localhost:3000 ALLOWED_ORIGIN=http://localhost:3000 DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback MONGODB_DB=fast-local node dist/index.js",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-check.mjs",
     "audit": "npm audit --omit=dev --audit-level=high",
@@ -34,7 +32,6 @@
     "helmet": "^8.2.0",
     "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.3",
-    "mongodb": "^7.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

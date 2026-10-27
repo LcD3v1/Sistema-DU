@@ -1,5 +1,10 @@
 // Testes dos módulos investigativos da DU: Relatórios, Boletins, Inquéritos, Galeria e arquivos.
 // Mesmo esquema do ranking.test.cjs: dados em memória, sem Mongo e sem Discord.
+// Arquivos enviados vão para uma pasta temporária (DATA_PATH), apagada no fim
+const os = require('node:os')
+const fsTeste = require('node:fs')
+const pastaTeste = fsTeste.mkdtempSync(require('node:path').join(os.tmpdir(), 'du-test-'))
+process.env.DATA_PATH = require('node:path').join(pastaTeste, 'data.json')
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
 const jwt = require('jsonwebtoken')
@@ -48,7 +53,7 @@ before(async () => {
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
   base = `http://127.0.0.1:${server.address().port}`
 })
-after(() => new Promise(resolve => server.close(resolve)))
+after(() => new Promise(resolve => server.close(resolve)).then(() => fsTeste.rmSync(pastaTeste, { recursive: true, force: true })))
 
 const relatorio = (extra = {}) => ({ titulo: 'Vigilância', tipo: 'Campo', data: '2026-10-20', conteudo: 'Fatos apurados.', ...extra })
 
@@ -131,7 +136,28 @@ test('arquivos: envio exige login + editar a área, confere os bytes e recusa SV
   assert.equal((await enviar(token(1), 'inqueritos', 'a.svg', Buffer.from('<svg onload=x>'))).status, 400)
   assert.equal((await enviar(token(1), 'inqueritos', 'a.html', Buffer.from('<script>'))).status, 400)
   assert.equal((await enviar(token(1), 'inqueritos', 'laudo.pdf', PNG)).status, 400)    // extensão não bate com os bytes
-  assert.equal((await enviar(token(1), 'inqueritos', 'foto.png', PNG)).status, 503)     // passa; sem Mongo no teste
+  const enviado = await enviar(token(1), 'inqueritos', 'foto.png', PNG)
+  assert.equal(enviado.status, 201)
+  const ref = await enviado.json()
+  assert.deepEqual(Object.keys(ref).sort(), ['id', 'mime', 'nome', 'tamanho'])
+  // Download: login + ver a área; bytes iguais; nosniff + sandbox
+  const baixar = auth => fetch(`${base}/api/arquivos/${ref.id}`, { headers: auth ? { Authorization: `Bearer ${auth}` } : {} })
+  assert.equal((await baixar(null)).status, 401)
+  assert.equal((await baixar(token(2))).status, 404)                                 // sem ver inquéritos
+  const ok = await baixar(token(1))
+  assert.equal(ok.status, 200)
+  assert.equal(ok.headers.get('x-content-type-options'), 'nosniff')
+  assert.match(ok.headers.get('content-security-policy'), /sandbox/)
+  assert.ok(Buffer.from(await ok.arrayBuffer()).equals(PNG))
+  // Vincular a um registro tira a expiração; sair do registro apaga do disco
+  const arquivos = require('../dist/routes/arquivos')
+  assert.deepEqual(await arquivos.conferirArquivos([ref.id], 'galeria'), null)          // outra área
+  assert.equal((await arquivos.conferirArquivos([ref.id], 'inqueritos'))[0].tamanho, PNG.length)
+  const meta = require('node:path').join(pastaTeste, 'arquivos', `${ref.id}.json`)
+  await arquivos.sincronizarArquivos([], [ref])
+  assert.equal(JSON.parse(fsTeste.readFileSync(meta, 'utf8')).expiraEm, undefined)
+  await arquivos.sincronizarArquivos([ref], [])
+  assert.equal(fsTeste.existsSync(meta), false)
   for (const id of ['curto', '../../etc/passwd', 'A'.repeat(25)])
     assert.equal((await req('GET', `/api/arquivos/${encodeURIComponent(id)}`, token(1))).status, 404)
   assert.equal((await req('GET', `/api/arquivos/${'A'.repeat(24)}`, null)).status, 401)

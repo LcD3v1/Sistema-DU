@@ -29,6 +29,12 @@ dist/
 backend/data.json
 # Backups de dados/segredos gerados localmente
 backend/data.json.*
+# Dados locais em arquivo (DATA_PATH padrão)
+backend/arquivos/
+backend/anuncio-imagens/
+backend/sessoes-revogadas.json
+backend/escopo.json
+backend/.*.tmp
 **/*.bak
 **/*.bak-*
 

@@ -54,19 +54,14 @@ function validateDiscord(): void {
   }
 }
 
-function validateMongo(): void {
-  const uri = process.env.MONGODB_URI
-  if (!uri) {
-    console.error('\n[DU][CONFIG] MONGODB_URI não está definido — o servidor não vai iniciar.')
-    console.error('  Defina a string de conexão do MongoDB no arquivo backend/.env.\n')
-    process.exit(1)
-  }
-  if (uri.includes('<db_username>') || uri.includes('<db_password>')) {
-    console.error('\n[DU][CONFIG] MONGODB_URI ainda contém <db_username> — substitua pelo usuário do banco.\n')
-    process.exit(1)
+// Dados em arquivo (DATA_PATH). Em produção ele precisa ficar num disco persistente
+// da hospedagem; sem DATA_PATH o arquivo fica dentro da pasta do app e pode sumir no deploy.
+function validateDataPath(): void {
+  if (PROD && !process.env.DATA_PATH?.trim()) {
+    console.warn('[DU][ATENÇÃO] DATA_PATH não definido em produção — os dados ficam em backend/data.json e podem ser perdidos num novo deploy. Aponte para um disco persistente.')
   }
 }
-validateMongo()
+validateDataPath()
 
 export const env = {
   JWT_SECRET: validateJwtSecret(),

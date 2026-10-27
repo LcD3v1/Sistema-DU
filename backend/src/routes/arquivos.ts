@@ -1,7 +1,7 @@
 import express, { Router, Request, Response } from 'express'
 import crypto from 'crypto'
-import { Binary } from 'mongodb'
-import { colecaoAvulsa, peekData } from '../data'
+import { peekData } from '../data'
+import { pastaDeArquivos } from '../armazenamento'
 import { requireAuth } from '../middleware/auth'
 import { canArea } from '../access'
 import { audit } from '../security/audit'
@@ -17,7 +17,7 @@ import type { AreaId } from '../permAreas'
  *  - o ID é aleatório (144 bits) e o download exige login + permissão de VER a área
  *    do registro dono do arquivo;
  *  - o download sai como anexo (imagem inline) com nosniff e CSP que não roda nada;
- *  - arquivo enviado e não salvo em nenhum registro expira sozinho (TTL em `expiraEm`).
+ *  - arquivo enviado e não salvo em nenhum registro é apagado pela limpeza periódica (`expiraEm`).
  */
 
 export const MAX_BYTES_ARQUIVO = 10 * 1024 * 1024
@@ -61,28 +61,29 @@ function limparNome(bruto: string): string {
   return base.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '').replace(/\s+/g, ' ').trim().slice(-120)
 }
 
-interface ArquivoDoc {
-  _id: string
+interface ArquivoMeta {
   area: AreaArquivo
   nome: string
   ext: string
   mime: string
   tamanho: number
-  dados: Binary
   contaId: number
-  criadoEm: Date
-  expiraEm?: Date      // presente = ainda não vinculado a nenhum registro
+  criadoEm: string
+  expiraEm?: string    // presente = ainda não vinculado a nenhum registro
 }
 
-let indices: Promise<unknown> | undefined
-function colecao() {
-  const col = colecaoAvulsa<ArquivoDoc>('arquivos')
-  if (col && !indices) {
-    indices = col.createIndex({ expiraEm: 1 }, { expireAfterSeconds: 0 })
-      .catch(err => { indices = undefined; console.error('[DU][ARQUIVOS] índice:', err instanceof Error ? err.message : err) })
+const pasta = pastaDeArquivos<ArquivoMeta>('arquivos')
+
+/** Apaga os arquivos enviados que nunca foram salvos em nenhum registro. */
+export function limparArquivosPendentes(): void {
+  const agora = Date.now()
+  for (const { id, meta } of pasta.listar()) {
+    if (meta.expiraEm && Date.parse(meta.expiraEm) < agora) pasta.apagar(id)
   }
-  return col
 }
+setInterval(() => {
+  try { limparArquivosPendentes() } catch (err) { console.error('[DU][ARQUIVOS] limpeza:', err instanceof Error ? err.message : err) }
+}, 30 * 60 * 1000).unref()
 
 const contaPode = (data: Readonly<FastData>, contaId: number, area: AreaId, modo: 'ver' | 'editar') => {
   const conta = data.contas.find(c => c.id === contaId)
@@ -98,23 +99,25 @@ export async function conferirArquivos(ids: string[], area: AreaArquivo): Promis
   const unicos = [...new Set(ids)]
   if (unicos.length === 0) return []
   if (unicos.some(id => !ID_ARQUIVO_REGEX.test(id))) return null
-  const col = colecao()
-  if (!col) return null
-  const docs = await col.find({ _id: { $in: unicos }, area }, { projection: { nome: 1, mime: 1, tamanho: 1 } }).toArray()
-  if (docs.length !== unicos.length) return null
-  const porId = new Map(docs.map(d => [d._id, d]))
-  return unicos.map(id => { const d = porId.get(id)!; return { id, nome: d.nome, mime: d.mime, tamanho: d.tamanho } })
+  const refs: ArquivoRef[] = []
+  for (const id of unicos) {
+    const m = pasta.meta(id)
+    if (!m || m.area !== area) return null
+    refs.push({ id, nome: m.nome, mime: m.mime, tamanho: m.tamanho })
+  }
+  return refs
 }
 
 /** Depois de gravar: vincula os novos (some a expiração) e apaga os que saíram do registro. */
 export async function sincronizarArquivos(antes: ArquivoRef[], depois: ArquivoRef[]): Promise<void> {
-  const col = colecao()
-  if (!col) return
   const ficam = new Set(depois.map(a => a.id))
   const sairam = antes.map(a => a.id).filter(id => !ficam.has(id))
   try {
-    if (ficam.size) await col.updateMany({ _id: { $in: [...ficam] } }, { $unset: { expiraEm: '' } })
-    if (sairam.length) await col.deleteMany({ _id: { $in: sairam } })
+    for (const id of ficam) {
+      const m = pasta.meta(id)
+      if (m?.expiraEm) { delete m.expiraEm; pasta.atualizar(id, m) }
+    }
+    for (const id of sairam) pasta.apagar(id)
   } catch (err) {
     console.error('[DU][ARQUIVOS] sincronizar:', err instanceof Error ? err.message : err)
   }
@@ -136,13 +139,11 @@ router.post('/', requireAuth,
     if (!nome || !tipo) { res.status(400).json({ error: 'Tipo de arquivo não permitido.' }); return }
     if (!bytes || bytes.length < 4) { res.status(400).json({ error: 'Arquivo vazio.' }); return }
     if (!tipo.confere(bytes)) { res.status(400).json({ error: 'O conteúdo do arquivo não corresponde à extensão.' }); return }
-    const col = colecao()
-    if (!col) { res.status(503).json({ error: 'Envio de arquivo indisponível no momento.' }); return }
     try {
       const id = crypto.randomBytes(18).toString('base64url')
       const agora = new Date()
-      await col.insertOne({ _id: id, area, nome, ext, mime: tipo.mime, tamanho: bytes.length, dados: new Binary(bytes),
-        contaId: req.user!.contaId, criadoEm: agora, expiraEm: new Date(agora.getTime() + EXPIRA_PENDENTE_MS) })
+      pasta.salvar(id, bytes, { area, nome, ext, mime: tipo.mime, tamanho: bytes.length, contaId: req.user!.contaId,
+        criadoEm: agora.toISOString(), expiraEm: new Date(agora.getTime() + EXPIRA_PENDENTE_MS).toISOString() })
       audit('ARQUIVO_ENVIADO', req, `area=${area}; bytes=${bytes.length}; tipo=${ext}`)
       const ref: ArquivoRef = { id, nome, mime: tipo.mime, tamanho: bytes.length }
       res.status(201).json(ref)
@@ -156,10 +157,8 @@ router.post('/', requireAuth,
 router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const id = String(req.params.id)
   if (!ID_ARQUIVO_REGEX.test(id)) { res.status(404).json({ error: 'Arquivo não encontrado' }); return }
-  const col = colecao()
-  if (!col) { res.status(503).json({ error: 'Indisponível no momento.' }); return }
   try {
-    const doc = await col.findOne({ _id: id })
+    const doc = pasta.meta(id)
     if (!doc || !contaPode(peekData(), req.user!.contaId, doc.area, 'ver')) { res.status(404).json({ error: 'Arquivo não encontrado' }); return }
     const imagem = Boolean(TIPOS[doc.ext]?.imagem)
     res.setHeader('Content-Type', doc.mime)
@@ -167,7 +166,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox")
     res.setHeader('Content-Disposition', `${imagem ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(doc.nome)}`)
     res.setHeader('Cache-Control', 'private, max-age=3600')
-    res.end(Buffer.from(doc.dados.buffer))
+    res.end(pasta.bytes(id))
   } catch (err) {
     console.error('[DU][ARQUIVOS] ler:', err instanceof Error ? err.message : err)
     res.status(500).json({ error: 'Não foi possível abrir o arquivo.' })

@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
-import { Binary } from 'mongodb'
-import { colecaoAvulsa } from '../data'
+import { pastaDeArquivos } from '../armazenamento'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, anuncioImagemSchema } from '../middleware/validate'
@@ -13,7 +12,7 @@ import { audit } from '../security/audit'
  *  - o ID é aleatório (144 bits) — ninguém lista nem adivinha as imagens;
  *  - o conteúdo é conferido pelos bytes (não basta dizer que é PNG);
  *  - a resposta só serve a imagem, com nosniff e CSP que não roda nada.
- * Guardado numa coleção à parte e apagado sozinho depois de EXPIRA_DIAS.
+ * Guardado na pasta anuncio-imagens e apagado pela limpeza depois de EXPIRA_DIAS sem uso.
  */
 
 export const MAX_BYTES_IMAGEM = 3 * 1024 * 1024
@@ -38,21 +37,19 @@ export function decodificarImagem(dataUrl: string): { ext: Ext; bytes: Buffer } 
   return { ext, bytes }
 }
 
-interface ImagemDoc {
-  _id: string; ext: Ext; dados: Binary; tamanho: number; hash: string; contaId: number; criadoEm: Date
+interface ImagemMeta {
+  ext: Ext; tamanho: number; hash: string; contaId: number; criadoEm: string
 }
 
-let indices: Promise<unknown> | undefined
-function colecao() {
-  const col = colecaoAvulsa<ImagemDoc>('anuncioImagens')
-  if (col && !indices) {
-    indices = Promise.all([
-      col.createIndex({ criadoEm: 1 }, { expireAfterSeconds: EXPIRA_DIAS * 86_400 }),
-      col.createIndex({ hash: 1 }),
-    ]).catch(err => { indices = undefined; console.error('[DU][ANUNCIO] índices de imagem:', err instanceof Error ? err.message : err) })
-  }
-  return col
+const pasta = pastaDeArquivos<ImagemMeta>('anuncio-imagens')
+
+function limparImagensAntigas(): void {
+  const limite = Date.now() - EXPIRA_DIAS * 86_400_000
+  for (const { id, meta } of pasta.listar()) if (Date.parse(meta.criadoEm) < limite) pasta.apagar(id)
 }
+setInterval(() => {
+  try { limparImagensAntigas() } catch (err) { console.error('[DU][ANUNCIO] limpeza:', err instanceof Error ? err.message : err) }
+}, 6 * 60 * 60 * 1000).unref()
 
 // ── Envio (painel, com login) ─────────────────────────────────────────────────
 export const uploadRouter = Router()
@@ -61,16 +58,13 @@ uploadRouter.post('/imagem', requireAuth, requireArea('anuncio', 'editar'), vali
   async (req: Request, res: Response): Promise<void> => {
     const img = decodificarImagem(req.body.imagem)
     if (!img) { res.status(400).json({ error: 'Envie uma imagem PNG, JPG, WEBP ou GIF de até 3 MB.' }); return }
-    const col = colecao()
-    if (!col) { res.status(503).json({ error: 'Envio de imagem indisponível no momento.' }); return }
     try {
       // Mesma foto enviada de novo reaproveita o link (não duplica no banco)
       const hash = crypto.createHash('sha256').update(img.bytes).digest('hex')
-      const existente = await col.findOne({ hash, ext: img.ext }, { projection: { _id: 1 } })
-      const id = existente?._id ?? crypto.randomBytes(18).toString('base64url')
-      if (existente) await col.updateOne({ _id: id }, { $set: { criadoEm: new Date() } })
-      else await col.insertOne({ _id: id, ext: img.ext, dados: new Binary(img.bytes), tamanho: img.bytes.length,
-        hash, contaId: req.user!.contaId, criadoEm: new Date() })
+      const existente = pasta.listar().find(a => a.meta.hash === hash && a.meta.ext === img.ext)
+      const id = existente?.id ?? crypto.randomBytes(18).toString('base64url')
+      if (existente) pasta.atualizar(id, { ...existente.meta, criadoEm: new Date().toISOString() })
+      else pasta.salvar(id, img.bytes, { ext: img.ext, tamanho: img.bytes.length, hash, contaId: req.user!.contaId, criadoEm: new Date().toISOString() })
       audit('ANUNCIO_IMAGEM_ENVIADA', req, `bytes=${img.bytes.length}; tipo=${img.ext}${existente ? '; reaproveitada' : ''}`)
       res.status(201).json({ caminho: `/img/${id}.${img.ext}` })
     } catch (err) {
@@ -85,11 +79,9 @@ export const publicoRouter = Router()
 publicoRouter.get('/:arquivo', async (req: Request, res: Response): Promise<void> => {
   const [id, ext, ...resto] = String(req.params.arquivo).split('.')
   if (resto.length || !ID_REGEX.test(id ?? '') || !(ext in TIPOS)) { res.status(404).end(); return }
-  const col = colecao()
-  if (!col) { res.status(503).end(); return }
   try {
-    const doc = await col.findOne({ _id: id, ext: ext as Ext }, { projection: { dados: 1, ext: 1 } })
-    if (!doc) { res.status(404).end(); return }
+    const doc = pasta.meta(id)
+    if (!doc || doc.ext !== ext) { res.status(404).end(); return }
     res.setHeader('Content-Type', TIPOS[doc.ext].mime)
     res.setHeader('X-Content-Type-Options', 'nosniff')
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox")
@@ -97,7 +89,7 @@ publicoRouter.get('/:arquivo', async (req: Request, res: Response): Promise<void
     // O jogo e outros sites precisam carregar a imagem (padrão do sistema é same-origin)
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable')
-    res.end(Buffer.from(doc.dados.buffer))
+    res.end(pasta.bytes(id))
   } catch (err) {
     console.error('[DU][ANUNCIO] ler imagem:', err instanceof Error ? err.message : err)
     res.status(500).end()

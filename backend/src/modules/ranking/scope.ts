@@ -1,4 +1,5 @@
-import type { Db } from 'mongodb'
+import path from 'path'
+import { PASTA_DADOS, gravarAtomico, lerJson } from '../../armazenamento'
 
 export interface RankingScope { guildId: string; botId: string }
 export function configuredScope(): RankingScope | undefined {
@@ -11,18 +12,17 @@ export function sameScope(a: RankingScope, b: RankingScope): boolean {
   return a.guildId === b.guildId && a.botId === b.botId
 }
 
-/** This architecture has one database/cache per installation, never a browser-selected tenant. */
-export async function bindDatabaseScope(db: Db, scope: RankingScope): Promise<void> {
-  const collection = db.collection<{ _id: string; guildId: string; botId: string }>('config')
-  const id = 'ranking-scope-v1'
-  try {
-    await collection.updateOne({ _id: id }, { $setOnInsert: { ...scope } }, { upsert: true })
-  } catch (error) {
-    if ((error as { code?: number }).code !== 11000) throw error
-  }
-  const stored = await collection.findOne({ _id: id })
-  if (!stored || !sameScope(stored, scope)) {
-    throw new Error('Banco vinculado a outro servidor/bot. Configure um banco exclusivo para esta instalação.')
+/**
+ * Uma instalação = um arquivo de dados, nunca um tenant escolhido pelo navegador.
+ * Na primeira subida grava o servidor/app em escopo.json; depois recusa subir
+ * se o .env apontar para outro servidor (evita misturar dados de unidades).
+ */
+export function bindDataScope(scope: RankingScope): void {
+  const arquivo = path.join(PASTA_DADOS, 'escopo.json')
+  const stored = lerJson<RankingScope>(arquivo)
+  if (!stored) { gravarAtomico(arquivo, JSON.stringify(scope)); return }
+  if (!sameScope(stored, scope)) {
+    throw new Error('Pasta de dados vinculada a outro servidor/app. Use um DATA_PATH exclusivo para esta instalação.')
   }
 }
 

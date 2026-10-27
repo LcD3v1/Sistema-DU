@@ -46,7 +46,8 @@ Detalhes: `docs/SECURITY.md`.
 ## Dados
 - Não altere a semântica de `backend/src/data.ts` nem migre dados sem backup e pedido explícito.
 - Criptografia de campos: use `security/crypto.ts` (AES‑256‑GCM) seguindo o plano em `docs/SECURITY.md`.
-- Nunca conecte à produção (`fastunit.shardweb.app`) nem rode `copiar:producao`/`testar:local` sem pedido.
+- Nunca conecte à produção (`fastunit.shardweb.app`).
+- Dados ficam em arquivo JSON (`DATA_PATH`, via `backend/src/armazenamento.ts`), sem MongoDB. Não reintroduza banco externo sem pedido.
 
 ## Antes de terminar
 ```bash

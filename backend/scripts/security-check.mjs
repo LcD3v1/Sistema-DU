@@ -487,8 +487,30 @@ check(/tipo\.confere\(bytes\)/.test(arquivosTs) && !/svg|html?['"]/i.test(arquiv
 check(/router\.get\('\/:id', requireAuth/.test(arquivosTs) && /contaPode\(peekData\(\), req\.user!\.contaId, doc\.area, 'ver'\)/.test(arquivosTs)
   && /'X-Content-Type-Options', 'nosniff'/.test(arquivosTs) && /sandbox/.test(arquivosTs) && /randomBytes\(18\)/.test(arquivosTs),
   'download exige login + ver a área; ID aleatório, nosniff e CSP sandbox', 'download de arquivo sem permissão ou sem nosniff/sandbox')
-check(/expireAfterSeconds: 0/.test(arquivosTs) && /\$unset: \{ expiraEm/.test(arquivosTs),
-  'arquivo não vinculado expira sozinho (TTL)', 'arquivos órfãos nunca expiram')
+check(/export function limparArquivosPendentes/.test(arquivosTs) && /meta\.expiraEm && Date\.parse\(meta\.expiraEm\) < agora\) pasta\.apagar/.test(arquivosTs)
+  && /delete m\.expiraEm/.test(arquivosTs),
+  'arquivo não vinculado é apagado pela limpeza periódica', 'arquivos órfãos nunca expiram')
+
+console.log('\n[Dados] Armazenamento em arquivo (sem MongoDB)')
+{
+  const arm = ler('src/armazenamento.ts')
+  const dataTs = ler('src/data.ts')
+  const revogTs = ler('src/security/tokenBlacklist.ts')
+  const pkg = JSON.parse(ler('package.json'))
+  check(!pkg.dependencies?.mongodb && !/from 'mongodb'/.test(dataTs + arm + arquivosTs + revogTs),
+    'sem dependência de MongoDB', 'MongoDB ainda em uso')
+  check(/renameSync\(tmp, destino\)/.test(arm) && /mode: 0o600/.test(arm),
+    'gravação atômica (temporário + rename) e arquivo só do dono (0600)', 'gravação de dados não atômica ou com permissão aberta')
+  check(arm.includes('const ID_SEGURO = /^[A-Za-z0-9_-]{24}$/') && arm.includes("if (!ID_SEGURO.test(id)) throw"),
+    'caminho de arquivo só com ID gerado pelo servidor (sem path traversal)', 'caminho de arquivo montado com texto livre')
+  check(/const salvo = lerJson<Partial<FastData>>\(DATA_PATH\)/.test(dataTs) && !/catch \{\s*return JSON\.parse\(JSON\.stringify\(DEFAULT_DATA/.test(dataTs),
+    'arquivo de dados corrompido não é sobrescrito com o padrão', 'arquivo corrompido pode ser zerado em silêncio')
+  const gi = fs.readFileSync(path.join(REPO, '.gitignore'), 'utf8')
+  check(['backend/data.json', 'backend/arquivos/', 'backend/anuncio-imagens/', 'backend/sessoes-revogadas.json'].every(p => gi.includes(p)),
+    'dados locais fora do git', 'dados locais podem ser versionados')
+  check(/const hash = hashIdentificador\(jti\)\n\s*guardar\(hash, expiresAt\)/.test(revogTs.replace(/\r\n/g, '\n')) && /JSON\.stringify\(\[\.\.\.blacklist\]/.test(revogTs),
+    'sessões revogadas gravadas só como hash do jti', 'jti gravado em texto')
+}
 check(/app\.use\('\/api\/arquivos', \(req, res, next\) => \(req\.method === 'POST' \? arquivoLimiter/.test(index),
   'envio de arquivo com limitador próprio', 'envio de arquivo sem limitador')
 for (const [arquivo, area, schema] of [

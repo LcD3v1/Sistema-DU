@@ -1,7 +1,10 @@
+// Arquivos (imagens do anúncio, escopo) numa pasta temporária, apagada no fim
+const pastaTeste = require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'du-ranking-'))
+process.env.DATA_PATH = require('node:path').join(pastaTeste, 'data.json')
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
 const { buildSnapshot, winRate, periodStart, filtersSchema, listPage, publicMember } = require('../dist/modules/ranking/service')
-const { bindDatabaseScope, scopeKey } = require('../dist/modules/ranking/scope')
+const { bindDataScope, scopeKey } = require('../dist/modules/ranking/scope')
 const { scope, guild, bot, member, action, makeData } = require('./ranking-fixtures.cjs')
 const now = new Date('2026-09-17T16:00:00Z')
 
@@ -280,14 +283,13 @@ test('avatar inválido tem fallback e projeção pública não expõe identidade
   assert.equal(preview.discordId, null); assert.equal(preview.internalId, '')
   assert.deepEqual(preview.activity, []); assert.deepEqual(preview.discordRoles, [])
 })
-test('migration vincula banco uma vez e recusa troca de guild ou bot', async () => {
-  let stored
-  const db = { collection: () => ({ updateOne: async (_filter, update) => { stored ??= update.$setOnInsert }, findOne: async () => stored }) }
-  await bindDatabaseScope(db, scope)
-  await bindDatabaseScope(db, scope)
-  await assert.rejects(bindDatabaseScope(db, { ...scope, guildId: 'foreign' }), /outro servidor/)
-  await assert.rejects(bindDatabaseScope(db, { ...scope, botId: 'foreign' }), /outro servidor/)
-  assert.deepEqual(stored, scope)
+test('escopo: a pasta de dados vincula o servidor uma vez e recusa troca de guild ou bot', async () => {
+  bindDataScope(scope)
+  bindDataScope(scope)
+  assert.throws(() => bindDataScope({ ...scope, guildId: 'foreign' }), /outro servidor/)
+  assert.throws(() => bindDataScope({ ...scope, botId: 'foreign' }), /outro servidor/)
+  const path = require('node:path')
+  assert.deepEqual(JSON.parse(require('node:fs').readFileSync(path.join(pastaTeste, 'escopo.json'), 'utf8')), scope)
 })
 
 let server, base, data, revision = 0
@@ -335,7 +337,7 @@ before(async () => {
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
   base = `http://127.0.0.1:${server.address().port}`
 })
-after(() => { timers.forEach(clearInterval); return new Promise(resolve => server.close(resolve)) })
+after(() => { timers.forEach(clearInterval); return new Promise(resolve => server.close(resolve)).then(() => require('node:fs').rmSync(pastaTeste, { recursive: true, force: true })) })
 
 test('responsável da apreensão vem da sessão, nunca do nome enviado pelo cliente', async () => {
   const original = structuredClone(data)
@@ -520,7 +522,15 @@ test('anúncio: envio exige login e a permissão de editar anúncio; link públi
     body: JSON.stringify({ imagem: `data:image/png;base64,${PNG_1PX}` }) })
   assert.equal((await enviar(null)).status, 401)
   assert.equal((await enviar(token(2))).status, 403)        // cargo sem a área "anuncio"
-  assert.equal((await enviar(token(1))).status, 503)        // dono passa; sem Mongo no teste
+  const ok = await enviar(token(1))                           // dono passa
+  assert.equal(ok.status, 201)
+  const { caminho } = await ok.json()
+  assert.match(caminho, /^\/img\/[A-Za-z0-9_-]{24}\.png$/)
+  assert.equal((await (await enviar(token(1))).json()).caminho, caminho)   // mesma foto reaproveita o link
+  const img = await fetch(base + caminho)
+  assert.equal(img.status, 200)
+  assert.equal(img.headers.get('x-content-type-options'), 'nosniff')
+  assert.equal((await fetch(base + caminho.replace('.png', '.gif'))).status, 404)   // extensão errada
   for (const p of ['/img/../../etc', '/img/curto.png', '/img/AAAAAAAAAAAAAAAAAAAAAAAA.svg', '/img/AAAAAAAAAAAAAAAAAAAAAAAA.png.html'])
     assert.equal((await fetch(base + p)).status, 404, p)
 })

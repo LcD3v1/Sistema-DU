@@ -219,7 +219,7 @@ async function iniciar(): Promise<void> {
   setInterval(rotina, 60_000)
 }
 
-// Desligamento limpo: espera as gravações pendentes no MongoDB.
+// Desligamento limpo: grava o que estiver pendente no arquivo de dados.
 for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(sinal, () => { Promise.allSettled([closeData(), encerrarPersistenciaRevogacoes()]).finally(() => process.exit(0)) })
 }

@@ -2,20 +2,36 @@
  * Lista de tokens revogados (logout antes do vencimento natural).
  *
  * Memória = fonte da verdade para a checagem (síncrona, rápida).
- * Persistência opcional no MongoDB (coleção própria `tokensRevogados`, com índice TTL):
- * ativada por iniciarPersistenciaRevogacoes() no boot — assim o logout sobrevive a
- * reinícios. Usa conexão própria e pequena; não mexe no data.ts.
+ * Persistência em arquivo (sessoes-revogadas.json, na pasta do DATA_PATH): carregada
+ * por iniciarPersistenciaRevogacoes() no boot — assim o logout sobrevive a reinícios.
  * Guarda só o SHA-256 do jti (nunca o token).
  */
-import { MongoClient, Collection } from 'mongodb'
+import path from 'path'
 import { hashIdentificador } from './crypto'
+import { PASTA_DADOS, gravarAtomico, lerJson } from '../armazenamento'
 
 const MAX_ENTRADAS = 100_000
 const blacklist = new Map<string, number>() // hash(jti) → expira em (ms)
 
-interface RevogacaoDoc { _id: string; expiraEm: Date }
-let colecao: Collection<RevogacaoDoc> | undefined
-let cliente: MongoClient | undefined
+const ARQUIVO = path.join(PASTA_DADOS, 'sessoes-revogadas.json')
+let persistir = false
+let agendado: NodeJS.Timeout | undefined
+
+/** Grava a lista (só as ainda válidas), agrupando logouts seguidos numa escrita. */
+function agendarGravacao(): void {
+  if (!persistir || agendado) return
+  agendado = setTimeout(gravar, 1000)
+  agendado.unref()
+}
+function gravar(): void {
+  agendado = undefined
+  const agora = Date.now()
+  try {
+    gravarAtomico(ARQUIVO, JSON.stringify([...blacklist].filter(([, exp]) => exp > agora)))
+  } catch {
+    console.error('[DU][SEGURANÇA] falha ao persistir revogação de sessão')
+  }
+}
 
 // Limpeza periódica de tokens já expirados para não crescer indefinidamente
 setInterval(() => {
@@ -36,10 +52,7 @@ function guardar(hash: string, expiresAt: number): void {
 export function revokeToken(jti: string, expiresAt: number): void {
   const hash = hashIdentificador(jti)
   guardar(hash, expiresAt)
-  if (colecao) {
-    colecao.updateOne({ _id: hash }, { $set: { expiraEm: new Date(expiresAt) } }, { upsert: true })
-      .catch(() => console.error('[DU][SEGURANÇA] falha ao persistir revogação de sessão'))
-  }
+  agendarGravacao()
 }
 
 export function isRevoked(jti: string): boolean {
@@ -54,26 +67,21 @@ export function blacklistSize(): number {
   return blacklist.size
 }
 
-/** Conecta à coleção de revogações e carrega as ainda válidas. Falha não derruba o boot. */
+/** Carrega as revogações ainda válidas do arquivo. Falha não derruba o boot. */
 export async function iniciarPersistenciaRevogacoes(): Promise<void> {
-  const uri = process.env.MONGODB_URI
-  if (!uri || process.env.REVOGACAO_PERSISTENTE === 'off') return
+  if (process.env.REVOGACAO_PERSISTENTE === 'off') return
   try {
-    cliente = new MongoClient(uri, { maxPoolSize: 2, serverSelectionTimeoutMS: 15_000 })
-    await cliente.connect()
-    const c = cliente.db(process.env.MONGODB_DB || 'fast').collection<RevogacaoDoc>('tokensRevogados')
-    await c.createIndex({ expiraEm: 1 }, { expireAfterSeconds: 0 })
-    const agora = new Date()
-    for (const d of await c.find({ expiraEm: { $gt: agora } }).limit(MAX_ENTRADAS).toArray()) {
-      guardar(d._id, d.expiraEm.getTime())
+    const agora = Date.now()
+    for (const [hash, exp] of lerJson<[string, number][]>(ARQUIVO) ?? []) {
+      if (typeof hash === 'string' && /^[A-Za-z0-9_-]{43}$/.test(hash) && typeof exp === 'number' && exp > agora) guardar(hash, exp)
     }
-    colecao = c
+    persistir = true
   } catch {
     console.error('[DU][SEGURANÇA] revogação persistente indisponível — usando só memória')
   }
 }
 
 export async function encerrarPersistenciaRevogacoes(): Promise<void> {
-  colecao = undefined
-  await cliente?.close().catch(() => {})
+  if (agendado) { clearTimeout(agendado); gravar() }
+  persistir = false
 }

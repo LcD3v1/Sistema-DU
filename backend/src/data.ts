@@ -1,38 +1,17 @@
-import fs from 'fs'
-import path from 'path'
-import { MongoClient, Db, AnyBulkWriteOperation, Document } from 'mongodb'
 import { FastData, CargoPermissao } from './types'
 import { fullPermMap, normalizePermMap } from './permAreas'
-import { bindDatabaseScope, configuredScope } from './modules/ranking/scope'
+import { bindDataScope, configuredScope } from './modules/ranking/scope'
 import { auditRankingChanges } from './modules/ranking/auditChanges'
+import { DATA_PATH, gravarAtomico, lerJson } from './armazenamento'
 
 /**
- * Persistência em MongoDB.
+ * Persistência em arquivo JSON (mesmo modelo do Sistema Tática, sem banco externo).
  *
- * O painel inteiro usa readData()/writeData() de forma síncrona. Para manter
- * isso, os dados ficam num cache em memória carregado do Mongo na inicialização
- * (initData). writeData atualiza o cache na hora e persiste no Mongo em
- * segundo plano, numa fila serial que grava só o que mudou.
- *
- * Layout no banco:
- *  - uma coleção por lista com `id` (membros, contas, acoes...) — 1 documento por item
- *  - coleção `config`, documento `_id: 'meta'` com o restante (patentes, qrus, logo, contadores...)
+ * O painel inteiro usa readData()/writeData() de forma síncrona. Os dados ficam
+ * num cache em memória carregado do arquivo na inicialização (initData);
+ * writeData atualiza o cache na hora e grava o arquivo inteiro de forma atômica
+ * (temporário + rename) logo em seguida — rajadas de gravação viram uma só.
  */
-
-// Arquivo legado: importado para o Mongo uma única vez, se o banco estiver vazio.
-const LEGACY_PATH = process.env.DATA_PATH
-  ? path.resolve(process.env.DATA_PATH)
-  : path.resolve(__dirname, '..', 'data.json')
-
-const COLECOES = [
-  'membros', 'acoes', 'recrutas', 'contas', 'ausencias',
-  'avisos', 'fardamentos', 'cargosPermissao', 'anuncioSituacoes',
-  'notificacoes', 'solicitacoesPerfil',
-  'relatorios', 'boletins', 'inqueritos', 'galeria',
-] as const
-type Colecao = typeof COLECOES[number]
-type ItemDoc = Document & { _id: number }
-type MetaDoc = Document & { _id: string }
 
 const DEFAULT_DATA: FastData = {
   membros: [],
@@ -108,65 +87,27 @@ function canonicalFastRoleName(nome: string) {
     .trim()
 }
 
-let db: Db | undefined
-let client: MongoClient | undefined
 let cache: FastData | undefined
-
-// Último estado confirmado no banco (JSON por item) — base do diff.
-const salvo: Record<Colecao, Map<number, string>> = Object.fromEntries(
-  COLECOES.map(c => [c, new Map<number, string>()]),
-) as Record<Colecao, Map<number, string>>
-let metaSalvo = ''
 // Cache serializado da revisão atual: JSON.parse é ~3x mais rápido que structuredClone
-// e os dados já são JSON puro (é assim que vão/voltam do Mongo).
+// e os dados já são JSON puro.
 let cacheJson: string | undefined
 
 function clone<T>(v: T): T { return structuredClone(v) }
 
-function separar(data: FastData): { listas: Record<Colecao, { id: number }[]>; meta: Record<string, unknown> } {
-  const meta: Record<string, unknown> = { ...data }
-  const listas = {} as Record<Colecao, { id: number }[]>
-  for (const c of COLECOES) {
-    listas[c] = (data[c] ?? []) as { id: number }[]
-    delete meta[c]
-  }
-  return { listas, meta }
-}
-
-/** Conecta ao Mongo e carrega (ou importa) os dados. Chamar antes de subir o servidor. */
+/** Carrega os dados do arquivo (ou começa com os padrões). Chamar antes de subir o servidor. */
 export async function initData(): Promise<void> {
-  const uri = process.env.MONGODB_URI
-  if (!uri) throw new Error('MONGODB_URI não definido')
-  client = new MongoClient(uri, { serverSelectionTimeoutMS: 15_000 })
-  await client.connect()
-  db = client.db(process.env.MONGODB_DB || 'fast')
   const scope = configuredScope()
-  if (scope) await bindDatabaseScope(db, scope)
-
-  const metaDoc = await db.collection<MetaDoc>('config').findOne({ _id: 'meta' })
-  if (!metaDoc) {
-    let inicial: FastData = clone(DEFAULT_DATA)
-    if (fs.existsSync(LEGACY_PATH)) {
-      inicial = { ...inicial, ...JSON.parse(fs.readFileSync(LEGACY_PATH, 'utf-8')) }
-      console.log(`[DU][DB] Banco vazio — importando dados de ${LEGACY_PATH}`)
-    } else {
-      console.log('[DU][DB] Banco vazio — iniciando com dados padrão')
-    }
-    cache = inicial
-    await flush()
+  if (scope) bindDataScope(scope)
+  // Arquivo corrompido derruba o boot de propósito: nunca recomeçar do zero por cima dos dados
+  const salvo = lerJson<Partial<FastData>>(DATA_PATH)
+  cache = { ...clone(DEFAULT_DATA), ...(salvo ?? {}) } as FastData
+  cacheJson = undefined
+  if (!salvo) {
+    gravarAgora()
+    console.log(`[DU][DADOS] Arquivo de dados criado em ${DATA_PATH}`)
   } else {
-    const { _id: _m, ...meta } = metaDoc
-    const carregado = { ...clone(DEFAULT_DATA), ...meta } as FastData
-    for (const c of COLECOES) {
-      const docs = await db.collection<ItemDoc>(c).find().sort({ _id: 1 }).toArray()
-      const itens = docs.map(({ _id, ...item }) => item)
-      ;(carregado as unknown as Record<string, unknown>)[c] = itens
-      for (const item of itens) salvo[c].set(item.id as number, JSON.stringify(item))
-    }
-    metaSalvo = JSON.stringify(separar(carregado).meta)
-    cache = carregado
+    console.log(`[DU][DADOS] Dados carregados de ${DATA_PATH}`)
   }
-  console.log(`[DU][DB] MongoDB conectado (banco "${db.databaseName}")`)
 }
 
 export function readData(): FastData {
@@ -184,8 +125,7 @@ export function peekData(): Readonly<FastData> {
   return cache
 }
 
-let gravando: Promise<void> | undefined
-let pendente = false
+let agendado: NodeJS.Immediate | NodeJS.Timeout | undefined
 let revision = 0
 let persistenceFailed = false
 export function dataRevision(): number { return revision }
@@ -196,65 +136,26 @@ export function writeData(data: FastData): void {
   cacheJson = JSON.stringify(data)
   cache = JSON.parse(cacheJson) as FastData
   revision++
-  agendarFlush()
+  agendado ??= setImmediate(gravarAgora)
 }
 
-function agendarFlush(): void {
-  pendente = true
-  if (gravando) return
-  gravando = (async () => {
-    while (pendente) {
-      pendente = false
-      try { await flush(); persistenceFailed = false } catch (err) {
-        persistenceFailed = true
-        console.error('[DU][DB] Falha ao gravar no MongoDB:', err instanceof Error ? err.message : err)
-        pendente = true
-        await new Promise(r => setTimeout(r, 3000))
-      }
-    }
-  })().finally(() => { gravando = undefined })
-}
-
-async function flush(): Promise<void> {
-  if (!db || !cache) return
-  const { listas, meta } = separar(cache)
-
-  for (const c of COLECOES) {
-    const atual = new Map(listas[c].map(item => [item.id, JSON.stringify(item)]))
-    const ops: AnyBulkWriteOperation<ItemDoc>[] = []
-    for (const [id, json] of atual) {
-      if (salvo[c].get(id) !== json) {
-        ops.push({ replaceOne: { filter: { _id: id }, replacement: JSON.parse(json), upsert: true } })
-      }
-    }
-    for (const id of salvo[c].keys()) {
-      if (!atual.has(id)) ops.push({ deleteOne: { filter: { _id: id } } })
-    }
-    if (ops.length) await db.collection<ItemDoc>(c).bulkWrite(ops, { ordered: false })
-    salvo[c] = atual
-  }
-
-  const metaJson = JSON.stringify(meta)
-  if (metaJson !== metaSalvo) {
-    await db.collection<MetaDoc>('config').replaceOne(
-      { _id: 'meta' }, meta, { upsert: true },
-    )
-    metaSalvo = metaJson
+function gravarAgora(): void {
+  agendado = undefined
+  if (!cache) return
+  try {
+    cacheJson ??= JSON.stringify(cache)
+    gravarAtomico(DATA_PATH, cacheJson)
+    persistenceFailed = false
+  } catch (err) {
+    persistenceFailed = true
+    console.error('[DU][DADOS] Falha ao gravar o arquivo de dados:', err instanceof Error ? err.message : err)
+    agendado = setTimeout(gravarAgora, 3000)
   }
 }
 
-/**
- * Coleção avulsa, fora do cache e do diff do FastData (não entra no readData/backup):
- * arquivos grandes, como as imagens enviadas no Gerar anúncio. null antes do initData.
- */
-export function colecaoAvulsa<T extends Document>(nome: 'anuncioImagens' | 'arquivos') {
-  return db ? db.collection<T>(nome) : null
-}
-
-/** Aguarda gravações pendentes e fecha a conexão (desligamento limpo). */
+/** Grava o que estiver pendente (desligamento limpo). */
 export async function closeData(): Promise<void> {
-  while (gravando) await gravando
-  await client?.close()
+  if (agendado) { clearTimeout(agendado as NodeJS.Timeout); clearImmediate(agendado as NodeJS.Immediate); gravarAgora() }
 }
 
 /**
