@@ -265,7 +265,7 @@ export default function LoginPage() {
       {/* ── Rodapé ──────────────────────────────────────────────── */}
       <footer className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-end px-5 sm:px-8 lg:px-14 py-6">
         <p className="font-mono text-[9px] text-white/30 tracking-[0.25em] uppercase">
-          Desenvolvido por <span className="text-gold3/80">LC Dev e Vilão</span>
+          Desenvolvido por <span className="text-gold3/80">LC Dev</span>
         </p>
       </footer>
 
