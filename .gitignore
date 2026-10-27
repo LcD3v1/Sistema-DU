@@ -34,6 +34,7 @@ backend/arquivos/
 backend/anuncio-imagens/
 backend/sessoes-revogadas.json
 backend/escopo.json
+backend/backups/
 backend/.*.tmp
 **/*.bak
 **/*.bak-*

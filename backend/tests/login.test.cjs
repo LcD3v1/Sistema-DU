@@ -4,6 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'du-login-'))
 process.env.DATA_PATH = path.join(pasta, 'data.json')
+process.env.DATA_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('base64url')   // só para o teste
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
 const bcrypt = require('bcrypt')
@@ -40,7 +41,7 @@ after(() => new Promise(resolve => server.close(resolve)).then(() => fs.rmSync(p
 async function zerarLimites() {
   const rl = require('../dist/middleware/rateLimiter')
   for (const ip of ['127.0.0.1', '::ffff:127.0.0.1', '::1']) {
-    await rl.loginLimiter.resetKey(ip); await rl.solicitarAcessoLimiter.resetKey(ip)
+    await rl.loginLimiter.resetKey(ip); await rl.solicitarAcessoLimiter.resetKey(ip); await rl.criticalLimiter.resetKey(ip)
   }
 }
 async function post(rota, body, auth) {
@@ -75,6 +76,14 @@ test('login: 5 erros bloqueiam o usuário (mesmo com a senha certa depois); exon
   for (let i = 0; i < 5; i++) assert.equal((await entrar('operador', `errada-${i}`)).status, 401)
   const bloqueado = await entrar('operador', 'senha-do-operador')
   assert.equal(bloqueado.status, 429)
+  // Admins recebem alerta de segurança (sem a senha tentada)
+  const alerta = data.notificacoes.find(n => n.tipo === 'seguranca')
+  assert.ok(alerta && alerta.contaId === 1 && /operador/.test(alerta.mensagem))
+  assert.ok(!JSON.stringify(data.notificacoes).includes('errada-'))
+  // Usuário inventado não gera alerta
+  for (let i = 0; i < 5; i++) await entrar('fantasma', 'x')
+  assert.ok(!JSON.stringify(data.notificacoes).includes('fantasma'))
+  await zerarLimites()
   require('../dist/security/bruteForce').limparFalhas('operador')
   data.contas[1].exonerado = true; data.contas[1].ativo = false
   const exonerado = await entrar('operador', 'senha-do-operador')
@@ -141,4 +150,38 @@ test('senha: troca exige a atual e encerra a sessão; admin redefine (menos a do
   const outroAdmin = (await entrar('operador', 'redefinida-123')).body.token
   assert.equal((await req('PUT', '/api/config/contas/1/senha', outroAdmin, { novaSenha: 'tomada-123456' })).status, 403)
   data.cargosPermissao[1].admin = false
+})
+
+test('sessões: trocar a senha derruba o outro aparelho; "sair de todos" derruba todos', async () => {
+  await zerarLimites()
+  data.cargosPermissao[1].admin = false
+  const celular = (await entrar('comando', 'senha-do-comando')).body.token
+  const pc = (await entrar('comando', 'senha-do-comando')).body.token
+  assert.equal((await req('GET', '/api/auth/me', celular)).status, 200)
+  assert.equal((await req('PUT', '/api/auth/me/senha', pc, { senhaAtual: 'senha-do-comando', novaSenha: 'comando-nova-123' })).status, 200)
+  assert.equal((await req('GET', '/api/auth/me', celular)).status, 401)    // outro aparelho caiu
+
+  const a = (await entrar('comando', 'comando-nova-123')).body.token
+  const b = (await entrar('comando', 'comando-nova-123')).body.token
+  assert.equal((await post('/api/auth/sair-de-todos', {}, a)).status, 200)
+  assert.equal((await req('GET', '/api/auth/me', a)).status, 401)
+  assert.equal((await req('GET', '/api/auth/me', b)).status, 401)
+  await zerarLimites()
+  assert.equal((await entrar('comando', 'comando-nova-123')).status, 200)  // entrar de novo funciona
+  // Admin redefinindo a senha de alguém também derruba as sessões dessa pessoa
+  const admin = (await entrar('comando', 'comando-nova-123')).body.token
+  const op = (await entrar('operador', 'redefinida-123')).body.token
+  assert.equal((await req('PUT', '/api/config/contas/2/senha', admin, { novaSenha: 'outra-senha-456' })).status, 200)
+  assert.equal((await req('GET', '/api/auth/me', op)).status, 401)
+})
+
+test('contas: a lista do admin não traz hash nem versão de sessão', async () => {
+  await zerarLimites()
+  const admin = (await entrar('comando', 'comando-nova-123')).body.token
+  const contas = await req('GET', '/api/config/contas', admin)
+  assert.equal(contas.status, 200)
+  assert.equal(contas.body.find(c => c.id === 2).temSenha, true)
+  assert.ok(!/"password"|"sessaoVersao"|"senhaPadrao"|$2[aby]$/.test(JSON.stringify(contas.body)))
+  // Login aceita só usuário e senha (campo extra é recusado)
+  assert.equal((await post('/api/auth/login', { username: 'comando', password: 'comando-nova-123', codigo: '123456' })).status, 400)
 })

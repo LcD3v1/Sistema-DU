@@ -16,6 +16,7 @@ import { firewall, registrarInfracao, PONTOS } from './security/firewall'
 import { iniciarPersistenciaRevogacoes, encerrarPersistenciaRevogacoes } from './security/tokenBlacklist'
 import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureFastPermissionRoles } from './data'
 import { verificarAusencias } from './efetivo'
+import { iniciarBackupAutomatico } from './backupAutomatico'
 import { limparNotificacoesAntigas } from './notificacoes'
 import { readData as lerDados, writeData as gravarDados } from './data'
 import authRoutes from './routes/auth'
@@ -203,6 +204,7 @@ async function iniciar(): Promise<void> {
   await iniciarPersistenciaRevogacoes() // logout sobrevive a reinícios
   ensureDefaultAdmin()
   ensureNivelMigration()
+  iniciarBackupAutomatico()   // backup criptografado agora e a cada 24 h
   ensureFastPermissionRoles()
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[DU] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)

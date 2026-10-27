@@ -453,3 +453,8 @@ export const aprovarAcessoSchema = z.object({
 }).strict()
 
 export const redefinirSenhaSchema = z.object({ novaSenha: senhaNova }).strict()
+
+// Foto, fundo e vínculo do próprio perfil (o conteúdo da imagem é conferido na rota por imagemValida)
+export const avatarSchema = z.object({ avatar: z.string().max(2_500_000).nullable() }).strict()
+export const bannerSchema = z.object({ banner: z.string().max(3_500_000).nullable() }).strict()
+export const vincularMembroSchema = z.object({ membroId: z.number().int().positive().nullable() }).strict()

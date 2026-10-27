@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken')
 const secret = 'preview-only-not-a-real-credential-0123456789abcdef'
 process.env.NODE_ENV = 'test'
 process.env.JWT_SECRET = secret
+process.env.DATA_ENCRYPTION_KEY = crypto.randomBytes(32).toString('base64url')   // só da prévia
 delete process.env.DISCORD_BOT_TOKEN
 
 const { scopeKey, configuredScope } = require('../dist/modules/ranking/scope')

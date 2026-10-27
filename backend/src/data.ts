@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import bcrypt from 'bcrypt'
 import { FastData, CargoPermissao } from './types'
 import { fullPermMap, normalizePermMap } from './permAreas'
@@ -305,10 +304,14 @@ export function ensureFastPermissionRoles(): void {
   }
 }
 
+/** Senha padrão da conta dona quando ADMIN_INITIAL_PASSWORD não está definida (pedido do dono do sistema). */
+export const SENHA_PADRAO_ADMIN = 'admin123'
+
 /**
- * Garante a conta dona (id 1, usuário "admin") com senha. A senha inicial vem de
- * ADMIN_INITIAL_PASSWORD (mín. 12 caracteres); sem ela, é gerada uma senha aleatória
- * e mostrada UMA vez no console do servidor. Troque-a no perfil depois do 1º login.
+ * Garante a conta dona (id 1, usuário "admin") já criada com senha. A senha inicial
+ * vem de ADMIN_INITIAL_PASSWORD (mín. 12 caracteres); sem ela, é "admin123".
+ * Enquanto a senha padrão não for trocada, o boot avisa e o painel mostra um aviso
+ * (`senhaPadrao` na conta, apagado ao trocar a senha).
  */
 export function ensureDefaultAdmin(): void {
   const data = readData()
@@ -327,17 +330,16 @@ export function ensureDefaultAdmin(): void {
   }
   if (!dono.password) {
     const doEnv = process.env.ADMIN_INITIAL_PASSWORD?.trim()
-    const senha = doEnv && doEnv.length >= 12 ? doEnv
-      : Array.from({ length: 4 }, () => crypto.randomBytes(3).toString('base64url').slice(0, 4)).join('-')
-    dono.password = bcrypt.hashSync(senha, 12)
+    if (doEnv && doEnv.length < 12) console.warn('[DU][ATENÇÃO] ADMIN_INITIAL_PASSWORD tem menos de 12 caracteres — ignorada.')
+    const usarEnv = !!doEnv && doEnv.length >= 12
+    dono.password = bcrypt.hashSync(usarEnv ? doEnv : SENHA_PADRAO_ADMIN, 12)
+    if (usarEnv) delete dono.senhaPadrao
+    else dono.senhaPadrao = true
     mudou = true
-    if (doEnv && doEnv.length >= 12) {
-      console.log(`[DU] Conta dona pronta: usuário "${dono.username}", senha definida por ADMIN_INITIAL_PASSWORD.`)
-    } else {
-      if (doEnv) console.warn('[DU][ATENÇÃO] ADMIN_INITIAL_PASSWORD tem menos de 12 caracteres — ignorada.')
-      console.warn(`[DU][ATENÇÃO] Conta dona criada: usuário "${dono.username}" · senha inicial: ${senha}`)
-      console.warn('[DU][ATENÇÃO] Anote e troque a senha no perfil após o primeiro login. Ela não será mostrada de novo.')
-    }
+    console.log(`[DU] Conta dona pronta: usuário "${dono.username}"${usarEnv ? ', senha definida por ADMIN_INITIAL_PASSWORD' : ''}.`)
+  }
+  if (dono.senhaPadrao) {
+    console.warn(`[DU][SEGURANÇA] A conta "${dono.username}" ainda usa a senha padrão. Troque em Perfil → Trocar senha.`)
   }
   if (mudou) writeData(data)
 }

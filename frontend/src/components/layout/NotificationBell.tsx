@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, Send, CheckCircle2, XCircle, Hourglass, ChevronsUp, ChevronsDown,
   AlertTriangle, CalendarDays, UserCheck, X, CheckCheck, Megaphone, Shirt, UserPlus, ClipboardCheck, UserX, Users, BookOpen,
+  FileSearch, ScrollText, FolderArchive, Images, ShieldAlert,
 } from 'lucide-react'
 import {
   useNotificacoes, useMarcarTodasLidas, useMarcarLida, useApagarNotificacao,
@@ -27,6 +28,11 @@ const ICONE: Record<TipoNotificacao, { icon: typeof Bell; cor: string }> = {
   exoneracao:         { icon: UserX,         cor: '#e74c3c' },
   membro:             { icon: Users,         cor: '#2ecc71' },
   curso:              { icon: BookOpen,      cor: '#b8860b' },
+  relatorio:          { icon: FileSearch,    cor: '#8b5cf6' },
+  boletim:            { icon: ScrollText,    cor: '#8b5cf6' },
+  inquerito:          { icon: FolderArchive, cor: '#8b5cf6' },
+  galeria:            { icon: Images,        cor: '#8b5cf6' },
+  seguranca:          { icon: ShieldAlert,   cor: '#e74c3c' },
 }
 
 function tempoRelativo(iso: string): string {

@@ -1,0 +1,73 @@
+# Segurança contínua: roda em todo push/PR e toda segunda-feira (pega CVEs novas).
+# Falha o build se: tipos quebrarem, algum teste falhar, a checagem de segurança
+# acusar regressão, houver dependência com vulnerabilidade alta/crítica ou um
+# segredo for commitado.
+name: Segurança
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Tipos
+        run: npx tsc --noEmit
+      - name: Testes
+        run: npm run test:ranking && npm run test:du
+      - name: Checagem de segurança
+        # .env só para o CI (segredo aleatório, descartado no fim do job)
+        run: |
+          echo "JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")" > .env
+          npm run security
+          rm -f .env
+      - name: Dependências (alta/crítica)
+        run: npm audit --omit=dev --audit-level=high
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Tipos e build
+        run: npx tsc -b --noEmit && npm run build
+      - name: Sem sourcemap no build
+        run: test -z "$(find dist -name '*.map' -print -quit)"
+      - name: Dependências (alta/crítica)
+        run: npm audit --omit=dev --audit-level=high
+
+  segredos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Varredura de segredos no histórico (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -14,6 +14,7 @@ import {
   aprovarAcessoSchema, redefinirSenhaSchema,
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
+import { alertar } from '../security/alertas'
 import { readData, writeData } from '../data'
 import { Conta, FastData, CargoPermissao, TipoQru } from '../types'
 import { tipoDoQru, definirTipoQru } from '../qrus'
@@ -24,7 +25,7 @@ import { notificar } from '../notificacoes'
 const router = Router()
 
 /** Conta para a tela de Configurações: nunca leva o hash da senha. */
-function contaPublica({ password: _p, ...resto }: Conta) {
+function contaPublica({ password: _p, senhaPadrao: _sp, sessaoVersao: _sv, ...resto }: Conta) {
   return { ...resto, temSenha: Boolean(_p) }
 }
 
@@ -284,8 +285,11 @@ router.put('/contas/:id/senha', requireAuth, adminOnly, criticalLimiter, validat
   if (id === 1 && req.user!.contaId !== 1) { res.status(403).json({ error: 'Só o próprio dono altera esta senha.' }); return }
   if (!souDev(req, data) && isDev(conta, data)) { res.status(403).json({ error: 'Acesso negado' }); return }
   conta.password = hash
+  delete conta.senhaPadrao
+  conta.sessaoVersao = (conta.sessaoVersao ?? 0) + 1   // quem estava logado com a senha antiga cai
   writeData(data)
   audit('PASSWORD_CHANGED', req, `Senha redefinida pelo admin — conta #${id}`)
+  alertar('senha_admin_redefinida', 'Senha redefinida por um admin', `${req.user!.username} redefiniu a senha da conta "${conta.username}".`, String(id))
   res.json({ ok: true })
 })
 
@@ -516,6 +520,7 @@ router.post('/restore', requireAuth, adminOnly, criticalLimiter, (req: Request, 
   if (!Array.isArray(body.solicitacoesAcesso)) { body.solicitacoesAcesso = []; body.nextSolAcessoId = 1 }
 
   writeData(body as FastData)
+  alertar('restauracao', 'Backup restaurado no painel', `${req.user!.username} restaurou um backup: todos os dados foram substituídos.`)
   audit('RESTORE_EXECUTED', req, `Membros: ${body.membros?.length} | Ações: ${body.acoes?.length}`)
   res.json({ ok: true })
 })

@@ -67,10 +67,14 @@ if (PROD && !process.env.ALLOWED_ORIGIN) {
   console.warn('[DU][SEGURANÇA] ALLOWED_ORIGIN não definido em produção — usando same-origin (CORS desligado).')
 }
 
-// Chave de criptografia em repouso (opcional): se definida, precisa ser válida (32 bytes)
-// e diferente do JWT_SECRET (segredos com finalidades distintas nunca são reaproveitados).
+// Chave de criptografia em repouso: obrigatória em produção (protege os
+// backups automáticos). Precisa ser válida (32 bytes) e diferente do JWT_SECRET
+// (segredos com finalidades distintas nunca são reaproveitados).
 {
   const bruta = process.env.DATA_ENCRYPTION_KEY
+  if (PROD && (bruta === undefined || bruta.trim() === '')) {
+    fail('DATA_ENCRYPTION_KEY não definida — obrigatória em produção (backups criptografados).')
+  }
   if (bruta !== undefined && bruta.trim() !== '') {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { decodificarChave } = require('../security/crypto') as typeof import('../security/crypto')

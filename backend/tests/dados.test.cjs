@@ -37,6 +37,25 @@ test('dados: cria o arquivo, grava de forma atômica e sobrevive a reinício', a
   assert.equal(dados.readData().boletins.length, 0)                      // campos padrão continuam
 })
 
+test('conta dona: já vem criada como admin/admin123, marcada como senha padrão; não sobrescreve senha existente', async () => {
+  const { dados } = reiniciar()
+  await dados.initData()
+  delete process.env.ADMIN_INITIAL_PASSWORD
+  dados.ensureDefaultAdmin()
+  const dono = dados.readData().contas.find(c => c.id === 1)
+  assert.equal(dono.username, 'admin')
+  assert.ok(require('bcrypt').compareSync('admin123', dono.password))
+  assert.notEqual(dono.password, 'admin123')                             // guardada só em hash
+  assert.equal(dono.senhaPadrao, true)
+  // Boot seguinte não troca a senha de quem já tem uma
+  const d = dados.readData(); d.contas[0].password = require('bcrypt').hashSync('trocada-pelo-dono', 4); delete d.contas[0].senhaPadrao
+  dados.writeData(d)
+  dados.ensureDefaultAdmin()
+  assert.ok(require('bcrypt').compareSync('trocada-pelo-dono', dados.readData().contas[0].password))
+  assert.equal(dados.readData().contas[0].senhaPadrao, undefined)
+  await dados.closeData()
+})
+
 test('dados: arquivo corrompido derruba o boot em vez de recomeçar por cima', async () => {
   const original = fs.readFileSync(process.env.DATA_PATH)
   fs.writeFileSync(process.env.DATA_PATH, '{"membros": [')
@@ -76,4 +95,25 @@ test('sessões: logout sobrevive a reinício, só com o hash do jti e só as vá
   await sessoes.iniciarPersistenciaRevogacoes()
   assert.equal(sessoes.isRevoked('jti-valido'), true)
   assert.equal(sessoes.isRevoked('jti-vencido'), false)
+})
+
+test('backup automático: criptografado, legível só com a chave e com rotação dos 14 mais recentes', async () => {
+  process.env.DATA_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('base64url')   // só para o teste
+  const { dados } = reiniciar()
+  await dados.initData()
+  const backup = require('../dist/backupAutomatico')
+  const arquivo = backup.criarBackup(new Date('2026-10-27T10:00:00Z'))
+  const bruto = fs.readFileSync(arquivo, 'utf8')
+  assert.match(bruto, /^enc:v1:/)
+  assert.ok(!bruto.includes('exemplo.com/logo.png'))                      // conteúdo não fica legível
+  assert.equal(backup.lerBackup(arquivo).logo, 'https://exemplo.com/logo.png')
+  const chave = process.env.DATA_ENCRYPTION_KEY
+  process.env.DATA_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('base64url')
+  assert.throws(() => backup.lerBackup(arquivo))                           // outra chave não abre
+  process.env.DATA_ENCRYPTION_KEY = chave
+  for (let d = 1; d <= 20; d++) backup.criarBackup(new Date(Date.UTC(2026, 10, d, 3)))
+  const restantes = fs.readdirSync(backup.PASTA_BACKUPS).sort()
+  assert.equal(restantes.length, 14)
+  assert.equal(restantes.at(-1), 'du-20261120-030000.json.enc')           // ficam os mais novos
+  delete process.env.DATA_ENCRYPTION_KEY
 })

@@ -233,7 +233,10 @@ check(/const espera = bloqueio\(username\)/.test(authRoutes) && /registrarFalha\
   check(/revokeToken\(req\.user!\.jti, req\.user!\.exp \* 1000\)/.test(authRoutes.slice(authRoutes.indexOf("router.put('/me/senha'"))),
     'trocar a senha encerra a sessão atual', 'troca de senha mantém a sessão antiga')
   const cfgSenha = ler('src/routes/config.ts')
-  check(/function contaPublica\(\{ password: _p, \.\.\.resto \}/.test(cfgSenha) && !/res\.json\(data\.contas\)|res\.json\(conta\)/.test(cfgSenha),
+  check(/\(payload\.sv \?\? 0\) !== \(conta\.sessaoVersao \?\? 0\)/.test(ler('src/middleware/auth.ts')) && /sv: conta\.sessaoVersao \?\? 0/.test(authRoutes)
+    && (authRoutes.match(/sessaoVersao = \(\w+\.sessaoVersao \?\? 0\) \+ 1/g) || []).length >= 2 && /sessaoVersao = \(conta\.sessaoVersao \?\? 0\) \+ 1/.test(ler('src/routes/config.ts')),
+    'trocar/redefinir senha e "sair de todos" derrubam todas as sessões da conta', 'senha trocada mantém sessões antigas em outros aparelhos')
+  check(/function contaPublica\(\{ password: _p, senhaPadrao: _sp, sessaoVersao: _sv, \.\.\.resto \}: Conta\) \{\s*return \{ \.\.\.resto, temSenha: Boolean\(_p\) \}/.test(cfgSenha) && !/res\.json\(data\.contas\)|res\.json\(conta\)/.test(cfgSenha),
     'lista/edição de contas nunca devolve o hash da senha', 'hash de senha exposto em /config/contas')
   check(/router\.put\('\/contas\/:id\/senha', requireAuth, adminOnly, criticalLimiter, validateBody\(redefinirSenhaSchema\)/.test(cfgSenha)
     && /router\.post\('\/solicitacoes-acesso\/:id\/aprovar', requireAuth, adminOnly, validateBody\(aprovarAcessoSchema\)/.test(cfgSenha),
@@ -392,8 +395,15 @@ check(/export function ehDono\(conta: Conta\): boolean \{\s*return conta\.id ===
   'dono é só a conta 1 (nenhum ID externo vira dono)', 'dono definido por algo além da conta 1')
 {
   const dataSenha = ler('src/data.ts')
-  check(/ADMIN_INITIAL_PASSWORD/.test(dataSenha) && /doEnv\.length >= 12/.test(dataSenha) && /crypto\.randomBytes/.test(dataSenha) && !/admin123/.test(dataSenha),
-    'senha inicial do dono: do .env (≥12) ou aleatória, nunca padrão fixa', 'conta dona com senha padrão fixa')
+  // Senha padrão (admin123) é decisão do dono do sistema: só é aceita se ficar marcada,
+  // avisada no boot e no painel, e se a marca sumir ao trocar a senha.
+  const authSenha = ler('src/routes/auth.ts')
+  check(/ADMIN_INITIAL_PASSWORD/.test(dataSenha) && /else dono\.senhaPadrao = true/.test(dataSenha) && /if \(dono\.senhaPadrao\) \{\s*console\.warn/.test(dataSenha)
+    && /senhaPadrao: conta\.senhaPadrao === true/.test(authSenha) && /delete alvo\.senhaPadrao/.test(authSenha) && /delete conta\.senhaPadrao/.test(ler('src/routes/config.ts'))
+    && /me\?\.senhaPadrao &&/.test(fs.readFileSync(path.join(REPO, 'frontend/src/components/layout/AppShell.tsx'), 'utf8')),
+    'senha padrão do dono marcada, avisada (boot + painel) e desmarcada ao trocar', 'senha padrão do dono sem aviso para trocar')
+  check(/bcrypt\.hashSync\(usarEnv \? doEnv : SENHA_PADRAO_ADMIN, 12\)/.test(dataSenha) && /if \(!dono\.password\)/.test(dataSenha),
+    'senha do dono guardada em hash e só definida se ainda não houver uma', 'boot pode sobrescrever a senha do dono')
 }
 
 console.log('\n[ADV] Advertências')
@@ -538,5 +548,25 @@ const relTs = ler('src/routes/relatorios.ts')
 check(/r\.sigiloso \|\| envolvido\(r, conta\) \|\| canArea\(conta, data, 'relatorios_gestao', 'ver'\)/.test(relTs)
   && /\.filter\(r => podeVer\(r, conta, data\)\)/.test(relTs),
   'relatório sigiloso só para autor, citados e gestão', 'relatório sigiloso visível a todos')
+
+console.log('\n[Auditoria] backups, alertas e validação')
+{
+  const authA = ler('src/routes/auth.ts')
+  const envA = ler('src/config/env.ts')
+  check(/if \(PROD && \(bruta === undefined \|\| bruta\.trim\(\) === ''\)\)/.test(envA),
+    'DATA_ENCRYPTION_KEY obrigatória em produção', 'produção pode subir sem chave de criptografia')
+  const bkp = ler('src/backupAutomatico.ts')
+  check(/criptografar\(JSON\.stringify\(readData\(\)\), AAD\)/.test(bkp) && /MANTER = 14/.test(bkp) && /iniciarBackupAutomatico\(\)/.test(index),
+    'backup automático diário criptografado com rotação', 'sem backup automático criptografado')
+  const alertaTs = ler('src/security/alertas.ts')
+  check(/u\.protocol === 'https:'/.test(alertaTs) && /redirect: 'error'/.test(alertaTs) && /redact\(mensagem\)/.test(alertaTs) && /JANELA_MS/.test(alertaTs),
+    'alertas: webhook só https do .env, sem redirecionamento, texto redigido e com limite', 'alerta pode vazar dados ou virar SSRF/spam')
+  check(/alertar\('firewall_ban'/.test(ler('src/security/firewall.ts')) && /alertar\('restauracao'/.test(ler('src/routes/config.ts')),
+    'ban do firewall e restauração de backup geram alerta aos admins', 'eventos críticos sem alerta')
+  for (const [rota, schema] of [["'/me/avatar'", 'avatarSchema'], ["'/me/banner'", 'bannerSchema'], ["'/me/membro'", 'vincularMembroSchema']]) {
+    check(new RegExp(`router\\.put\\(${rota.replace(/\//g, '\\/')}, requireAuth,[^\\n]*validateBody\\(${schema}\\)`).test(authA),
+      `${rota} validada por Zod`, `${rota} sem Zod`)
+  }
+}
 console.log(`\n=== Resultado: ${passes} OK, ${failures} falha(s) ===\n`)
 process.exit(failures > 0 ? 1 : 0)

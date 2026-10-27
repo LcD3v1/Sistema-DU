@@ -61,6 +61,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     res.status(401).json({ error: 'CONTA_DESATIVADA' })
     return
   }
+  // Senha trocada/redefinida ou "sair de todos": tokens emitidos antes deixam de valer
+  if ((payload.sv ?? 0) !== (conta.sessaoVersao ?? 0)) {
+    res.status(401).json({ error: 'Não autenticado' })
+    return
+  }
 
   // 3. Em ausência aprovada → sem acesso até o fim do período
   const bloqueio = bloqueioDeAcesso(conta, data)

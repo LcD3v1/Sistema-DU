@@ -6,6 +6,7 @@ export type TipoNotificacao =
   | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
   | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
   | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro' | 'curso'
+  | 'relatorio' | 'boletim' | 'inquerito' | 'galeria' | 'seguranca'
 
 export interface Notificacao {
   id: number

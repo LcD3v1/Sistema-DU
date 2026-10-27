@@ -14,6 +14,7 @@
 import net from 'net'
 import { Request, Response, NextFunction } from 'express'
 import { audit } from './audit'
+import { alertar } from './alertas'
 
 const PROD = process.env.NODE_ENV === 'production'
 
@@ -139,6 +140,8 @@ export function registrarInfracao(req: Request, motivo: string, pontos: number):
   bans.set(chave, { ate: agora + duracao, ofensas, em: agora, ultimoLog: agora })
   limitar(bans, c.maxIps)
   audit('FIREWALL_BAN', req, `motivo=${motivo} ofensas=${ofensas} duracaoMin=${Math.round(duracao / 60_000)}`)
+  // Um alerta por janela (vários IPs de um mesmo ataque não viram spam)
+  alertar('firewall_ban', 'Firewall bloqueou um IP', `IP ${chave} bloqueado por ${Math.round(duracao / 60_000)} min (motivo: ${motivo}, ofensa nº ${ofensas}).`)
 }
 
 function negar(res: Response, status: number): void {

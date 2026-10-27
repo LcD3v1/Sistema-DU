@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { KeyRound, Eye, EyeOff } from 'lucide-react'
+import { KeyRound, Eye, EyeOff, MonitorX } from 'lucide-react'
+import { confirmar } from '@/lib/dialogo'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -49,6 +50,14 @@ export function TrocarSenha() {
       <button type="submit" disabled={enviando || !atual || !nova}
         className="w-full px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50">
         {enviando ? 'Salvando...' : 'Salvar nova senha'}
+      </button>
+      <p className="text-[11px] text-txt3">Ao trocar a senha, todas as sessões abertas em outros aparelhos são encerradas.</p>
+      <button type="button" onClick={async () => {
+        if (!(await confirmar({ titulo: 'Sair de todos os aparelhos', mensagem: 'Encerrar a sessão em todos os aparelhos, inclusive neste? Use se perdeu um aparelho ou desconfia de acesso indevido.', tom: 'perigo', textoConfirmar: 'Sair de todos' }))) return
+        try { await api.post('/auth/sair-de-todos'); addToast('success', 'Sessões encerradas. Entre de novo.'); logout() }
+        catch (err) { addToast('error', erroApi(err, 'Não foi possível encerrar as sessões.')) }
+      }} className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-red/40 text-red text-xs font-mono hover:bg-red/10 transition-colors">
+        <MonitorX size={14} /> Sair de todos os aparelhos
       </button>
     </form>
   )

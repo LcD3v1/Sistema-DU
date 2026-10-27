@@ -22,12 +22,14 @@ export function bloqueio(usuario: string): number {
   return 0
 }
 
-export function registrarFalha(usuario: string): void {
+/** Registra o erro; devolve true se ESTE erro acabou de bloquear o usuário. */
+export function registrarFalha(usuario: string): boolean {
   const k = chave(usuario)
   const agora = Date.now()
   let r = registros.get(k)
   if (!r || agora - r.inicio > JANELA_MS) r = { tentativas: 0, inicio: agora }
   r.tentativas++
+  const bloqueouAgora = r.tentativas === MAX_TENTATIVAS
   if (r.tentativas >= MAX_TENTATIVAS) r.bloqueadoAte = agora + BLOQUEIO_MS
   registros.delete(k); registros.set(k, r)
   while (registros.size > MAX_CHAVES) {
@@ -35,6 +37,7 @@ export function registrarFalha(usuario: string): void {
     if (antiga === undefined) break
     registros.delete(antiga)
   }
+  return bloqueouAgora
 }
 
 export function limparFalhas(usuario: string): void {

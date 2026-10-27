@@ -1,4 +1,5 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, Link } from 'react-router-dom'
+import { ShieldAlert } from 'lucide-react'
 import LimiteErro from '@/components/ui/LimiteErro'
 import { useLocation } from 'react-router-dom'
 import { Suspense, useEffect, useState } from 'react'
@@ -42,6 +43,13 @@ export default function AppShell() {
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar onAbrirMenu={() => setMenuAberto(true)} />
+        {me?.senhaPadrao && (
+          <div role="alert" className="px-3 sm:px-6 py-2 bg-red/10 border-b border-red/40 text-xs font-mono text-red flex flex-wrap items-center gap-x-2 gap-y-1">
+            <ShieldAlert size={14} className="shrink-0" />
+            <span>Esta conta ainda usa a senha padrão. Qualquer pessoa que a conheça pode entrar como administrador.</span>
+            <Link to="/perfil" className="underline underline-offset-2 text-white hover:text-red">Trocar senha agora</Link>
+          </div>
+        )}
         {me && !me.admin && !me.cargoPermId && (
           <div className="px-3 sm:px-6 py-2 bg-gold/10 border-b border-gold/30 text-xs font-mono text-gold3">
             Seu cadastro está aguardando aprovação do comando. Você terá acesso assim que um cargo for atribuído.

@@ -7,7 +7,7 @@ import { escopoDoToken } from '../security/escopo'
 import { requireAuth } from '../middleware/auth'
 import { adminOnly } from '../middleware/roles'
 import { loginLimiter, sessaoLimiter, solicitarAcessoLimiter, criticalLimiter } from '../middleware/rateLimiter'
-import { validateBody, loginSchema, solicitarAcessoSchema, trocarSenhaSchema, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
+import { validateBody, avatarSchema, bannerSchema, vincularMembroSchema, loginSchema, solicitarAcessoSchema, trocarSenhaSchema, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
 import { TERMOS_VERSAO } from '../termos'
 import { Membro, Conta, FastData, LinkPerfil } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
@@ -15,6 +15,7 @@ import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { bloqueioDeAcesso } from '../efetivo'
 import { bloqueio, registrarFalha, limparFalhas } from '../security/bruteForce'
+import { alertar } from '../security/alertas'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
@@ -35,10 +36,10 @@ const sessaoCookie = 'fast_sessao'
 const sessaoCookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const, path: '/api/auth/sessao' }
 const SESSAO_MAX_MS = 8 * 3600_000
 
-function issueToken(conta: { id: number; username: string; nivel: string }): string {
+function issueToken(conta: { id: number; username: string; nivel: string; sessaoVersao?: number }): string {
   const jti = crypto.randomUUID()
   // scope = hash do servidor configurado (se houver); iss/aud/exp em security/jwt.ts
-  const payload: Record<string, unknown> = { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti }
+  const payload: Record<string, unknown> = { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti, sv: conta.sessaoVersao ?? 0 }
   const escopo = escopoDoToken(configuredScope())
   if (escopo) payload.scope = escopo
   return assinarToken(payload)
@@ -61,12 +62,13 @@ router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Reque
   const conta = readData().contas.find(c => mesmoUsuario(c.username, username))
   const senhaCorreta = await bcrypt.compare(password, conta?.password ?? HASH_FALSO)
   if (!conta?.password || !senhaCorreta) {
-    registrarFalha(username)
+    // Só alerta para contas que existem (usuário inventado não vira spam de alerta)
+    if (registrarFalha(username) && conta) {
+      alertar('login_bloqueado', 'Conta bloqueada por tentativas de senha', `A conta "${conta.username}" recebeu 5 senhas erradas seguidas e ficou bloqueada por 15 min. IP: ${req.ip}`, conta.username)
+    }
     audit('LOGIN_FAILED', req, `Usuário: ${username}`)
     res.status(401).json({ error: 'Usuário ou senha incorretos.' }); return
   }
-  limparFalhas(username)
-
   // Senha correta: só agora o estado da conta é revelado
   const data = readData()
   const atual = data.contas.find(c => c.id === conta.id)!
@@ -83,6 +85,8 @@ router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Reque
     audit('LOGIN_FAILED', req, `Em ausência até ${bloqueioAcesso.ate} — ${atual.username}`)
     res.status(403).json({ error: 'Você está em ausência.', reason: 'ausente', ate: bloqueioAcesso.ate }); return
   }
+
+  limparFalhas(username)
 
   const token = issueToken(atual)
   audit('LOGIN_SUCCESS', req, `Usuário: ${atual.username}`)
@@ -124,6 +128,8 @@ router.put('/me/senha', requireAuth, criticalLimiter, validateBody(trocarSenhaSc
   const alvo = data.contas.find(c => c.id === conta.id)
   if (!alvo) { res.status(404).json({ error: 'Conta não encontrada' }); return }
   alvo.password = hash
+  delete alvo.senhaPadrao
+  alvo.sessaoVersao = (alvo.sessaoVersao ?? 0) + 1   // derruba as sessões em outros aparelhos
   writeData(data)
   if (req.user!.jti && req.user!.exp) revokeToken(req.user!.jti, req.user!.exp * 1000)
   res.clearCookie(sessaoCookie, sessaoCookieOptions)
@@ -161,6 +167,18 @@ router.post('/logout', requireAuth, (req: Request, res: Response): void => {
   res.json({ ok: true })
 })
 
+// POST /api/auth/sair-de-todos — encerra a sessão em todos os aparelhos (inclusive este)
+router.post('/sair-de-todos', requireAuth, criticalLimiter, (req: Request, res: Response): void => {
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  conta.sessaoVersao = (conta.sessaoVersao ?? 0) + 1
+  writeData(data)
+  audit('LOGOUT', req, 'Saiu de todos os aparelhos')
+  res.clearCookie(sessaoCookie, sessaoCookieOptions)
+  res.json({ ok: true })
+})
+
 // GET /api/auth/me
 router.get('/me', requireAuth, (req: Request, res: Response): void => {
   const data = readData()
@@ -191,6 +209,7 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     dev: isDev(conta, data),
     permissoes: resolvePerms(conta, data),
     termos: { atual: TERMOS_VERSAO, aceita: conta.termosAceitos?.versao ?? null },
+    senhaPadrao: conta.senhaPadrao === true,
   })
 })
 
@@ -384,7 +403,7 @@ router.get('/me/solicitacao-perfil', requireAuth, (req: Request, res: Response):
 })
 
 // PUT /api/auth/me/avatar — foto de perfil (data URL) ou null p/ remover
-router.put('/me/avatar', requireAuth, (req: Request, res: Response): void => {
+router.put('/me/avatar', requireAuth, validateBody(avatarSchema), (req: Request, res: Response): void => {
   const { avatar } = req.body as { avatar: string | null }
   if (avatar !== null && (!imagemValida(avatar) || avatar.length > 2_500_000)) {
     res.status(400).json({ error: 'Imagem inválida ou muito grande. Envie um arquivo (máx ~2MB) ou cole um link http/https.' }); return
@@ -398,7 +417,7 @@ router.put('/me/avatar', requireAuth, (req: Request, res: Response): void => {
 })
 
 // PUT /api/auth/me/banner — chave de preset/tier OU data URL OU null
-router.put('/me/banner', requireAuth, (req: Request, res: Response): void => {
+router.put('/me/banner', requireAuth, validateBody(bannerSchema), (req: Request, res: Response): void => {
   const { banner } = req.body as { banner: string | null }
   if (banner !== null) {
     if (typeof banner !== 'string') { res.status(400).json({ error: 'Banner inválido.' }); return }
@@ -461,7 +480,7 @@ router.get('/me/qrus', requireAuth, (req: Request, res: Response): void => {
 })
 
 // PUT /api/auth/me/membro — vincula (ou desvincula) o perfil de membro à conta
-router.put('/me/membro', requireAuth, adminOnly, (req: Request, res: Response): void => {
+router.put('/me/membro', requireAuth, adminOnly, validateBody(vincularMembroSchema), (req: Request, res: Response): void => {
   const { membroId } = req.body as { membroId: number | null }
   const data = readData()
   const conta = data.contas.find(c => c.id === req.user!.contaId)

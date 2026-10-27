@@ -25,6 +25,8 @@ export interface Me {
   dev: boolean
   permissoes: PermMap | null
   termos?: { atual: string; aceita: string | null }
+  /** Conta dona ainda com a senha padrão (admin123) — o painel pede para trocar. */
+  senhaPadrao?: boolean
 }
 
 export interface LinkPerfil { rotulo: string; url: string; emoji?: string }

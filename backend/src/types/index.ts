@@ -105,6 +105,8 @@ export interface Conta {
   exoneradoMotivo?: string
   termosAceitos?: { versao: string; em: string }  // última versão dos termos aceita (ISO)
   password?: string   // hash bcrypt (nunca sai da API)
+  senhaPadrao?: boolean   // conta dona ainda com a senha padrão (aviso no painel)
+  sessaoVersao?: number   // sobe ao trocar/redefinir senha ou sair de todos: invalida tokens antigos
 }
 
 /** Pedido de acesso feito na tela de login; o comando aprova e vira conta. */
@@ -315,7 +317,7 @@ export type TipoNotificacao =
   | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
   | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
   | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro' | 'curso'
-  | 'relatorio' | 'boletim' | 'inquerito' | 'galeria'
+  | 'relatorio' | 'boletim' | 'inquerito' | 'galeria' | 'seguranca'
 
 export interface Notificacao {
   id: number
@@ -426,6 +428,7 @@ export type CargosAdv = Partial<Record<'1' | '2' | '3', string>>
 
 export interface AuthPayload {
   scope?: string
+  sv?: number   // versão de sessão da conta quando o token foi emitido
   contaId: number
   username: string
   nivel: Nivel
