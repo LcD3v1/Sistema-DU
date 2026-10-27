@@ -1,6 +1,6 @@
 /**
  * Termos de Uso, Privacidade, Cookies, Propriedade Intelectual, Licença de Uso e
- * Responsabilidades — Nata Studios & Nextech.
+ * Responsabilidades — Nata Studios.
  *
  * Fonte única do texto exibido em /termos e no aceite. Ao alterar QUALQUER texto:
  *   1. mude `versao` aqui e TERMOS_VERSAO em backend/src/termos.ts (mesma data);
@@ -20,10 +20,10 @@ export interface Documento {
   secoes: Secao[]
 }
 
-export const EMPRESAS = 'Nata Studios e Nextech'
+export const EMPRESAS = 'Nata Studios'
 
 export const TERMOS = {
-  versao: '2026-09-18-2',
+  versao: '2026-10-27',
   vigencia: '14 de setembro de 2026',
   atualizacao: '18 de setembro de 2026',
   leiAplicavel: 'Brasil e Flórida, EUA',
@@ -38,8 +38,8 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '1. Quem somos',
         texto: [
-          `O sistema DU é um sistema privado, de propriedade exclusiva da ${EMPRESAS} ("nós"), que o criaram, mantêm e operam. O uso é cedido à Detective Unit (DU) do Detroit Police Department ("unidade") — a unidade usa o sistema, mas ele não pertence a ela nem a nenhum usuário.`,
-          'Ao acessar o site, entrar com o Discord ou usar qualquer recurso do painel, você concorda com estes Termos de Uso e com a Política de Privacidade, a Política de Cookies, a Política de Propriedade Intelectual, a Licença de Uso e os Termos de Responsabilidade. Se não concordar, não use o sistema.',
+          `O sistema DU é um sistema privado, de propriedade exclusiva da ${EMPRESAS} ("nós"), que o criou, mantém e opera. O uso é cedido à Detective Unit (DU) do Detroit Police Department ("unidade") — a unidade usa o sistema, mas ele não pertence a ela nem a nenhum usuário.`,
+          'Ao acessar o site, entrar com seu usuário e senha ou usar qualquer recurso do painel, você concorda com estes Termos de Uso e com a Política de Privacidade, a Política de Cookies, a Política de Propriedade Intelectual, a Licença de Uso e os Termos de Responsabilidade. Se não concordar, não use o sistema.',
         ],
       },
       {
@@ -48,14 +48,14 @@ export const DOCUMENTOS: Documento[] = [
           { t: 'Efetivo e hierarquia.', d: 'Cadastro de membros, patentes, promoções, rebaixamentos, advertências e histórico de cargos.' },
           { t: 'Operações.', d: 'Registro e aprovação de ações e apreensões, histórico, estatísticas e rankings.' },
           { t: 'Rotina da unidade.', d: 'Ausências, avisos, notificações, recrutamento, fardamentos, boletins, anúncios, protocolos e carteirinhas.' },
-          { t: 'Integração com o Discord.', d: 'Login pela conta do Discord, que também confirma se você faz parte do servidor da unidade. O painel não usa bot nem publica nada no Discord.' },
+          { t: 'Acesso por usuário e senha.', d: 'Você pede o acesso na tela de login e o comando da unidade aprova. O painel não usa bot nem publica nada no Discord.' },
           { t: 'Páginas públicas.', d: 'Ranking, diretório de membros e perfil público de cada membro ativo.' },
         ],
       },
       {
         titulo: '3. Quem pode usar',
         itens: [
-          { t: 'Somente membros autorizados.', d: 'O acesso ao painel exige conta do Discord que faça parte do servidor da unidade e aprovação do comando.' },
+          { t: 'Somente membros autorizados.', d: 'O acesso ao painel exige pedido de acesso aprovado pelo comando da unidade.' },
           { t: 'Conta pessoal e intransferível.', d: 'Você é responsável por tudo o que for feito com o seu login. Não compartilhe sua sessão nem acesse a conta de outra pessoa.' },
           { t: 'Permissões por cargo.', d: 'Cada área só aparece para quem tem permissão. Tentar acessar o que não é seu é uma violação destes termos.' },
           { t: 'Exoneração.', d: 'Membro exonerado perde todo o acesso imediatamente. Os dados dele ficam arquivados, não são apagados (veja a Política de Privacidade).' },
@@ -79,7 +79,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '6. Disponibilidade e mudanças',
         texto: [
-          'Trabalhamos para manter o sistema estável e seguro, mas ele pode ficar indisponível para manutenção, atualizações ou falhas de terceiros (hospedagem, Discord, banco de dados).',
+          'Trabalhamos para manter o sistema estável e seguro, mas ele pode ficar indisponível para manutenção, atualizações ou falhas de terceiros (hospedagem, armazenamento de dados).',
           'Estes termos podem ser atualizados. Quando isso acontecer, a data de atualização muda e o sistema pede o seu aceite de novo antes de continuar.',
         ],
       },
@@ -91,11 +91,10 @@ export const DOCUMENTOS: Documento[] = [
     resumo: 'Quais dados coletamos, para que usamos, quem vê e por quanto tempo guardamos.',
     secoes: [
       {
-        titulo: '1. Dados da sua conta do Discord',
-        texto: ['Ao entrar com o Discord, pedimos apenas a permissão "identify". Não recebemos o seu e‑mail, senha, mensagens privadas nem a lista dos seus servidores.'],
+        titulo: '1. Dados da sua conta',
+        texto: ['Para o acesso, pedimos apenas um nome de usuário, uma senha e o seu nome. A senha é guardada só de forma cifrada (hash) — nem o comando nem nós conseguimos lê‑la.'],
         itens: [
-          { t: 'Identificação.', d: 'ID, nome de usuário e foto do perfil do Discord.' },
-          { t: 'Dados no servidor da unidade.', d: 'Apelido, foto e cargos no servidor, lidos no login pelo próprio Discord (com a sua autorização) para conferir o vínculo com a unidade.' },
+          { t: 'Identificação.', d: 'Nome de usuário, nome informado no pedido de acesso e a foto que você escolher no perfil.' },
         ],
       },
       {
@@ -146,7 +145,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '7. Seus direitos e segurança',
         texto: [
-          'Você pode pedir acesso, correção ou informações sobre os seus dados ao comando da unidade ou às empresas responsáveis, pelo canal oficial no Discord. Correções de cadastro também podem ser solicitadas pelo próprio perfil.',
+          'Você pode pedir acesso, correção ou informações sobre os seus dados ao comando da unidade ou à Nata Studios, pelo canal oficial da unidade. Correções de cadastro também podem ser solicitadas pelo próprio perfil.',
           'Protegemos os dados com conexão HTTPS, sessão com expiração e revogação, controle de acesso por cargo, limites contra abuso, firewall de aplicação e registro de auditoria. Seguimos a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018) e o Marco Civil da Internet (Lei nº 12.965/2014). Pela LGPD, você pode pedir confirmação, acesso, correção, anonimização, portabilidade e informação sobre com quem seus dados são compartilhados.',
         ],
       },
@@ -167,8 +166,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '2. Cookies essenciais',
         itens: [
-          { t: 'fast_sessao.', d: 'Mantém você logado depois de entrar com o Discord. Protegido (httpOnly, SameSite=Strict): não pode ser lido por scripts nem enviado por outros sites. Dura no máximo 8 horas e é apagado ao sair.' },
-          { t: 'fast_oauth_state.', d: 'Protege o login com o Discord contra falsificação de pedido. Dura 10 minutos.' },
+          { t: 'fast_sessao.', d: 'Mantém você logado depois de entrar com usuário e senha. Protegido (httpOnly, SameSite=Strict): não pode ser lido por scripts nem enviado por outros sites. Dura no máximo 8 horas e é apagado ao sair.' },
         ],
       },
       {
@@ -203,18 +201,18 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '1. Sistema privado e exclusivo',
         texto: [
-          `Todo o sistema DU faz parte da ${EMPRESAS}. Ele é um produto privado, de propriedade exclusiva das duas empresas, e não está à venda, não é de código aberto e não é distribuído a terceiros.`,
+          `Todo o sistema DU faz parte da ${EMPRESAS}. Ele é um produto privado, de propriedade exclusiva da Nata Studios, e não está à venda, não é de código aberto e não é distribuído a terceiros.`,
           'A unidade e os seus membros recebem apenas uma permissão de uso, pessoal, limitada e revogável. Usar o sistema não transfere nenhuma parte dele a quem usa.',
           'O sistema é protegido pela Lei de Software (Lei nº 9.609/1998) e pela Lei de Direitos Autorais (Lei nº 9.610/1998), além das leis equivalentes dos EUA.',
         ],
       },
       {
-        titulo: '2. O que é exclusivo das empresas',
+        titulo: '2. O que é exclusivo da Nata Studios',
         itens: [
-          { t: 'Código e infraestrutura.', d: 'Código‑fonte, banco de dados, integrações com o Discord, servidores e toda a arquitetura do sistema.' },
+          { t: 'Código e infraestrutura.', d: 'Código‑fonte, armazenamento de dados, servidores e toda a arquitetura do sistema.' },
           { t: 'Design e identidade.', d: 'Layout, telas, componentes visuais, animações, textos, módulos e fluxos de funcionamento.' },
           { t: 'Funcionalidades.', d: 'Ranking, painéis, carteirinhas, registros, estatísticas e qualquer recurso criado ou que venha a ser criado.' },
-          { t: 'Evolução do sistema.', d: 'Melhorias, correções e novas versões também pertencem exclusivamente às empresas, inclusive quando sugeridas por usuários.' },
+          { t: 'Evolução do sistema.', d: 'Melhorias, correções e novas versões também pertencem exclusivamente à Nata Studios, inclusive quando sugeridas por usuários.' },
         ],
       },
       {
@@ -227,37 +225,37 @@ export const DOCUMENTOS: Documento[] = [
         ],
       },
       {
-        titulo: '4. Controle das empresas',
+        titulo: '4. Controle da Nata Studios',
         itens: [
-          { t: 'Decisão sobre o sistema.', d: 'Somente as empresas decidem o que o sistema faz, como evolui, onde é hospedado e quem pode operá‑lo tecnicamente.' },
-          { t: 'Acesso revogável.', d: 'As empresas podem suspender ou encerrar o acesso de qualquer usuário, ou da unidade, em caso de violação destes termos.' },
-          { t: 'Dados sob custódia.', d: 'Os dados ficam sob a guarda das empresas e são usados apenas para operar o sistema da unidade, nunca repassados a terceiros.' },
-          { t: 'Sem exceções implícitas.', d: 'Qualquer autorização diferente do que está aqui só vale se for dada por escrito pelas duas empresas.' },
+          { t: 'Decisão sobre o sistema.', d: 'Somente a Nata Studios decide o que o sistema faz, como evolui, onde é hospedado e quem pode operá‑lo tecnicamente.' },
+          { t: 'Acesso revogável.', d: 'A Nata Studios pode suspender ou encerrar o acesso de qualquer usuário, ou da unidade, em caso de violação destes termos.' },
+          { t: 'Dados sob custódia.', d: 'Os dados ficam sob a guarda da Nata Studios e são usados apenas para operar o sistema da unidade, nunca repassados a terceiros.' },
+          { t: 'Sem exceções implícitas.', d: 'Qualquer autorização diferente do que está aqui só vale se for dada por escrito pela Nata Studios.' },
         ],
       },
       {
         titulo: '5. Marcas e identidade',
         texto: [
-          'Os nomes Nata Studios e Nextech, seus logotipos e a identidade visual do sistema são de uso exclusivo das empresas. O nome e o brasão da Detective Unit (DU) pertencem à unidade e são exibidos no sistema com autorização dela.',
+          'O nome Nata Studios, seus logotipos e a identidade visual do sistema são de uso exclusivo da Nata Studios. O nome e o brasão da Detective Unit (DU) pertencem à unidade e são exibidos no sistema com autorização dela.',
         ],
       },
       {
         titulo: '6. Conteúdo enviado pelos usuários',
         texto: [
-          'Textos, imagens e registros enviados continuam sendo de quem os enviou ou da unidade. Ao enviá‑los, você autoriza as empresas a armazená‑los, exibi‑los e publicá‑los no sistema e nos canais do Discord da unidade, apenas para o funcionamento do sistema.',
+          'Textos, imagens e registros enviados continuam sendo de quem os enviou ou da unidade. Ao enviá‑los, você autoriza a Nata Studios a armazená‑los e exibi‑los no sistema, apenas para o funcionamento do sistema.',
           'Você declara ter o direito de usar o que envia. Conteúdo que viole direitos de terceiros pode ser removido sem aviso.',
         ],
       },
       {
         titulo: '7. Sugestões',
         texto: [
-          'Ideias, sugestões e pedidos de melhoria são bem‑vindos. Ao enviá‑los, você concorda que as empresas podem usá‑los livremente no sistema, sem obrigação de pagamento ou crédito, e que o resultado pertence exclusivamente às empresas.',
+          'Ideias, sugestões e pedidos de melhoria são bem‑vindos. Ao enviá‑los, você concorda que a Nata Studios pode usá‑los livremente no sistema, sem obrigação de pagamento ou crédito, e que o resultado pertence exclusivamente à Nata Studios.',
         ],
       },
       {
         titulo: '8. Denúncia de violação',
         texto: [
-          'Se você souber de cópia, revenda ou uso indevido do sistema, ou achar que algum conteúdo viola um direito seu, avise as empresas pelo canal oficial no Discord. Toda denúncia é analisada.',
+          'Se você souber de cópia, revenda ou uso indevido do sistema, ou achar que algum conteúdo viola um direito seu, avise a Nata Studios pelo canal oficial da unidade. Toda denúncia é analisada.',
         ],
       },
     ],
@@ -265,19 +263,19 @@ export const DOCUMENTOS: Documento[] = [
   {
     id: 'licenca',
     titulo: 'Licença de Uso',
-    resumo: 'As condições em que um cliente pode usar o sistema, que continua sendo das empresas.',
+    resumo: 'As condições em que um cliente pode usar o sistema, que continua sendo da Nata Studios.',
     secoes: [
       {
         titulo: '1. Partes e objeto',
         texto: [
-          `Esta licença é concedida pela ${EMPRESAS} ("licenciantes") à organização que contrata ou recebe o sistema ("cliente") — neste caso, a Detective Unit (DU) do Detroit Police Department — e vale para cada membro autorizado pelo cliente ("usuário").`,
-          'O objeto é o direito de usar o sistema pela internet, na versão hospedada e mantida pelas licenciantes. O cliente não recebe cópia do software, código‑fonte nem acesso à infraestrutura.',
+          `Esta licença é concedida pela ${EMPRESAS} ("licenciante") à organização que contrata ou recebe o sistema ("cliente") — neste caso, a Detective Unit (DU) do Detroit Police Department — e vale para cada membro autorizado pelo cliente ("usuário").`,
+          'O objeto é o direito de usar o sistema pela internet, na versão hospedada e mantida pela licenciante. O cliente não recebe cópia do software, código‑fonte nem acesso à infraestrutura.',
         ],
       },
       {
         titulo: '2. Natureza da licença',
         itens: [
-          { t: 'Não exclusiva.', d: 'As licenciantes podem licenciar o sistema, ou versões dele, a outros clientes.' },
+          { t: 'Não exclusiva.', d: 'A licenciante pode licenciar o sistema, ou versões dele, a outros clientes.' },
           { t: 'Intransferível.', d: 'O cliente não pode vender, ceder, sublicenciar nem emprestar o acesso a outra organização.' },
           { t: 'Revogável.', d: 'Pode ser suspensa ou encerrada nos casos previstos no item 7.' },
           { t: 'Limitada.', d: 'Vale só para a gestão interna do próprio cliente, dentro das funções que o sistema oferece.' },
@@ -300,9 +298,9 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '5. Suporte e atualizações',
         itens: [
-          { t: 'Manutenção.', d: 'As licenciantes corrigem falhas, aplicam atualizações de segurança e mantêm o sistema no ar.' },
-          { t: 'Atualizações.', d: 'Novas versões são aplicadas automaticamente. As licenciantes podem mudar, melhorar ou retirar funções, avisando o cliente quando a mudança for relevante.' },
-          { t: 'Pedidos específicos.', d: 'Funções feitas sob medida para o cliente continuam sendo propriedade das licenciantes e podem ser cobradas à parte, conforme combinado.' },
+          { t: 'Manutenção.', d: 'A licenciante corrige falhas, aplica atualizações de segurança e mantém o sistema no ar.' },
+          { t: 'Atualizações.', d: 'Novas versões são aplicadas automaticamente. A licenciante pode mudar, melhorar ou retirar funções, avisando o cliente quando a mudança for relevante.' },
+          { t: 'Pedidos específicos.', d: 'Funções feitas sob medida para o cliente continuam sendo propriedade da licenciante e podem ser cobradas à parte, conforme combinado.' },
         ],
       },
       {
@@ -310,7 +308,7 @@ export const DOCUMENTOS: Documento[] = [
         itens: [
           { t: 'Uso dos dados.', d: 'Os dados do cliente são usados só para prestar o serviço a ele e nunca são compartilhados com outros clientes.' },
           { t: 'Ao fim da licença.', d: 'O cliente pode pedir, em até 30 dias, uma exportação dos seus dados em formato legível. Depois disso, os dados podem ser arquivados ou excluídos, salvo obrigação legal de guarda.' },
-          { t: 'Isolamento.', d: 'Cada instalação usa banco de dados próprio, vinculado ao servidor do Discord do cliente.' },
+          { t: 'Isolamento.', d: 'Cada instalação usa armazenamento de dados próprio, separado dos outros clientes.' },
         ],
       },
       {
@@ -324,8 +322,8 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '8. Garantias e responsabilidade',
         texto: [
-          'O sistema é fornecido "no estado em que se encontra", sem garantia de funcionamento ininterrupto ou livre de erros. As licenciantes não respondem por lucros cessantes, perda de dados causada por uso indevido, decisões tomadas pelo cliente com base no sistema nem por falhas de serviços de terceiros.',
-          'Quando houver valores pagos, a responsabilidade total das licenciantes fica limitada ao valor pago pelo cliente nos 12 meses anteriores ao fato.',
+          'O sistema é fornecido "no estado em que se encontra", sem garantia de funcionamento ininterrupto ou livre de erros. A licenciante não responde por lucros cessantes, perda de dados causada por uso indevido, decisões tomadas pelo cliente com base no sistema nem por falhas de serviços de terceiros.',
+          'Quando houver valores pagos, a responsabilidade total da licenciante fica limitada ao valor pago pelo cliente nos 12 meses anteriores ao fato.',
         ],
       },
       {
@@ -339,7 +337,7 @@ export const DOCUMENTOS: Documento[] = [
   {
     id: 'responsabilidades',
     titulo: 'Responsabilidades',
-    resumo: 'O que cabe às empresas, à unidade e a cada usuário.',
+    resumo: 'O que cabe à Nata Studios, à unidade e a cada usuário.',
     secoes: [
       {
         titulo: `1. Da ${EMPRESAS}`,
@@ -354,14 +352,14 @@ export const DOCUMENTOS: Documento[] = [
         titulo: '2. Da unidade e do comando',
         itens: [
           { t: 'Controlar o acesso.', d: 'Aprovar membros, definir cargos e permissões e exonerar quem deixar a unidade.' },
-          { t: 'Configurar o Discord.', d: 'Manter o servidor da unidade configurado e as contas aprovadas em dia.' },
-          { t: 'Decisões internas.', d: 'Promoções, advertências, aprovações e exonerações são decisões do comando, não das empresas.' },
+          { t: 'Aprovar acessos.', d: 'Aprovar só quem faz parte da unidade e manter as contas em dia, desativando quem sair.' },
+          { t: 'Decisões internas.', d: 'Promoções, advertências, aprovações e exonerações são decisões do comando, não da Nata Studios.' },
         ],
       },
       {
         titulo: '3. De cada usuário',
         itens: [
-          { t: 'Proteger a própria conta.', d: 'Manter a conta do Discord segura e sair do sistema em computadores compartilhados.' },
+          { t: 'Proteger a própria conta.', d: 'Usar uma senha forte, não repeti‑la em outros sites e sair do sistema em computadores compartilhados.' },
           { t: 'Informar a verdade.', d: 'Responder pelo que registra, envia e publica pelo sistema.' },
           { t: 'Sigilo.', d: 'Não divulgar informações internas da unidade nem detalhes do funcionamento do sistema.' },
           { t: 'Respeitar a propriedade.', d: 'Não copiar, reproduzir nem repassar o sistema (veja a Política de Propriedade Intelectual e a Licença de Uso).' },
@@ -370,9 +368,9 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '4. Limites de responsabilidade',
         texto: [
-          'As empresas não respondem por conteúdo inserido por usuários, por decisões internas da unidade, pelo uso indevido de contas por terceiros quando a falha for do usuário, nem por indisponibilidades de serviços de terceiros como Discord, hospedagem e banco de dados.',
+          'A Nata Studios não responde por conteúdo inserido por usuários, por decisões internas da unidade, pelo uso indevido de contas por terceiros quando a falha for do usuário, nem por indisponibilidades de serviços de terceiros como hospedagem e banco de dados.',
           'O sistema é uma ferramenta de apoio à gestão de uma unidade de roleplay. Nomes, patentes e registros de personagens não representam autoridades ou fatos reais.',
-          'Estes documentos são regidos pelas leis da República Federativa do Brasil, em especial a LGPD (Lei nº 13.709/2018), o Marco Civil da Internet (Lei nº 12.965/2014), a Lei de Software (Lei nº 9.609/1998) e a Lei de Direitos Autorais (Lei nº 9.610/1998). Nas relações com as empresas fora do Brasil, aplicam‑se também as leis da Flórida, EUA.',
+          'Estes documentos são regidos pelas leis da República Federativa do Brasil, em especial a LGPD (Lei nº 13.709/2018), o Marco Civil da Internet (Lei nº 12.965/2014), a Lei de Software (Lei nº 9.609/1998) e a Lei de Direitos Autorais (Lei nº 9.610/1998).',
           'Para usuários e clientes no Brasil, prevalecem sempre os direitos garantidos pela legislação brasileira, e fica eleito o foro do domicílio do usuário ou do cliente para resolver qualquer questão.',
         ],
       },

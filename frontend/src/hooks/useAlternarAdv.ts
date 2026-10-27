@@ -11,8 +11,7 @@ const erroApi = (e: unknown, padrao: string) =>
 
 /**
  * Clique num quadradinho de advertência: vazio → aplica aquele ADV (pede motivo);
- * marcado → retira só aquele ADV. Cada nível é independente, e o cargo do
- * Discord acompanha (o backend sincroniza).
+ * marcado → retira só aquele ADV. Cada nível é independente.
  */
 export function useAlternarAdv() {
   const advertir = useAdvertir()
@@ -27,7 +26,7 @@ export function useAlternarAdv() {
     if (ativo) {
       const ok = await confirmar({
         titulo: `Retirar ADV ${nivel}`,
-        mensagem: `Retirar a advertência ADV ${nivel} de ${nome}? O cargo ADV ${nivel} sai no Discord e os outros níveis continuam como estão.`,
+        mensagem: `Retirar a advertência ADV ${nivel} de ${nome}? Os outros níveis continuam como estão.`,
         tom: 'aviso', textoConfirmar: 'Retirar',
       })
       if (!ok) return
@@ -40,7 +39,7 @@ export function useAlternarAdv() {
 
     const r = await confirmar({
       titulo: `Aplicar ADV ${nivel}`,
-      mensagem: `${nome} recebe a advertência ADV ${nivel} e o cargo ADV ${nivel} no Discord. O canal de registro dele é avisado.`,
+      mensagem: `${nome} recebe a advertência ADV ${nivel}.`,
       tom: nivel === 3 ? 'perigo' : 'aviso', textoConfirmar: `Aplicar ADV ${nivel}`,
       motivo: 'obrigatorio', rotuloMotivo: 'Motivo da advertência',
     })

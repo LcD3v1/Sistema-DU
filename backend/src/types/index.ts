@@ -104,6 +104,16 @@ export interface Conta {
   exoneradoEm?: string
   exoneradoMotivo?: string
   termosAceitos?: { versao: string; em: string }  // última versão dos termos aceita (ISO)
+  password?: string   // hash bcrypt (nunca sai da API)
+}
+
+/** Pedido de acesso feito na tela de login; o comando aprova e vira conta. */
+export interface SolicitacaoAcesso {
+  id: number
+  username: string
+  senha: string       // já com hash bcrypt
+  nome: string
+  criadoEm: string
 }
 
 export interface LinkPerfil {
@@ -394,6 +404,8 @@ export interface FastData {
   nextNotifId: number
   solicitacoesPerfil: SolicitacaoPerfil[]
   nextSolPerfilId: number
+  solicitacoesAcesso: SolicitacaoAcesso[]
+  nextSolAcessoId: number
   livros?: Livro[]          // Cursos Internos: biblioteca (guardada no documento de configuração)
   nextLivroId?: number
   relatorios: Relatorio[]

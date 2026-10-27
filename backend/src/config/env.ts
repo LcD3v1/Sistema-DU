@@ -44,15 +44,6 @@ function validateJwtSecret(): string {
   return secret!
 }
 
-// Discord OAuth é o ÚNICO método de login; avisa se não estiver configurado.
-function validateDiscord(): void {
-  const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI } = process.env
-  const some = DISCORD_CLIENT_ID || DISCORD_CLIENT_SECRET || DISCORD_REDIRECT_URI
-  const all = DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI
-  if (!all) {
-    console.warn(`[DU][ATENÇÃO] Discord OAuth ${some ? 'parcialmente configurado' : 'não configurado'} — o login é SÓ via Discord, então ninguém conseguirá entrar até preencher DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET e DISCORD_REDIRECT_URI.`)
-  }
-}
 
 // Dados em arquivo (DATA_PATH). Em produção ele precisa ficar num disco persistente
 // da hospedagem; sem DATA_PATH o arquivo fica dentro da pasta do app e pode sumir no deploy.
@@ -70,7 +61,6 @@ export const env = {
   ALLOWED_ORIGIN: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
 }
 
-validateDiscord()
 
 // Aviso extra em produção sobre CORS aberto/origem padrão.
 if (PROD && !process.env.ALLOWED_ORIGIN) {

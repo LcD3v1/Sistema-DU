@@ -1,6 +1,6 @@
 // Prévia local do painel da DU com dados SINTÉTICOS (sem Mongo e sem Discord).
 // Usa as rotas reais de Relatórios, Boletins, Inquéritos e Galeria sobre dados em memória;
-// sessão, /me e arquivos são simulados. Requer `npm run build` no backend e no frontend.
+// login e pedidos de acesso são os reais (usuário comando / senha preview-du-2026); /me e arquivos são simulados. Requer `npm run build` no backend e no frontend.
 //   node tests/du-preview.cjs   →   http://127.0.0.1:4173
 const path = require('node:path')
 const crypto = require('node:crypto')
@@ -20,7 +20,10 @@ const todas = Object.fromEntries(require('../dist/permAreas').PERM_AREAS.map(a =
 let data = {
   membros: [membro(1, 'Peter Wolf', 'Raven', '(DU) Commander', '1001'), membro(2, 'Ana Torres', 'Viper', '(DU) Senior', '2044'),
     membro(3, 'Marcus Reed', 'Ghost', '(DU) Officer', '3120'), membro(4, 'Lia Moreau', 'Echo', '(DU) Probationary', '4210')],
-  contas: [{ id: 1, username: 'comando', nivel: 'admin', ativo: true, onboarded: true, membroId: 1, discordId: '333333333333333333', cargoPermId: 10, nomeServidor: 'Peter Wolf' }],
+  contas: [{ id: 1, username: 'comando', nivel: 'admin', ativo: true, onboarded: true, membroId: 1, cargoPermId: 10, nomeServidor: 'Peter Wolf',
+    password: require('bcrypt').hashSync('preview-du-2026', 10) }],
+  solicitacoesAcesso: [{ id: 1, username: 'lia.moreau', nome: 'Lia Moreau', senha: require('bcrypt').hashSync('senha-da-lia', 10), criadoEm: '2026-10-26T20:00:00Z' }],
+  nextSolAcessoId: 2, nextContaId: 2,
   cargosPermissao: [{ id: 10, nome: '(DU) Commander', admin: true, permissoes: todas }],
   acoes: [], patentes: [], membrosOrder: [1, 2, 3, 4], ausencias: [], notificacoes: [], nextNotifId: 1, canais: {}, avisos: [],
   fardamentos: [], solicitacoesPerfil: [], nextMemId: 5, livros: [], nextLivroId: 1,
@@ -53,7 +56,8 @@ app.post('/api/arquivos', express.raw({ type: 'application/octet-stream', limit:
 })
 app.get('/api/arquivos/:id', (q, r) => { const a = memoria.get(q.params.id); if (!a) return r.status(404).end(); r.type(a.mime).send(a.bytes) })
 app.use(express.json({ limit: '5mb' }))
-app.post('/api/auth/sessao', (_q, r) => r.json({ token, contaId: 1, username: 'comando', nivel: 'admin' }))
+// Sem o cookie do login real, a prévia abre na tela de login
+app.post('/api/auth/sessao', (q, r) => /fast_sessao=/.test(q.headers.cookie ?? '') ? r.json({ token, contaId: 1, username: 'comando', nivel: 'admin' }) : r.status(204).end())
 app.get('/api/auth/me', (_q, r) => r.json(me))
 app.get('/api/auth/me/solicitacao-perfil', (_q, r) => r.json(null))
 app.put('/api/auth/me/banner', (q, r) => { me.banner = q.body.banner; revisao++; r.json({ ok: true }) })
@@ -64,6 +68,9 @@ app.get('/api/notificacoes', (_q, r) => r.json({ notificacoes: [], naoLidas: 0 }
 app.get('/api/avisos', (_q, r) => r.json({ avisos: [], naoVistos: 0 }))
 app.get('/api/ausencias', (_q, r) => r.json([]))
 app.get('/api/cursos/livros', (_q, r) => r.json([]))
+app.use('/api/auth', require('../dist/routes/auth').default)
+app.get('/api/config/cargos-permissao', (_q, r) => r.json(data.cargosPermissao))
+app.use('/api/config', require('../dist/routes/config').default)
 app.use('/api/relatorios', require('../dist/routes/relatorios').default)
 app.use('/api/boletins', require('../dist/routes/boletins').default)
 app.use('/api/inqueritos', require('../dist/routes/inqueritos').default)

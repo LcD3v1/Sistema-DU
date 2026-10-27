@@ -243,7 +243,7 @@ export function GerenciarModal({ membro, open, onClose }: ModalProps) {
             ))}
           </div>
         </div>
-        <p className="text-[11px] text-txt3 -mt-3">Clique num quadradinho para aplicar ou retirar só aquele ADV. O cargo no Discord acompanha.</p>
+        <p className="text-[11px] text-txt3 -mt-3">Clique num quadradinho para aplicar ou retirar só aquele ADV.</p>
 
         <div className="space-y-3">
           <h4 className="font-mono text-xs text-gold tracking-wider flex items-center gap-1.5"><AlertTriangle size={13} /> APLICAR ADVERTÊNCIA</h4>
@@ -326,7 +326,7 @@ export function ExonerarModal({ membro, open, onClose }: ModalProps) {
           <UserX size={18} className="text-red shrink-0 mt-0.5" />
           <p className="text-xs text-txt2 leading-relaxed">
             <span className="text-txt font-medium">{nomePessoa(membro)}</span> será removido do efetivo e <span className="text-red">perderá todo o acesso ao painel</span>.
-            A exoneração é registrada no canal dele no Discord (❌). Ao tentar entrar, verá o aviso para procurar o Alto Comando.
+            Ao tentar entrar, verá o aviso para procurar o Alto Comando.
           </p>
         </div>
         <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3} maxLength={500}

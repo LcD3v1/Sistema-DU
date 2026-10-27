@@ -79,6 +79,8 @@ export interface Conta {
   cargoPermId?: number | null
   discordId?: string
   discordUsername?: string
+  nomeServidor?: string
+  temSenha?: boolean
   onboarded?: boolean
   exonerado?: boolean
   exoneradoEm?: string

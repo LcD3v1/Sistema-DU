@@ -68,7 +68,7 @@ export default function PersonalizarPerfil({ me, onAbrirFundo }: { me: Me; onAbr
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>
           <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase">Foto de fundo</p>
-          <p className="text-[11px] text-txt3">Imagem atrás da sua foto do Discord.</p>
+          <p className="text-[11px] text-txt3">Imagem atrás da sua foto de perfil.</p>
         </div>
         <button onClick={onAbrirFundo} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-gold/40 transition-colors">
           <ImageIcon size={13} /> Trocar fundo

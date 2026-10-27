@@ -6,10 +6,8 @@ export function discordNome(pessoa: PessoaDiscord): string | null {
   return pessoa.nomeServidor || pessoa.discordUsername || pessoa.discordId || null
 }
 
+/** Nome para exibir: o do policial; sem ele, o nome informado no pedido de acesso. */
 export function nomeComDiscord(pessoa: PessoaDiscord, fallback?: string): string {
-  const nomeDiscord = discordNome(pessoa)
-  const nomeBase = ('policial' in pessoa ? pessoa.policial : undefined) || fallback
-  if (nomeDiscord && nomeBase) return `@${nomeDiscord} ${nomeBase}`
-  if (nomeDiscord) return `@${nomeDiscord}`
-  return nomeBase || fallback || '—'
+  const nomeBase = 'policial' in pessoa ? pessoa.policial : undefined
+  return nomeBase || discordNome(pessoa) || fallback || '—'
 }

@@ -23,6 +23,8 @@ import {
 } from '@/hooks/useConfig'
 import type { SituacaoAnuncio } from '@/hooks/useConfig'
 import { useContas, useUpdateConta, useDeleteConta } from '@/hooks/useContas'
+import PedidosAcesso from '@/components/sections/PedidosAcesso'
+import { RedefinirSenhaBotao } from '@/components/sections/SenhaConta'
 import { useCargosPermissao } from '@/hooks/useCargosPermissao'
 import PermissoesEditor from '@/components/sections/PermissoesEditor'
 import { useAuthStore } from '@/store/authStore'
@@ -395,7 +397,7 @@ export default function ConfiguracoesPage() {
   const { data: cargosPermTodos = [] } = useCargosPermissao(isAdmin)
   // Cargo de dev só aparece (e só é atribuível) para um dev.
   const cargosPerm = cargosPermTodos.filter(cp => souDev || cp.dev !== true)
-  // Pendentes = contas criadas pelo Discord que ainda não receberam cargo
+  // Pendentes = contas aprovadas que ainda não receberam cargo
   const solicitacoes = contas.filter(c => c.id !== 1 && !c.cargoPermId && c.ativo)
   const cargoPadraoId = cargosPerm.find(c => c.padrao)?.id
   const [cargoPorSol, setCargoPorSol] = useState<Record<number, number | ''>>({})
@@ -557,15 +559,16 @@ export default function ConfiguracoesPage() {
           {/* Solicitações de cadastro (admin only) */}
           {activeTab === 'solicitacoes' && (
             <div className="space-y-4">
-              <div>
-                <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">SOLICITAÇÕES DE CADASTRO</h3>
-                <p className="text-[11px] text-txt3">Quem entra pelo Discord pela primeira vez aparece aqui. Aprove escolhendo um cargo de permissão — ao aprovar (com o cadastro concluído), o registro é postado no fórum.</p>
+              <PedidosAcesso cargos={cargosPerm} cargoPadraoId={cargoPadraoId} />
+              <div className="pt-4 border-t border-bdr">
+                <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">CONTAS AGUARDANDO CARGO</h3>
+                <p className="text-[11px] text-txt3">Contas aprovadas sem cargo de permissão. Escolha o cargo para liberar o que ele permite ver no painel.</p>
               </div>
 
               {solicitacoes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-2 text-txt3">
                   <Inbox size={28} className="opacity-40" />
-                  <p className="font-mono text-xs">Nenhuma solicitação pendente</p>
+                  <p className="font-mono text-xs">Nenhuma conta aguardando cargo</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -574,7 +577,7 @@ export default function ConfiguracoesPage() {
                     return (
                       <div key={sol.id} className="flex flex-wrap items-center gap-3 px-4 py-3 bg-card2 border border-bdr rounded-lg">
                         <div className="flex-1 min-w-[180px]">
-                          <p className="text-sm text-txt font-medium">{sol.discordUsername ?? sol.username}</p>
+                          <p className="text-sm text-txt font-medium">{sol.nomeServidor ?? sol.username}</p>
                           <p className="font-mono text-[11px] text-txt3 flex items-center gap-2">
                             <span className="text-gold3">@{sol.username}</span>
                             <span className="flex items-center gap-1"><Clock size={10} /> {sol.onboarded === false ? 'cadastro pendente' : 'cadastro concluído'}</span>
@@ -591,7 +594,7 @@ export default function ConfiguracoesPage() {
                         <button
                           disabled={updateConta.isPending || deleteConta.isPending}
                           onClick={async () => {
-                            const nome = sol.discordUsername ?? sol.username
+                            const nome = sol.nomeServidor ?? sol.username
                             const cargoNome = cargosPerm.find(cp => cp.id === cargoSel)?.nome
                             const r = await decidir({
                               titulo: 'Solicitação de acesso',
@@ -599,7 +602,7 @@ export default function ConfiguracoesPage() {
                                 ? `Ao aprovar, ${nome} recebe o cargo ${cargoNome} e passa a ver o que esse cargo libera.`
                                 : 'Escolha um cargo na lista antes de aprovar.',
                               detalhes: [
-                                { label: 'Discord', valor: nome },
+                                { label: 'Nome', valor: nome },
                                 { label: 'Usuário', valor: `@${sol.username}` },
                                 { label: 'Cadastro', valor: sol.onboarded === false ? 'ainda não preenchido' : 'concluído' },
                                 { label: 'Cargo', valor: cargoNome ?? 'não selecionado' },
@@ -638,13 +641,13 @@ export default function ConfiguracoesPage() {
             <div className="space-y-4">
               <div>
                 <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">CONTAS DE ACESSO</h3>
-                <p className="text-[11px] text-txt3">Contas são criadas automaticamente no primeiro login com Discord.</p>
+                <p className="text-[11px] text-txt3">Contas são criadas ao aprovar um pedido de acesso. Use a chave para redefinir a senha de quem esqueceu.</p>
               </div>
               <div className="overflow-x-auto">
               <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-bdr">
-                    {['Usuário', 'Discord', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
+                    {['Usuário', 'Nome', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
                       <th key={h} className="text-left font-mono text-xs text-txt3 px-3 py-2">{h}</th>
                     ))}
                   </tr>
@@ -658,7 +661,7 @@ export default function ConfiguracoesPage() {
                         {conta.exonerado && <span title={conta.exoneradoMotivo} className="ml-2 px-1.5 py-0.5 rounded bg-red/15 border border-red/40 text-red text-[9px] font-mono">EXONERADO</span>}
                       </td>
                       <td className="px-3 py-2.5 font-mono text-xs text-txt2">
-                        {conta.discordUsername ?? (conta.discordId ? conta.discordId : <span className="text-txt3">não vinculado</span>)}
+                        {conta.nomeServidor ?? conta.discordUsername ?? <span className="text-txt3">—</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         <select
@@ -678,7 +681,7 @@ export default function ConfiguracoesPage() {
                           onClick={async () => {
                             if (conta.exonerado && !(await confirmar({
                               titulo: 'Readmitir membro',
-                              mensagem: `Readmitir ${conta.discordUsername ?? conta.username}? A exoneração é retirada e a pessoa refaz o cadastro.`,
+                              mensagem: `Readmitir ${conta.nomeServidor ?? conta.username}? A exoneração é retirada e a pessoa refaz o cadastro.`,
                               detalhes: conta.exoneradoMotivo ? [{ label: 'Exonerado por', valor: conta.exoneradoMotivo }] : undefined,
                               tom: 'sucesso',
                               textoConfirmar: 'Readmitir',
@@ -695,10 +698,14 @@ export default function ConfiguracoesPage() {
                         </button>
                       </td>
                       <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-3">
+                        {(conta.id !== 1 || user?.contaId === 1) && conta.id !== user?.contaId && (
+                          <RedefinirSenhaBotao contaId={conta.id} nome={conta.nomeServidor ?? conta.username} />
+                        )}
                         {conta.id !== user?.contaId && (
                           <button
                             onClick={async () => {
-                              if (!(await confirmar({ titulo: 'Excluir conta', mensagem: `Excluir a conta ${conta.discordUsername ?? conta.username}? Esta ação não pode ser desfeita.`, tom: 'perigo', textoConfirmar: 'Excluir' }))) return
+                              if (!(await confirmar({ titulo: 'Excluir conta', mensagem: `Excluir a conta ${conta.nomeServidor ?? conta.username}? Esta ação não pode ser desfeita.`, tom: 'perigo', textoConfirmar: 'Excluir' }))) return
                               deleteConta.mutate(conta.id)
                             }}
                             className="text-txt3 hover:text-red transition-colors"
@@ -706,6 +713,7 @@ export default function ConfiguracoesPage() {
                             <Trash2 size={14} />
                           </button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   ))}

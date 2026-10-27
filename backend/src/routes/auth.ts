@@ -1,252 +1,134 @@
 import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
+import bcrypt from 'bcrypt'
 import { configuredScope } from '../modules/ranking/scope'
 import { assinarToken } from '../security/jwt'
 import { escopoDoToken } from '../security/escopo'
-import { iguaisSeguro } from '../security/crypto'
 import { requireAuth } from '../middleware/auth'
 import { adminOnly } from '../middleware/roles'
-import { loginLimiter, trocaLoginLimiter, sessaoLimiter } from '../middleware/rateLimiter'
-import { validateBody, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
+import { loginLimiter, sessaoLimiter, solicitarAcessoLimiter, criticalLimiter } from '../middleware/rateLimiter'
+import { validateBody, loginSchema, solicitarAcessoSchema, trocarSenhaSchema, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
 import { TERMOS_VERSAO } from '../termos'
 import { Membro, Conta, FastData, LinkPerfil } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { bloqueioDeAcesso } from '../efetivo'
-import { buscarMembroServidor, aplicarIdentidade, servidorConfigurado } from '../discord/identidade'
+import { bloqueio, registrarFalha, limparFalhas } from '../security/bruteForce'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
 import { imagemValida, ehLinkImagem } from '../security/imagem'
-import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID, discordIdsDonos, dispensaServidor, garantirAcessoDono } from '../access'
+import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID } from '../access'
 
 const router = Router()
 
-// Autenticação exclusivamente via Discord OAuth2 (sem login por senha).
+// Autenticação por usuário e senha (igual ao Sistema Tática): quem não tem conta
+// pede o acesso na tela de login e o comando aprova em Configurações → Solicitações.
 
-// ── Discord OAuth ────────────────────────────────────────────────
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
-const DISCORD_AUTHORIZE = 'https://discord.com/api/oauth2/authorize'
-const DISCORD_TOKEN = 'https://discord.com/api/oauth2/token'
-const DISCORD_ME = 'https://discord.com/api/users/@me'
-const oauthStates = new Set<string>()
-const loginCodes = new Map<string, { token: string; contaId: number; username: string; nivel: string; binding: string }>()
-const stateCookie = 'fast_oauth_state'
-const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api/auth' }
 function lerCookie(req: Request, nome: string): string | undefined {
   return req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith(`${nome}=`))?.slice(nome.length + 1)
 }
-function browserState(req: Request): string | undefined { return lerCookie(req, stateCookie) }
 // Sessão ao recarregar a página: o token fica num cookie httpOnly (JS não lê), SameSite=Strict,
 // enviado só para /api/auth/sessao. Nada de token em localStorage/sessionStorage.
 const sessaoCookie = 'fast_sessao'
 const sessaoCookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const, path: '/api/auth/sessao' }
 const SESSAO_MAX_MS = 8 * 3600_000
 
-function discordConfigured(): boolean {
-  return !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET && process.env.DISCORD_REDIRECT_URI)
-}
-
 function issueToken(conta: { id: number; username: string; nivel: string }): string {
   const jti = crypto.randomUUID()
-  // scope = hash do servidor+bot (IDs não ficam legíveis no payload); iss/aud/exp em security/jwt.ts
+  // scope = hash do servidor configurado (se houver); iss/aud/exp em security/jwt.ts
   const payload: Record<string, unknown> = { contaId: conta.id, username: conta.username, nivel: conta.nivel, jti }
   const escopo = escopoDoToken(configuredScope())
   if (escopo) payload.scope = escopo
   return assinarToken(payload)
 }
-// Teto de states pendentes (evita encher memória com /discord em massa)
-const MAX_OAUTH_PENDENTES = 5_000
 
-// GET /api/auth/discord — inicia o fluxo
-router.get('/discord', loginLimiter, (_req: Request, res: Response): void => {
-  if (!discordConfigured()) {
-    res.redirect(`${FRONTEND_URL}/login?reason=discord_off`)
-    return
-  }
-  if (oauthStates.size >= MAX_OAUTH_PENDENTES) {
-    res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`)
-    return
-  }
-  const state = crypto.randomUUID()
-  oauthStates.add(state)
-  setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000).unref()
-  res.cookie(stateCookie, state, { ...cookieOptions, maxAge: 10 * 60 * 1000 })
+// Hash fixo para comparar quando o usuário não existe: o tempo de resposta é o mesmo
+// (não revela quais usuários existem).
+const HASH_FALSO = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 12)
+const mesmoUsuario = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
-  const params = new URLSearchParams({
-    client_id: process.env.DISCORD_CLIENT_ID!,
-    redirect_uri: process.env.DISCORD_REDIRECT_URI!,
-    response_type: 'code',
-    // guilds.members.read: confere o vínculo com o servidor sem bot
-    scope: 'identify guilds.members.read',
-    state,
-    prompt: 'consent',
-  })
-  res.redirect(`${DISCORD_AUTHORIZE}?${params.toString()}`)
+// POST /api/auth/login — usuário + senha
+router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Request, res: Response): Promise<void> => {
+  const { username, password } = req.body as { username: string; password: string }
+  const espera = bloqueio(username)
+  if (espera > 0) {
+    audit('LOGIN_LOCKED', req, `Usuário: ${username}`)
+    res.status(429).json({ error: `Muitas tentativas. Tente novamente em ${Math.ceil(espera / 60_000)} minuto(s).` }); return
+  }
+
+  const conta = readData().contas.find(c => mesmoUsuario(c.username, username))
+  const senhaCorreta = await bcrypt.compare(password, conta?.password ?? HASH_FALSO)
+  if (!conta?.password || !senhaCorreta) {
+    registrarFalha(username)
+    audit('LOGIN_FAILED', req, `Usuário: ${username}`)
+    res.status(401).json({ error: 'Usuário ou senha incorretos.' }); return
+  }
+  limparFalhas(username)
+
+  // Senha correta: só agora o estado da conta é revelado
+  const data = readData()
+  const atual = data.contas.find(c => c.id === conta.id)!
+  if (atual.exonerado) {
+    audit('LOGIN_FAILED', req, `Exonerado: ${atual.username}`)
+    res.status(403).json({ error: 'Você foi exonerado da unidade.', reason: 'exonerado' }); return
+  }
+  if (!atual.ativo) {
+    audit('LOGIN_FAILED', req, `Conta desativada: ${atual.username}`)
+    res.status(403).json({ error: 'Conta desativada. Contate o comando.', reason: 'desativada' }); return
+  }
+  const bloqueioAcesso = bloqueioDeAcesso(atual, data)
+  if (bloqueioAcesso?.codigo === 'AUSENTE') {
+    audit('LOGIN_FAILED', req, `Em ausência até ${bloqueioAcesso.ate} — ${atual.username}`)
+    res.status(403).json({ error: 'Você está em ausência.', reason: 'ausente', ate: bloqueioAcesso.ate }); return
+  }
+
+  const token = issueToken(atual)
+  audit('LOGIN_SUCCESS', req, `Usuário: ${atual.username}`)
+  res.cookie(sessaoCookie, token, { ...sessaoCookieOptions, maxAge: SESSAO_MAX_MS })
+  res.json({ token, contaId: atual.id, username: atual.username, nivel: atual.nivel })
 })
 
-// GET /api/auth/discord/callback — Discord retorna aqui
-router.get('/discord/callback', loginLimiter, async (req: Request, res: Response): Promise<void> => {
-  if (!discordConfigured()) { res.redirect(`${FRONTEND_URL}/login?reason=discord_off`); return }
-
-  const { code, state } = req.query as { code?: string; state?: string }
-  if (typeof code !== 'string' || typeof state !== 'string' || code.length > 512 || !oauthStates.has(state) || !iguaisSeguro(browserState(req), state)) {
-    res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`)
-    return
+// POST /api/auth/solicitar — pedido de acesso (público). O comando aprova e a conta é criada.
+router.post('/solicitar', solicitarAcessoLimiter, validateBody(solicitarAcessoSchema), async (req: Request, res: Response): Promise<void> => {
+  const { username, password, nome } = req.body as { username: string; password: string; nome: string }
+  const senha = await bcrypt.hash(password, 12)
+  // Sem await daqui até writeData
+  const data = readData()
+  if (data.contas.some(c => mesmoUsuario(c.username, username)) || data.solicitacoesAcesso.some(s => mesmoUsuario(s.username, username))) {
+    res.status(409).json({ error: 'Esse usuário já está em uso. Escolha outro.' }); return
   }
-  oauthStates.delete(state)
-
-  try {
-    const tokenRes = await fetch(DISCORD_TOKEN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.DISCORD_CLIENT_ID!,
-        client_secret: process.env.DISCORD_CLIENT_SECRET!,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: process.env.DISCORD_REDIRECT_URI!,
-      }),
-    })
-    if (!tokenRes.ok) throw new Error('token exchange failed')
-    const tokenJson = await tokenRes.json() as { access_token: string }
-
-    const meRes = await fetch(DISCORD_ME, {
-      headers: { Authorization: `Bearer ${tokenJson.access_token}` },
-    })
-    if (!meRes.ok) throw new Error('user fetch failed')
-    const me = await meRes.json() as { id: string; username: string; global_name?: string }
-
-    // Donos (DISCORD_OWNER_ID, aceita vários IDs separados por vírgula) têm
-    // acesso total. O primeiro dono a entrar assume a conta id 1.
-    const ehDono = discordIdsDonos().includes(me.id)
-
-    // Vínculo com o servidor: só entra quem faz parte do servidor da unidade,
-    // conferido com o token da própria pessoa. Donos passam (evita ficar trancado fora).
-    let membroServidor: Awaited<ReturnType<typeof buscarMembroServidor>>
-    try { membroServidor = await buscarMembroServidor(tokenJson.access_token) } catch (err) {
-      console.error('[DU][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
-      if (!ehDono) { res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return }
-    }
-    if (!ehDono) {
-      if (!servidorConfigurado()) {
-        audit('DISCORD_LOGIN_DENIED', req, `Servidor da unidade não configurado — Discord: ${me.username} (${me.id})`)
-        res.redirect(`${FRONTEND_URL}/login?reason=discord_off`); return
-      }
-      if (!membroServidor && !dispensaServidor(me.id)) {
-        audit('DISCORD_LOGIN_DENIED', req, `Não faz parte do servidor — Discord: ${me.username} (${me.id})`)
-        res.redirect(`${FRONTEND_URL}/login?reason=fora_servidor`); return
-      }
-      if (!membroServidor) audit('DISCORD_LOGIN_SUCCESS', req, `Acesso externo (fora do servidor) liberado — Discord: ${me.username} (${me.id})`)
-    }
-
-    // Sem await daqui até writeData: evita sobrescrever gravações concorrentes
-    const data = readData()
-    let conta = data.contas.find(c => c.discordId === me.id)
-    if (!conta && ehDono) {
-      const dono = data.contas.find(c => c.id === PROTECTED_OWNER_ID)
-      if (dono && !dono.discordId) {
-        dono.discordId = me.id
-        dono.ativo = true
-        conta = dono
-        audit('DISCORD_ACCOUNT_CREATED', req, `Conta dona vinculada ao Discord ${me.username} (${me.id})`)
-      }
-    }
-
-    // Dono já com conta: garante acesso total (inclusive se foi exonerado/desativado)
-    if (conta && ehDono && garantirAcessoDono(conta, data)) {
-      audit('ACCOUNT_UPDATED', req, `Acesso total garantido ao dono ${me.username} (${me.id})`)
-    }
-
-    // Exonerado → aviso específico
-    if (conta?.exonerado) {
-      audit('DISCORD_LOGIN_DENIED', req, `Exonerado — Discord: ${me.username} (${me.id})`)
-      res.redirect(`${FRONTEND_URL}/login?reason=exonerado`)
-      return
-    }
-
-    // Conta vinculada porém desativada → nega
-    if (conta && !conta.ativo) {
-      audit('DISCORD_LOGIN_DENIED', req, `Conta inativa — Discord: ${me.username} (${me.id})`)
-      res.redirect(`${FRONTEND_URL}/login?reason=discord_nao_vinculado`)
-      return
-    }
-
-    // Sem vínculo → auto-cadastra (a menos que DISCORD_AUTO_CREATE=false)
-    if (!conta) {
-      const autoCreate = (process.env.DISCORD_AUTO_CREATE ?? 'true') !== 'false'
-      if (!autoCreate) {
-        audit('DISCORD_LOGIN_DENIED', req, `Sem vínculo — Discord: ${me.username} (${me.id})`)
-        res.redirect(`${FRONTEND_URL}/login?reason=discord_nao_vinculado`)
-        return
-      }
-      const displayName = me.global_name || me.username
-      const base = displayName.toLowerCase().replace(/[^a-z0-9._-]/g, '') || `discord_${me.id.slice(-6)}`
-      let username = base
-      let n = 1
-      while (data.contas.some(c => c.username.toLowerCase() === username.toLowerCase())) username = `${base}${n++}`
-      const nivel = (process.env.DISCORD_DEFAULT_NIVEL || 'membro') as 'admin' | 'moderador' | 'membro' | 'view_only'
-      conta = {
-        id: data.nextContaId,
-        username,
-        nivel,
-        ativo: true,
-        discordId: me.id,
-        discordUsername: displayName,
-        onboarded: false,   // completa o cadastro no primeiro acesso
-      }
-      data.contas.push(conta)
-      data.nextContaId++
-      if (ehDono) {
-        garantirAcessoDono(conta, data)
-        audit('DISCORD_ACCOUNT_CREATED', req, `Dono ${username} criado com acesso total`)
-      }
-      if (!ehDono) notificar(data, conta.id, 'cadastro', 'Bem-vindo à DU!',
-        'Preencha seu cadastro para enviá-lo ao comando. Após a aprovação, você recebe seu cargo e o acesso ao painel.', '/perfil')
-      if (!ehDono) notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Novo acesso pelo Discord',
-        `${displayName} entrou pelo Discord e está preenchendo o cadastro.`, '/configuracoes')
-      audit('DISCORD_ACCOUNT_CREATED', req, `Nova conta via Discord: ${username} | aguardando aprovação`)
-    } else {
-      conta.discordUsername = me.global_name || me.username
-    }
-
-    // Nome e foto iguais aos do servidor da unidade
-    if (membroServidor) aplicarIdentidade(conta, membroServidor)
-
-    writeData(data)
-
-    const bloqueio = bloqueioDeAcesso(conta, data)
-    if (bloqueio?.codigo === 'AUSENTE') {
-      audit('DISCORD_LOGIN_DENIED', req, `Em ausência até ${bloqueio.ate} — ${conta.username}`)
-      res.redirect(`${FRONTEND_URL}/login?reason=ausente&ate=${bloqueio.ate}`)
-      return
-    }
-
-    const token = issueToken(conta)
-    audit('DISCORD_LOGIN_SUCCESS', req, `Usuário: ${conta.username} | Discord: ${me.username}`)
-    const loginCode = crypto.randomBytes(32).toString('hex')
-    loginCodes.set(loginCode, { token, contaId: conta.id, username: conta.username, nivel: conta.nivel, binding: state })
-    setTimeout(() => loginCodes.delete(loginCode), 60_000).unref()
-    res.redirect(`${FRONTEND_URL}/auth/discord#code=${loginCode}`)
-  } catch {
-    audit('DISCORD_LOGIN_ERROR', req)
-    res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`)
+  if (data.solicitacoesAcesso.length >= 200) {
+    res.status(429).json({ error: 'Muitos pedidos aguardando aprovação. Tente novamente mais tarde.' }); return
   }
+  data.solicitacoesAcesso.push({ id: data.nextSolAcessoId++, username, senha, nome, criadoEm: new Date().toISOString() })
+  notificarAdmins(data, undefined, 'pendente_aprovacao', 'Pedido de acesso',
+    `${nome} (@${username}) pediu acesso ao painel.`, '/configuracoes')
+  writeData(data)
+  audit('SIGNUP_REQUESTED', req, `Usuário: ${username}`)
+  res.status(201).json({ ok: true })
 })
 
-// POST /api/auth/logout
-router.post('/discord/exchange', trocaLoginLimiter, (req, res): void => {
-  const code = req.body?.code
-  const session = typeof code === 'string' && code.length <= 128 ? loginCodes.get(code) : undefined
-  if (!session || !iguaisSeguro(browserState(req), session.binding)) {
-    res.status(400).json({ error: 'Login inválido ou expirado' }); return
+// PUT /api/auth/me/senha — troca a própria senha (encerra a sessão atual)
+router.put('/me/senha', requireAuth, criticalLimiter, validateBody(trocarSenhaSchema), async (req: Request, res: Response): Promise<void> => {
+  const { senhaAtual, novaSenha } = req.body as { senhaAtual: string; novaSenha: string }
+  const conta = readData().contas.find(c => c.id === req.user!.contaId)
+  if (!conta?.password || !(await bcrypt.compare(senhaAtual, conta.password))) {
+    audit('PASSWORD_CHANGED', req, 'Falha — senha atual incorreta')
+    res.status(400).json({ error: 'Senha atual incorreta.' }); return
   }
-  loginCodes.delete(code)
-  res.clearCookie(stateCookie, cookieOptions)
-  res.cookie(sessaoCookie, session.token, { ...sessaoCookieOptions, maxAge: SESSAO_MAX_MS })
-  const { binding: _binding, ...result } = session
-  res.json(result)
+  if (senhaAtual === novaSenha) { res.status(400).json({ error: 'A nova senha precisa ser diferente da atual.' }); return }
+  const hash = await bcrypt.hash(novaSenha, 12)
+  const data = readData()
+  const alvo = data.contas.find(c => c.id === conta.id)
+  if (!alvo) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  alvo.password = hash
+  writeData(data)
+  if (req.user!.jti && req.user!.exp) revokeToken(req.user!.jti, req.user!.exp * 1000)
+  res.clearCookie(sessaoCookie, sessaoCookieOptions)
+  audit('PASSWORD_CHANGED', req, 'Senha alterada')
+  res.json({ ok: true })
 })
 
 // POST /api/auth/sessao — devolve a sessão do cookie httpOnly (recarregar a página sem novo login).

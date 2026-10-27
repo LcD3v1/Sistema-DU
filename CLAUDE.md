@@ -13,7 +13,7 @@ Detalhes: `docs/SECURITY.md`.
 
 ## Rotas do backend (toda rota nova)
 - `requireAuth` + `requireArea(area, 'ver')` para leitura e `requireArea(area, 'editar')` para escrita
-  (ou `adminOnly`). Exceções públicas só em `routes/public.ts` e no fluxo OAuth.
+  (ou `adminOnly`). Exceções públicas só em `routes/public.ts` e no login (`/api/auth/login`, `/api/auth/solicitar`, com limitador próprio).
 - Corpo validado com Zod (`validateBody`, schemas em `middleware/validate.ts`); IDs de rota com `parseInt` + checagem.
 - Rate limit: já há limitadores globais em `index.ts` (API, escrita, upload, público, ranking, backup);
   endpoints caros/críticos ganham limitador próprio em `middleware/rateLimiter.ts`.
@@ -40,7 +40,7 @@ Detalhes: `docs/SECURITY.md`.
 - Nenhum outro protocolo (`javascript:`, `file:`, `data:text/html`…). O backend não busca URLs de usuários (sem SSRF).
 
 ## Contas exoneradas
-- Exonerado = bloqueio total (login OAuth e toda rota via `requireAuth`), mas os dados são **arquivados**
+- Exonerado = bloqueio total (login e toda rota via `requireAuth`), mas os dados são **arquivados**
   (`membroArquivado`), nunca apagados. Não crie caminhos que contornem esse bloqueio.
 
 ## Dados

@@ -8,7 +8,6 @@ import type { AreaId } from '@/lib/permAreas'
 import { Suspense } from 'react'
 import { MotionConfig } from 'framer-motion'
 import AppShell from '@/components/layout/AppShell'
-import DiscordCallback from '@/components/sections/DiscordCallback'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { paginaLazy } from '@/lib/rotas'
 import FaixaAmbiente from '@/components/ui/FaixaAmbiente'
@@ -96,7 +95,6 @@ export default function App() {
           <Route path="/login" element={
             <PublicRoute><LoginPage /></PublicRoute>
           } />
-          <Route path="/auth/discord" element={<DiscordCallback />} />
           <Route path="/perfil/:slug" element={<PerfilPublicoPage />} />
           <Route path="/termos" element={<TermosPage />} />
           <Route path="/" element={

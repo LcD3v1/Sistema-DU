@@ -217,7 +217,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
         <Link to="/termos#privacidade" className="text-txt3 hover:text-gold3 transition-colors">Privacidade</Link>
         <Link to="/termos#cookies" className="text-txt3 hover:text-gold3 transition-colors">Cookies</Link>
         <Link to="/termos#licenca" className="text-txt3 hover:text-gold3 transition-colors">Licença</Link>
-        <span className="w-full text-txt3/70 normal-case tracking-wide">© Nata Studios &amp; Nextech</span>
+        <span className="w-full text-txt3/70 normal-case tracking-wide">© Nata Studios</span>
       </div>
     </nav>
     </>

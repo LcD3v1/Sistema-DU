@@ -5,7 +5,7 @@ import { useUIStore } from '@/store/uiStore'
 import { useMembros } from '@/hooks/useMembros'
 import { useLogo } from '@/hooks/useConfig'
 import { desenharCarteiraDU, validadePadrao, CARTEIRA_W, CARTEIRA_H, type DadosCarteira } from '@/lib/carteiraDU'
-import emblemaPadrao from '@/assets/du-emblem.svg'
+import emblemaPadrao from '@/assets/du-logo.webp'
 
 export default function GerarCarteiraPage() {
   const navigate = useNavigate()

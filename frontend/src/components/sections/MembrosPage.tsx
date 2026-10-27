@@ -416,7 +416,7 @@ export default function MembrosPage() {
             <table className="w-full text-sm min-w-[760px]">
               <thead>
                 <tr className="border-b border-bdr">
-                  {['Nome', 'Discord', 'Data', 'Motivo', 'Ação'].map(h => (
+                  {['Nome', 'Usuário', 'Data', 'Motivo', 'Ação'].map(h => (
                     <th key={h} className="text-left font-mono text-xs text-txt3 tracking-wider px-3 py-3">{h}</th>
                   ))}
                 </tr>
@@ -446,7 +446,7 @@ export default function MembrosPage() {
                           </button>
                           {conta.cargoNome && <span className="ml-2 text-[10px] font-mono text-txt3">{conta.cargoNome}</span>}
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs text-txt2">{discordNome(conta) ? `@${discordNome(conta)}` : '—'}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-txt2">{`@${conta.username}`}</td>
                         <td className="px-3 py-3 font-mono text-xs text-txt2">{conta.exoneradoEm ? new Date(conta.exoneradoEm).toLocaleDateString('pt-BR') : '—'}</td>
                         <td className="px-3 py-3 text-xs text-txt2 max-w-[360px] truncate" title={conta.exoneradoMotivo ?? ''}>{conta.exoneradoMotivo || '—'}</td>
                         <td className="px-3 py-3">

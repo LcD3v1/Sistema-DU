@@ -18,7 +18,7 @@ export function hoje(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: TZ })
 }
 
-/** Conta dona: id 1 ou Discord listado em DISCORD_OWNER_ID. */
+/** Conta dona: a conta 1. */
 export function ehContaDona(conta: Conta | undefined): boolean {
   return !!conta && ehDono(conta)
 }

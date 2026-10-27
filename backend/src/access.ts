@@ -11,57 +11,13 @@ import { PermMap, AreaId, fullPermMap, emptyPermMap, normalizePermMap } from './
  */
 export const PROTECTED_OWNER_ID = 1
 
-const idsDiscord = (valor: string | undefined): string[] =>
-  (valor ?? '').split(/[,;\s]+/).map(s => s.trim()).filter(s => /^\d{17,20}$/.test(s))
-
-/** IDs do Discord com acesso total (DISCORD_OWNER_ID, separados por vírgula). */
-export function discordIdsDonos(): string[] {
-  return idsDiscord(process.env.DISCORD_OWNER_ID)
-}
-
-/**
- * IDs do Discord liberados a entrar SEM fazer parte do servidor da unidade
- * (DISCORD_ACESSO_EXTERNO, separados por vírgula). Só dispensa a presença no
- * servidor: não dá cargo, não vira dono e não fura exoneração/conta inativa.
- */
-export function discordIdsAcessoExterno(): string[] {
-  return idsDiscord(process.env.DISCORD_ACESSO_EXTERNO)
-}
-
-/** Dispensado de estar no servidor: dono ou liberado em DISCORD_ACESSO_EXTERNO. */
-export function dispensaServidor(discordId: string): boolean {
-  return discordIdsDonos().includes(discordId) || discordIdsAcessoExterno().includes(discordId)
-}
-
-/**
- * Garante acesso total a uma conta de dono: atribui um cargo de acesso total
- * (o primeiro existente, ou cria "Administrador") e reativa a conta.
- * Muta `data` — o chamador grava. Retorna true se algo mudou.
- */
-export function garantirAcessoDono(conta: Conta, data: FastData): boolean {
-  let mudou = false
-  if (!conta.ativo || conta.exonerado) {
-    conta.ativo = true
-    delete conta.exonerado; delete conta.exoneradoEm; delete conta.exoneradoMotivo
-    mudou = true
-  }
-  if (conta.id === PROTECTED_OWNER_ID || isAdmin(conta, data)) return mudou
-  let cargo = data.cargosPermissao.find(c => c.admin)
-  if (!cargo) {
-    cargo = { id: data.nextCargoPermId++, nome: 'Administrador', admin: true, padrao: false, permissoes: fullPermMap() }
-    data.cargosPermissao.unshift(cargo)
-  }
-  conta.cargoPermId = cargo.id
-  return true
-}
-
 export function getCargo(conta: Conta, data: FastData): CargoPermissao | undefined {
   return conta.cargoPermId ? data.cargosPermissao.find(c => c.id === conta.cargoPermId) : undefined
 }
 
-/** Conta dona: id 1 ou Discord listado em DISCORD_OWNER_ID. Dono é sempre dev. */
+/** Conta dona: a conta 1 (criada no primeiro boot). Dono é sempre dev. */
 export function ehDono(conta: Conta): boolean {
-  return conta.id === PROTECTED_OWNER_ID || (!!conta.discordId && discordIdsDonos().includes(conta.discordId))
+  return conta.id === PROTECTED_OWNER_ID
 }
 
 /**

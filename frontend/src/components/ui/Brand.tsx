@@ -1,5 +1,5 @@
 import { useLogo } from '@/hooks/useConfig'
-import emblem from '@/assets/du-emblem.svg'
+import emblem from '@/assets/du-logo.webp'
 
 export default function Brand({ size = 56, className = '' }: { size?: number; className?: string }) {
   const { data: logoData } = useLogo()

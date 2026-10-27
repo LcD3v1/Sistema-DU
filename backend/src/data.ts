@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+import bcrypt from 'bcrypt'
 import { FastData, CargoPermissao } from './types'
 import { fullPermMap, normalizePermMap } from './permAreas'
 import { bindDataScope, configuredScope } from './modules/ranking/scope'
@@ -58,6 +60,8 @@ const DEFAULT_DATA: FastData = {
   nextNotifId: 1,
   solicitacoesPerfil: [],
   nextSolPerfilId: 1,
+  solicitacoesAcesso: [],
+  nextSolAcessoId: 1,
   relatorios: [],
   boletins: [],
   inqueritos: [],
@@ -302,28 +306,38 @@ export function ensureFastPermissionRoles(): void {
 }
 
 /**
- * Garante a conta dona (id 1). Sem senha: ela é assumida no primeiro login
- * pelo primeiro Discord listado em DISCORD_OWNER_ID (aceita vários, separados por vírgula).
+ * Garante a conta dona (id 1, usuário "admin") com senha. A senha inicial vem de
+ * ADMIN_INITIAL_PASSWORD (mín. 12 caracteres); sem ela, é gerada uma senha aleatória
+ * e mostrada UMA vez no console do servidor. Troque-a no perfil depois do 1º login.
  */
 export function ensureDefaultAdmin(): void {
   const data = readData()
-  // Remove resíduos do antigo login por senha
+  // Remove resíduos de versões antigas
   const legado = data as FastData & { solicitacoes?: unknown; nextSolId?: unknown }
   let mudou = 'solicitacoes' in legado || 'nextSolId' in legado
   delete legado.solicitacoes
   delete legado.nextSolId
-  for (const c of data.contas as (FastData['contas'][number] & { password?: string })[]) {
-    if ('password' in c) { delete c.password; mudou = true }
-  }
-  if (data.contas.length === 0) {
-    data.contas.push({ id: 1, username: 'admin', nivel: 'admin', ativo: true })
-    data.nextContaId = 2
+  let dono = data.contas.find(c => c.id === 1)
+  if (!dono) {
+    const usado = data.contas.some(c => c.username.toLowerCase() === 'admin')
+    dono = { id: 1, username: usado ? 'admin-du' : 'admin', nivel: 'admin', ativo: true, onboarded: true }
+    data.contas.unshift(dono)
+    data.nextContaId = Math.max(data.nextContaId, 2)
     mudou = true
-    console.log('[DU] Conta dona criada — será vinculada ao Discord de DISCORD_OWNER_ID no primeiro login.')
+  }
+  if (!dono.password) {
+    const doEnv = process.env.ADMIN_INITIAL_PASSWORD?.trim()
+    const senha = doEnv && doEnv.length >= 12 ? doEnv
+      : Array.from({ length: 4 }, () => crypto.randomBytes(3).toString('base64url').slice(0, 4)).join('-')
+    dono.password = bcrypt.hashSync(senha, 12)
+    mudou = true
+    if (doEnv && doEnv.length >= 12) {
+      console.log(`[DU] Conta dona pronta: usuário "${dono.username}", senha definida por ADMIN_INITIAL_PASSWORD.`)
+    } else {
+      if (doEnv) console.warn('[DU][ATENÇÃO] ADMIN_INITIAL_PASSWORD tem menos de 12 caracteres — ignorada.')
+      console.warn(`[DU][ATENÇÃO] Conta dona criada: usuário "${dono.username}" · senha inicial: ${senha}`)
+      console.warn('[DU][ATENÇÃO] Anote e troque a senha no perfil após o primeiro login. Ela não será mostrada de novo.')
+    }
   }
   if (mudou) writeData(data)
-  const dono = data.contas.find(c => c.id === 1)
-  if (dono && !dono.discordId && !process.env.DISCORD_OWNER_ID) {
-    console.warn('[DU][ATENÇÃO] A conta dona ainda não tem Discord vinculado e DISCORD_OWNER_ID não está definido — ninguém terá acesso de administrador.')
-  }
 }

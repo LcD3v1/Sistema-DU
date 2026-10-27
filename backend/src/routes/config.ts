@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import bcrypt from 'bcrypt'
 import { requireAuth } from '../middleware/auth'
 import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../middleware/roles'
 import { criticalLimiter } from '../middleware/rateLimiter'
@@ -10,6 +11,7 @@ import {
   reorderPatenteSchema, reorderQruSchema,
   situacaoAnuncioSchema, situacaoAnuncioUpdateSchema,
   cargoPermCreateSchema, cargoPermUpdateSchema, reorderCargosSchema,
+  aprovarAcessoSchema, redefinirSenhaSchema,
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
@@ -20,6 +22,11 @@ import { isDev, podeAtribuirCargo } from '../access'
 import { notificar } from '../notificacoes'
 
 const router = Router()
+
+/** Conta para a tela de Configurações: nunca leva o hash da senha. */
+function contaPublica({ password: _p, ...resto }: Conta) {
+  return { ...resto, temSenha: Boolean(_p) }
+}
 
 /** O autor da requisição é dev? (poder total, acima do admin) */
 function souDev(req: Request, data: FastData): boolean {
@@ -188,7 +195,7 @@ router.delete('/anuncio-situacoes/:id', requireAuth, requireArea('configuracoes'
 
 router.get('/contas', requireAuth, adminOnly, (_req, res) => {
   const data = readData()
-  res.json(data.contas)
+  res.json(data.contas.map(contaPublica))
 })
 
 router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema), async (req: Request, res: Response): Promise<void> => {
@@ -261,7 +268,68 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
 
   writeData(data)
   audit('ACCOUNT_UPDATED', req, `ID: ${id} | ${changes.join(', ')}`)
-  res.json(conta)
+  res.json(contaPublica(conta))
+})
+
+// PUT /api/config/contas/:id/senha — admin redefine a senha (ex.: membro esqueceu)
+router.put('/contas/:id/senha', requireAuth, adminOnly, criticalLimiter, validateBody(redefinirSenhaSchema), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+  const { novaSenha } = req.body as { novaSenha: string }
+  const hash = await bcrypt.hash(novaSenha, 12)
+  const data = readData()
+  const conta = data.contas.find(c => c.id === id)
+  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  // Só dev mexe na senha de um dev (e ninguém além do próprio dono mexe na conta dona)
+  if (id === 1 && req.user!.contaId !== 1) { res.status(403).json({ error: 'Só o próprio dono altera esta senha.' }); return }
+  if (!souDev(req, data) && isDev(conta, data)) { res.status(403).json({ error: 'Acesso negado' }); return }
+  conta.password = hash
+  writeData(data)
+  audit('PASSWORD_CHANGED', req, `Senha redefinida pelo admin — conta #${id}`)
+  res.json({ ok: true })
+})
+
+// ── Pedidos de acesso (tela de login) ─────────────────────────────────────────
+
+router.get('/solicitacoes-acesso', requireAuth, adminOnly, (_req, res) => {
+  res.json(readData().solicitacoesAcesso.map(({ id, username, nome, criadoEm }) => ({ id, username, nome, criadoEm })))
+})
+
+// Aprova: cria a conta com a senha que a pessoa escolheu. Cargo opcional (senão o cargo padrão).
+router.post('/solicitacoes-acesso/:id/aprovar', requireAuth, adminOnly, validateBody(aprovarAcessoSchema), (req: Request, res: Response): void => {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+  const data = readData()
+  const idx = data.solicitacoesAcesso.findIndex(s => s.id === id)
+  if (idx === -1) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
+  const sol = data.solicitacoesAcesso[idx]
+  if (data.contas.some(c => c.username.toLowerCase() === sol.username.toLowerCase())) {
+    res.status(409).json({ error: 'Já existe uma conta com esse usuário.' }); return
+  }
+  const { cargoPermId } = req.body as { cargoPermId?: number | null }
+  const autor = data.contas.find(c => c.id === req.user!.contaId)!
+  let cargo = cargoPermId ? data.cargosPermissao.find(c => c.id === cargoPermId) : data.cargosPermissao.find(c => c.padrao && !c.admin)
+  if (cargoPermId && !cargo) { res.status(400).json({ error: 'Cargo de permissão não encontrado' }); return }
+  if (cargo && !podeAtribuirCargo(autor, cargo, data)) { res.status(403).json({ error: 'Você não pode atribuir este cargo.' }); return }
+  const nova: Conta = { id: data.nextContaId++, username: sol.username, password: sol.senha, nivel: 'membro', ativo: true,
+    onboarded: false, nomeServidor: sol.nome, ...(cargo ? { cargoPermId: cargo.id } : {}) }
+  data.contas.push(nova)
+  data.solicitacoesAcesso.splice(idx, 1)
+  writeData(data)
+  audit('SIGNUP_APPROVED', req, `Usuário: ${nova.username} | Cargo: #${nova.cargoPermId ?? '—'}`)
+  res.status(201).json(contaPublica(nova))
+})
+
+router.delete('/solicitacoes-acesso/:id', requireAuth, adminOnly, (req: Request, res: Response): void => {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+  const data = readData()
+  const antes = data.solicitacoesAcesso.length
+  data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.id !== id)
+  if (data.solicitacoesAcesso.length === antes) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
+  writeData(data)
+  audit('SIGNUP_REJECTED', req, `Pedido #${id}`)
+  res.json({ ok: true })
 })
 
 router.delete('/contas/:id', requireAuth, adminOnly, (req: Request, res: Response): void => {
@@ -439,8 +507,13 @@ router.post('/restore', requireAuth, adminOnly, criticalLimiter, (req: Request, 
     res.status(400).json({ error: 'Backup inválido — campos obrigatórios ausentes' }); return
   }
 
-  // Descarta hashes de senha de backups antigos (login agora é só via Discord)
-  for (const c of body.contas as (Conta & { password?: string })[]) delete c.password
+  // Senhas: só hashes bcrypt válidos entram. A conta dona mantém a senha atual se o backup não tiver.
+  const atual = readData()
+  for (const c of body.contas as Conta[]) {
+    if (typeof c.password !== 'string' || !/^$2[aby]$d{2}$[./A-Za-z0-9]{53}$/.test(c.password)) delete c.password
+    if (c.id === 1 && !c.password) c.password = atual.contas.find(x => x.id === 1)?.password
+  }
+  if (!Array.isArray(body.solicitacoesAcesso)) { body.solicitacoesAcesso = []; body.nextSolAcessoId = 1 }
 
   writeData(body as FastData)
   audit('RESTORE_EXECUTED', req, `Membros: ${body.membros?.length} | Ações: ${body.acoes?.length}`)

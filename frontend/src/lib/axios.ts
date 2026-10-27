@@ -17,7 +17,9 @@ api.interceptors.request.use(cfg => {
 api.interceptors.response.use(
   r => r,
   err => {
-    if (err.response?.status === 401) {
+    // 401 no próprio login/pedido de acesso é "senha errada", não sessão expirada: a tela trata
+    const rotaDeEntrada = /\/auth\/(login|solicitar)$/.test(err.config?.url ?? '')
+    if (err.response?.status === 401 && !rotaDeEntrada) {
       useAuthStore.getState().clearAuth()
       const body = err.response?.data ?? {}
       let reason = ''

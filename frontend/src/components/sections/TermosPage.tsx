@@ -106,7 +106,7 @@ export default function TermosPage() {
 
             <footer className="mt-12 pt-5 border-t border-bdr text-[12px] text-txt3 leading-relaxed">
               © {new Date().getFullYear()} {EMPRESAS}. Todos os direitos reservados. Dúvidas sobre estes documentos:
-              fale com o comando da unidade ou com as empresas pelo canal oficial no Discord.
+              fale com o comando da unidade ou com a Nata Studios pelo canal oficial da unidade.
             </footer>
           </motion.article>
         </AnimatePresence>

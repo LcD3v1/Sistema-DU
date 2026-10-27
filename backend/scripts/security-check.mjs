@@ -145,12 +145,10 @@ for (const lim of ['globalLimiter', 'apiLimiter', 'mutationLimiter', 'uploadLimi
   check(new RegExp(`app\\.use\\([^\\n]*${lim}`).test(index) || new RegExp(`\\? ${lim}\\(`).test(index), `${lim} aplicado`, `${lim} NÃO aplicado em index.ts`)
 }
 const authRoutes = ler('src/routes/auth.ts')
-check(/router\.post\('\/discord\/exchange', trocaLoginLimiter/.test(authRoutes), 'trocaLoginLimiter em /discord/exchange', 'rate limit ausente em /discord/exchange')
+check(/router\.post\('\/login', loginLimiter, validateBody\(loginSchema\)/.test(authRoutes), 'loginLimiter + Zod em /login', 'rate limit/Zod ausente em /login')
+check(/router\.post\('\/solicitar', solicitarAcessoLimiter, validateBody\(solicitarAcessoSchema\)/.test(authRoutes), 'limitador próprio + Zod no pedido de acesso', 'pedido de acesso sem limitador/Zod')
 check(/router\.post\('\/sessao', sessaoLimiter/.test(authRoutes), 'sessaoLimiter em /sessao', 'rate limit ausente em /sessao')
 check(/httpOnly: true, [^\n]*sameSite: 'strict'[^\n]*path: '\/api\/auth\/sessao'/.test(authRoutes), 'cookie de sessão httpOnly + SameSite=Strict', 'cookie de sessão sem httpOnly/SameSite=Strict')
-for (const rota of ["'/discord'", "'/discord/callback'"]) {
-  check(new RegExp(`router\\.(get|post)\\(${rota.replace(/[/]/g, '\\/')}, loginLimiter`).test(authRoutes), `loginLimiter em ${rota}`, `loginLimiter ausente em ${rota}`)
-}
 check(/router\.post\('\/me\/nivel\/solicitar', requireAuth, validateBody\(nivelInicialSchema\)/.test(authRoutes),
   'pedido de nível exige login + Zod', 'pedido de nível sem requireAuth/validateBody')
 check(/router\.put\('\/solicitacoes-perfil\/:id\/aprovar', requireAuth, requireArea\('membros', 'editar'\)/.test(ler('src/routes/membros.ts')),
@@ -221,7 +219,28 @@ if (jwtFora === 0) ok('emissão/verificação de JWT centralizada')
 check(ler('src/middleware/auth.ts').includes('verificarToken'), 'requireAuth usa verificarToken', 'requireAuth não usa verificarToken')
 check(ler('src/security/tokenBlacklist.ts').includes('iniciarPersistenciaRevogacoes') && index.includes('iniciarPersistenciaRevogacoes()'),
   'revogação de sessão persistente', 'revogação de sessão só em memória')
-check(authRoutes.includes('iguaisSeguro(browserState(req)'), 'state OAuth comparado em tempo constante', 'state OAuth sem comparação timing-safe')
+// Login por senha: bcrypt, tempo igual para usuário inexistente, bloqueio por usuário, resposta genérica
+check(/bcrypt\.compare\(password, conta\?\.password \?\? HASH_FALSO\)/.test(authRoutes),
+  'senha comparada com bcrypt (mesmo custo quando o usuário não existe)', 'login revela pelo tempo quais usuários existem')
+check(/const espera = bloqueio\(username\)/.test(authRoutes) && /registrarFalha\(username\)/.test(authRoutes) && /MAX_CHAVES/.test(ler('src/security/bruteForce.ts')),
+  'bloqueio por usuário após erros seguidos (memória com teto)', 'login sem bloqueio contra força bruta')
+{
+  const login = authRoutes.slice(authRoutes.indexOf("router.post('/login'"), authRoutes.indexOf("router.post('/solicitar'"))
+  check(login.indexOf("'Usuário ou senha incorretos.'") > -1 && login.indexOf("'Usuário ou senha incorretos.'") < login.indexOf('atual.exonerado'),
+    'estado da conta só é revelado depois da senha certa', 'login revela estado da conta antes de conferir a senha')
+  check(/bcrypt\.hash\(password, 12\)/.test(authRoutes) && /bcrypt\.hash\(novaSenha, 12\)/.test(authRoutes),
+    'senhas guardadas com bcrypt custo 12', 'senha guardada sem bcrypt forte')
+  check(/revokeToken\(req\.user!\.jti, req\.user!\.exp \* 1000\)/.test(authRoutes.slice(authRoutes.indexOf("router.put('/me/senha'"))),
+    'trocar a senha encerra a sessão atual', 'troca de senha mantém a sessão antiga')
+  const cfgSenha = ler('src/routes/config.ts')
+  check(/function contaPublica\(\{ password: _p, \.\.\.resto \}/.test(cfgSenha) && !/res\.json\(data\.contas\)|res\.json\(conta\)/.test(cfgSenha),
+    'lista/edição de contas nunca devolve o hash da senha', 'hash de senha exposto em /config/contas')
+  check(/router\.put\('\/contas\/:id\/senha', requireAuth, adminOnly, criticalLimiter, validateBody\(redefinirSenhaSchema\)/.test(cfgSenha)
+    && /router\.post\('\/solicitacoes-acesso\/:id\/aprovar', requireAuth, adminOnly, validateBody\(aprovarAcessoSchema\)/.test(cfgSenha),
+    'redefinir senha e aprovar acesso só por admin, com Zod', 'gestão de acesso sem adminOnly/Zod')
+  check(/map\(\(\{ id, username, nome, criadoEm \}\) => \(\{ id, username, nome, criadoEm \}\)\)/.test(cfgSenha),
+    'pedidos de acesso listados sem o hash da senha', 'pedido de acesso expõe a senha')
+}
 check(!/scope: configuredScope\(\) \? scopeKey/.test(authRoutes), 'IDs de servidor/bot não vão no JWT', 'JWT expõe scopeKey em claro')
 
 // 10. Erros e vazamentos
@@ -241,7 +260,8 @@ if (vaza === 0) ok('nenhuma resposta ecoa err.message/stack')
 // 11. Rotas autenticadas por padrão
 console.log('\n[11] Rotas exigem requireAuth (exceto lista pública)')
 const PUBLICAS = new Set([
-  "auth.ts:router.get('/discord'", "auth.ts:router.get('/discord/callback'", "auth.ts:router.post('/discord/exchange'",
+  // Entrar e pedir acesso: públicos por natureza (limitador próprio + Zod, conferidos acima)
+  "auth.ts:router.post('/login'", "auth.ts:router.post('/solicitar'",
   // Restaura a sessão pelo cookie httpOnly: valida o token com requireAuth dentro do handler
   "auth.ts:router.post('/sessao'",
   "config.ts:router.get('/logo'",
@@ -356,15 +376,7 @@ console.log('\n[15] Sem bot do Discord')
   const tudo = arquivosSrc.join('\n')
   check(!/DISCORD_BOT_TOKEN|Authorization: `Bot /.test(tudo) && !/from 'discord\.js'/.test(tudo),
     'backend não usa token nem cliente de bot', 'backend ainda usa bot do Discord')
-  const cb = ler('src/routes/auth.ts')
-  check(/scope: 'identify guilds\.members\.read'/.test(cb) && /buscarMembroServidor\(tokenJson\.access_token\)/.test(cb),
-    'vínculo com o servidor conferido pelo OAuth da própria pessoa', 'login sem conferir o servidor pelo OAuth')
-  const ident = ler('src/discord/identidade.ts')
-  check(/users\/@me\/guilds\/\$\{process\.env\.DISCORD_GUILD_ID\}\/member/.test(ident) && /Bearer \$\{accessToken\}/.test(ident),
-    'consulta só o próprio membro (users/@me), com o token da pessoa', 'consulta de membro do servidor fora do users/@me')
-  const posServidor = cb.indexOf('!membroServidor && !dispensaServidor(me.id)')
-  check(posServidor > -1 && posServidor < cb.indexOf('const data = readData()', posServidor),
-    'quem não é do servidor é barrado antes de criar conta', 'conta criada sem conferir o servidor')
+  check(!/discord\.com\/api|oauth2/.test(tudo), 'sem login/integração com a API do Discord', 'backend ainda chama a API do Discord')
   check(!/\/api\/(mensagens|carteira)/.test(ler('src/index.ts')), 'rotas do bot (mensagens/carteira) removidas', 'rotas do bot ainda montadas')
 }
 
@@ -374,19 +386,14 @@ check(/const autor = data\.contas\.find\(c => c\.id === req\.user!\.contaId\)/.t
   /comandante: responsavel/.test(acoesTs) && !/comandante: body\.comandante/.test(acoesTs),
   'responsável da apreensão definido pela sessão', 'cliente pode forjar responsável da apreensão')
 
-console.log('\n[Acesso externo] Dispensa do servidor do Discord')
+console.log('\n[Dono] Conta dona')
 const accessExtTs = ler('src/access.ts')
-check(/DISCORD_ACESSO_EXTERNO/.test(accessExtTs) && /\^\\d\{17,20\}\$/.test(accessExtTs),
-  'lista de acesso externo só aceita IDs numéricos do Discord', 'lista de acesso externo sem validação de ID')
-check(!/dispensaServidor|discordIdsAcessoExterno/.test(ler('src/middleware/auth.ts')) &&
-  !/discordIdsAcessoExterno|dispensaServidor/.test(accessExtTs.slice(accessExtTs.indexOf('export function ehDono'), accessExtTs.indexOf('export function ehDono') + 300)),
-  'acesso externo não vira dono nem pula as checagens do requireAuth', 'acesso externo concede privilégio além do servidor')
+check(/export function ehDono\(conta: Conta\): boolean \{\s*return conta\.id === PROTECTED_OWNER_ID\s*\}/.test(accessExtTs),
+  'dono é só a conta 1 (nenhum ID externo vira dono)', 'dono definido por algo além da conta 1')
 {
-  const cb = ler('src/routes/auth.ts')
-  const posDispensa = cb.indexOf('!dispensaServidor(me.id)')
-  const posExonerado = cb.indexOf("reason=exonerado")
-  check(posDispensa > -1 && posExonerado > posDispensa,
-    'exonerado continua bloqueado mesmo com acesso externo', 'acesso externo pode contornar exoneração')
+  const dataSenha = ler('src/data.ts')
+  check(/ADMIN_INITIAL_PASSWORD/.test(dataSenha) && /doEnv\.length >= 12/.test(dataSenha) && /crypto\.randomBytes/.test(dataSenha) && !/admin123/.test(dataSenha),
+    'senha inicial do dono: do .env (≥12) ou aleatória, nunca padrão fixa', 'conta dona com senha padrão fixa')
 }
 
 console.log('\n[ADV] Advertências')

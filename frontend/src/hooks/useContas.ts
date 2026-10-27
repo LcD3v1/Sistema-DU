@@ -24,3 +24,37 @@ export function useDeleteConta() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'contas'] }),
   })
 }
+
+export function useRedefinirSenha() {
+  return useMutation({
+    mutationFn: ({ id, novaSenha }: { id: number; novaSenha: string }) => api.put(`/config/contas/${id}/senha`, { novaSenha }),
+  })
+}
+
+// ── Pedidos de acesso feitos na tela de login ─────────────────────────────────
+export interface PedidoAcesso { id: number; username: string; nome: string; criadoEm: string }
+
+export function usePedidosAcesso() {
+  return useQuery<PedidoAcesso[]>({
+    queryKey: ['config', 'solicitacoes-acesso'],
+    queryFn: async () => (await api.get<PedidoAcesso[]>('/config/solicitacoes-acesso')).data,
+  })
+}
+
+export function useAprovarAcesso() {
+  return useMutation({
+    mutationFn: ({ id, cargoPermId }: { id: number; cargoPermId: number | null }) =>
+      api.post(`/config/solicitacoes-acesso/${id}/aprovar`, { cargoPermId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['config', 'solicitacoes-acesso'] })
+      queryClient.invalidateQueries({ queryKey: ['config', 'contas'] })
+    },
+  })
+}
+
+export function useRecusarAcesso() {
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/config/solicitacoes-acesso/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'solicitacoes-acesso'] }),
+  })
+}

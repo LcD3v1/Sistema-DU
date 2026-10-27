@@ -427,3 +427,29 @@ export const anuncioImagemSchema = z.object({
 
 // Aceite dos termos: só a versão vigente é aceita (evita aceitar texto antigo)
 export const termosAceiteSchema = z.object({ versao: z.string().regex(/^\d{4}-\d{2}-\d{2}(-\d{1,3})?$/) }).strict()
+
+// ── Acesso por usuário e senha (igual ao Sistema Tática) ─────────────────────
+const usuarioLogin = z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/, 'Usuário só pode ter letras, números, ponto, hífen e sublinhado')
+const senhaNova = z.string().min(8, 'A senha precisa de pelo menos 8 caracteres').max(128)
+
+export const loginSchema = z.object({
+  username: z.string().trim().min(1).max(32),
+  password: z.string().min(1).max(128),
+}).strict()
+
+export const solicitarAcessoSchema = z.object({
+  username: usuarioLogin,
+  password: senhaNova,
+  nome:     safeStr(2, 60),
+}).strict()
+
+export const trocarSenhaSchema = z.object({
+  senhaAtual: z.string().min(1).max(128),
+  novaSenha:  senhaNova,
+}).strict()
+
+export const aprovarAcessoSchema = z.object({
+  cargoPermId: z.number().int().positive().nullable().optional(),
+}).strict()
+
+export const redefinirSenhaSchema = z.object({ novaSenha: senhaNova }).strict()

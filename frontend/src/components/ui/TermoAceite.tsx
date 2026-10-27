@@ -14,7 +14,7 @@ import { DOCUMENTOS, EMPRESAS, TERMOS } from '@/content/termos'
 const KEY = 'fast_termos_aceite'
 const EASE = [0.16, 1, 0.3, 1] as const
 // Telas onde o aceite não deve cobrir: a própria leitura dos termos e o retorno do OAuth
-const SEM_POPUP = ['/termos', '/auth/discord']
+const SEM_POPUP = ['/termos']
 
 function aceitoNoNavegador(): boolean {
   try { return JSON.parse(localStorage.getItem(KEY) ?? 'null')?.versao === TERMOS.versao } catch { return false }

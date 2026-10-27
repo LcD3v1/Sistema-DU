@@ -16,6 +16,7 @@ import type { Membro } from '@/types'
 import PersonalizarPerfil from '@/components/perfil/PersonalizarPerfil'
 import LinksPerfil from '@/components/perfil/LinksPerfil'
 import EmojiPerfil from '@/components/perfil/EmojiPerfil'
+import { TrocarSenha } from '@/components/sections/SenhaConta'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
@@ -203,9 +204,11 @@ export default function ProfilePage() {
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between"><dt className="text-txt2">Usuário</dt><dd className="text-txt font-medium">{me.username}</dd></div>
               <div className="flex justify-between"><dt className="text-txt2">Acesso</dt><dd className="text-txt font-medium">{me.admin ? 'Administrador' : 'Membro'}</dd></div>
-              <div className="flex justify-between"><dt className="text-txt2">Discord</dt><dd className="text-txt font-medium">{me.nomeServidor ? me.nomeServidor : me.discordUsername ? `@${me.discordUsername}` : 'não vinculado'}</dd></div>
+              <div className="flex justify-between"><dt className="text-txt2">Nome</dt><dd className="text-txt font-medium">{me.nomeServidor || me.username}</dd></div>
             </dl>
           </div>
+
+          <TrocarSenha />
 
           <div className="bg-card border border-bdr rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">

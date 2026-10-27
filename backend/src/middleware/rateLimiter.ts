@@ -104,13 +104,13 @@ export const revisaoLimiter = limitador('revisao', 60_000, 240, 'Muitas requisi�
 // Ranking (autenticado, consultas pesadas): 90 / 1 min por IP
 export const rankingLimiter = limitador('ranking', 60_000, 90, 'Muitas requisições. Tente em um minuto.', 3)
 
-// Login / OAuth: 10 tentativas / 15 min por IP
+// Login por usuário e senha: 10 tentativas / 15 min por IP (além do bloqueio por usuário)
 export const loginLimiter = limitador('login', 15 * 60_000, 10,
   'Muitas tentativas de login. Tente novamente em 15 minutos.', P)
 
-// Troca do código de login por sessão: 20 / 15 min por IP (separado do fluxo /discord)
-export const trocaLoginLimiter = limitador('troca_login', 15 * 60_000, 20,
-  'Muitas tentativas de login. Tente novamente em 15 minutos.', 10)
+// Pedido de acesso (público): 10 / 1 h por IP — evita encher a fila do comando
+export const solicitarAcessoLimiter = limitador('solicitar_acesso', 60 * 60_000, 10,
+  'Muitos pedidos de acesso. Tente novamente mais tarde.', 5)
 
 // Restaurar sessão ao recarregar a página: 60 / 15 min por IP
 export const sessaoLimiter = limitador('sessao', 15 * 60_000, 60,
