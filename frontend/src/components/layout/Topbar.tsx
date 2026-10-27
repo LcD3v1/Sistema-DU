@@ -22,7 +22,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/anuncio':          'Gerar anúncio',
   '/protocolo':        'Protocolo operacional',
   '/carteira':         'Carteirinha da DU',
-  '/mensagens':        'Enviar mensagem',
   '/cursos':           'Cursos internos',
   '/configuracoes':    'Configurações',
 }

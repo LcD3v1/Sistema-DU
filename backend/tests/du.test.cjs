@@ -27,7 +27,6 @@ const permitir = (areas) => {
 
 before(async () => {
   process.env.NODE_ENV = 'test'
-  process.env.DISCORD_EXIGIR_SERVIDOR = 'off'
   process.env.DISCORD_GUILD_ID = guild; process.env.DISCORD_CLIENT_ID = bot; process.env.JWT_SECRET = secret
   delete process.env.DISCORD_BOT_TOKEN
   data = Object.assign(makeData(), { relatorios: [], boletins: [], inqueritos: [], galeria: [],

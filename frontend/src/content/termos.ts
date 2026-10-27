@@ -48,7 +48,7 @@ export const DOCUMENTOS: Documento[] = [
           { t: 'Efetivo e hierarquia.', d: 'Cadastro de membros, patentes, promoções, rebaixamentos, advertências e histórico de cargos.' },
           { t: 'Operações.', d: 'Registro e aprovação de ações e apreensões, histórico, estatísticas e rankings.' },
           { t: 'Rotina da unidade.', d: 'Ausências, avisos, notificações, recrutamento, fardamentos, boletins, anúncios, protocolos e carteirinhas.' },
-          { t: 'Integração com o Discord.', d: 'Login pela conta do Discord e publicações automáticas nos canais configurados pelo comando.' },
+          { t: 'Integração com o Discord.', d: 'Login pela conta do Discord, que também confirma se você faz parte do servidor da unidade. O painel não usa bot nem publica nada no Discord.' },
           { t: 'Páginas públicas.', d: 'Ranking, diretório de membros e perfil público de cada membro ativo.' },
         ],
       },
@@ -95,7 +95,7 @@ export const DOCUMENTOS: Documento[] = [
         texto: ['Ao entrar com o Discord, pedimos apenas a permissão "identify". Não recebemos o seu e‑mail, senha, mensagens privadas nem a lista dos seus servidores.'],
         itens: [
           { t: 'Identificação.', d: 'ID, nome de usuário e foto do perfil do Discord.' },
-          { t: 'Dados no servidor da unidade.', d: 'Apelido, foto e cargos no servidor, lidos pelo bot da DU para manter o painel sincronizado com a hierarquia.' },
+          { t: 'Dados no servidor da unidade.', d: 'Apelido, foto e cargos no servidor, lidos no login pelo próprio Discord (com a sua autorização) para conferir o vínculo com a unidade.' },
         ],
       },
       {
@@ -120,7 +120,7 @@ export const DOCUMENTOS: Documento[] = [
         titulo: '4. Para que usamos',
         itens: [
           { t: 'Funcionar o sistema.', d: 'Autenticar, aplicar permissões por cargo e exibir o que é seu.' },
-          { t: 'Gestão da unidade.', d: 'Hierarquia, rankings, estatísticas, notificações e publicações no Discord da unidade.' },
+          { t: 'Gestão da unidade.', d: 'Hierarquia, estatísticas e notificações dentro do painel.' },
           { t: 'Segurança.', d: 'Detectar abuso, bloquear ataques e investigar incidentes.' },
         ],
         texto: ['Não vendemos, alugamos nem usamos seus dados para publicidade.'],
@@ -130,7 +130,6 @@ export const DOCUMENTOS: Documento[] = [
         itens: [
           { t: 'Membros com permissão.', d: 'Cada área do painel só é visível para os cargos autorizados pelo comando.' },
           { t: 'Público.', d: 'O ranking, o diretório e o perfil público mostram só dados de exibição: nome do policial, badge, patente, cargo, foto, data de entrada, status e contagem de apreensões. Perfis de membros exonerados ou inativos deixam de aparecer.' },
-          { t: 'Discord.', d: 'Registros, carteirinhas e rankings são publicados nos canais que o comando configurar.' },
           { t: 'Prestadores.', d: 'Hospedagem e banco de dados em provedores contratados, que só processam os dados para manter o sistema no ar.' },
           { t: 'Serviços de rede.', d: 'A Cloudflare protege e entrega o site, e o Google Fonts fornece as fontes. Ambos recebem o endereço IP e dados técnicos da conexão de quem acessa, segundo as políticas deles.' },
         ],
@@ -355,7 +354,7 @@ export const DOCUMENTOS: Documento[] = [
         titulo: '2. Da unidade e do comando',
         itens: [
           { t: 'Controlar o acesso.', d: 'Aprovar membros, definir cargos e permissões e exonerar quem deixar a unidade.' },
-          { t: 'Configurar o Discord.', d: 'Definir quais canais recebem publicações e manter o bot no servidor.' },
+          { t: 'Configurar o Discord.', d: 'Manter o servidor da unidade configurado e as contas aprovadas em dia.' },
           { t: 'Decisões internas.', d: 'Promoções, advertências, aprovações e exonerações são decisões do comando, não das empresas.' },
         ],
       },

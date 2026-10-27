@@ -4,7 +4,6 @@ import { belongsToScope, type RankingScope } from './scope'
 import { avatarAtual, nivelDoMembro } from '../../identidadeMembro'
 import { imagemValida } from '../../security/imagem'
 import { isAdmin, isDev, PROTECTED_OWNER_ID } from '../../access'
-import { estaOnline } from '../../discord/presenca'
 
 export const filtersSchema = z.object({
   period: z.enum(['all', '7d', '15d', '30d']).default('all'),
@@ -165,6 +164,6 @@ export function publicMember(row: MemberRow) {
     joinedAt: row.joinedAt, status: row.status, rank: row.rank, points: row.points,
     wins: row.wins, losses: row.losses, records: row.records, winRate: row.winRate,
     achievements: row.achievements, achievedAt: row.achievedAt, slug: row.slug,
-    online: estaOnline(row.discordId),
+    online: null,   // sem bot: o painel não acompanha presença
     discordId: null, internalId: '', discordRoles: [], activity: [] }
 }

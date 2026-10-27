@@ -106,9 +106,6 @@ export const acaoSchema = z.object({
     nome:    safeStr(1, 100),
     patente: z.string().max(50).optional(),
   })).default([]),
-  // @ (nome de usuário) de pessoas do servidor do Discord; o ID é resolvido no servidor
-  participantesDiscord: z.array(z.string().min(2).max(32).regex(/^[a-z0-9_.]+$/i, 'Usuário do Discord inválido'))
-    .max(50).default([]),
 }).refine(b => (b.tipo === 'fechado') === (b.resultado !== undefined), {
   message: 'Resultado (vitória/derrota) só em QRU fechado — e obrigatório nele',
   path: ['resultado'],
@@ -358,32 +355,6 @@ export const reorderQruSchema = z.object({
 
 const snowflake = z.string().regex(/^\d{17,20}$/, 'ID de canal inválido')
 
-// Cargo do Discord para cada quadradinho de advertência (null = desvincular)
-const roleId = z.string().regex(/^\d{17,20}$/, 'ID de cargo inválido')
-export const cargosAdvSchema = z.object({
-  '1': roleId.nullable().optional(),
-  '2': roleId.nullable().optional(),
-  '3': roleId.nullable().optional(),
-}).strict()
-
-export const canaisSchema = z.object({
-  registro:   snowflake.nullable().optional(),
-  apreensoes: snowflake.nullable().optional(),
-  carteira:   snowflake.nullable().optional(),
-  rankingApreensoes: snowflake.nullable().optional(),
-  avisos:     snowflake.nullable().optional(),
-} satisfies Record<keyof CanaisDiscord, ZodSchema>)
-
-/** Postagem da carteirinha: tópico de destino + PNG gerado no navegador. */
-export const carteiraPostSchema = z.object({
-  topicoId: snowflake,
-  // O corpo desta rota é limitado a 5mb em index.ts; o teto aqui acompanha.
-  imagem:   z.string().max(5_000_000).refine(ehImagemEnviada, 'Envie a imagem gerada da carteira'),
-  mensagem: safeStrOpt(300).optional(),
-  // @ do Discord de quem marcar (nunca o discordId — o backend resolve)
-  mencionarUsuario: z.string().max(32).regex(/^[a-z0-9._]+$/i, 'Usuário inválido').nullable().optional(),
-})
-
 const discordMessageBlockSchema = z.discriminatedUnion('tipo', [
   z.object({
     id:     safeStr(1, 80),
@@ -447,13 +418,6 @@ export const personalizacaoSchema = z.object({
     emoji: emojiSchema.optional(),
   }).strict()).max(MAX_LINKS_PERFIL, `No máximo ${MAX_LINKS_PERFIL} links`),
   emojis: z.array(emojiSchema).max(MAX_EMOJIS_PERFIL, `No máximo ${MAX_EMOJIS_PERFIL} emojis`),
-}).strict()
-
-// Enviar mensagem pelo bot: canal de texto + título opcional + texto (Components V2)
-export const mensagemDiscordSchema = z.object({
-  canalId:  snowflake,
-  titulo:   safeStrOpt(100).optional(),
-  mensagem: safeStr(1, 3500),
 }).strict()
 
 // Foto do Gerar anúncio (até 3 MB decodificados; os bytes são conferidos na rota)

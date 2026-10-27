@@ -95,10 +95,6 @@ export const uploadLimiter = limitador('upload', 15 * 60_000, 20,
 export const arquivoLimiter = limitador('arquivo', 15 * 60_000, 60,
   'Muitos envios de arquivo. Tente novamente em alguns minutos.', 6)
 
-// Mensagem enviada pelo bot (vai para o Discord, que também limita): 10 / 1 min por IP
-export const mensagemDiscordLimiter = limitador('mensagem_discord', 60_000, 10,
-  'Muitas mensagens seguidas. Aguarde um minuto.', 5)
-
 // Endpoints públicos (sem login): 60 / 1 min por IP
 export const publicLimiter = limitador('publico', 60_000, 60, 'Muitas requisições. Tente em um minuto.', 5)
 
@@ -123,10 +119,6 @@ export const sessaoLimiter = limitador('sessao', 15 * 60_000, 60,
 // Ações críticas (restore): 5 / 15 min por IP
 export const criticalLimiter = limitador('critico', 15 * 60_000, 5,
   'Limite de operações críticas atingido. Tente em 15 minutos.', P + 5)
-
-// Cargos de advertência (consulta/cria/atribui cargos no Discord): 30 / 15 min por IP
-export const cargosDiscordLimiter = limitador('cargos_discord', 15 * 60_000, 30,
-  'Muitas operações de cargos no Discord. Tente em alguns minutos.', 3)
 
 // Backup (download da base inteira): 5 / 1 h por IP
 export const backupLimiter = limitador('backup', 60 * 60_000, 5,

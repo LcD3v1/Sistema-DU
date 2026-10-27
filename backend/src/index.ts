@@ -15,8 +15,6 @@ import { audit } from './security/audit'
 import { firewall, registrarInfracao, PONTOS } from './security/firewall'
 import { iniciarPersistenciaRevogacoes, encerrarPersistenciaRevogacoes } from './security/tokenBlacklist'
 import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureFastPermissionRoles } from './data'
-import { iniciarGateway } from './discord/gateway'
-import { emSegundoPlano, repararRegistros } from './discord/forum'
 import { verificarAusencias } from './efetivo'
 import { limparNotificacoesAntigas } from './notificacoes'
 import { readData as lerDados, writeData as gravarDados } from './data'
@@ -31,9 +29,7 @@ import ausenciasRoutes from './routes/ausencias'
 import avisosRoutes from './routes/avisos'
 import fardamentosRoutes from './routes/fardamentos'
 import cursosRoutes from './routes/cursos'
-import carteiraRoutes from './routes/carteira'
 import notificacoesRoutes from './routes/notificacoes'
-import mensagensRoutes from './routes/mensagens'
 import arquivosRoutes from './routes/arquivos'
 import relatoriosRoutes from './routes/relatorios'
 import boletinsRoutes from './routes/boletins'
@@ -74,7 +70,7 @@ if (!PROD) {
 // Corpo grande só nas rotas de upload; o resto fica limitado (evita abuso de memória/CPU)
 const jsonGrande = express.json({ limit: '5mb' })
 const jsonPadrao = express.json({ limit: '200kb' })
-const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|carteira\/postar|anuncio\/imagem)(\/|$)/
+const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|anuncio\/imagem)(\/|$)/
 app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? jsonGrande : jsonPadrao)(req, res, next))
 app.use(hpp())
 
@@ -108,10 +104,8 @@ app.use('/api/ausencias', ausenciasRoutes)
 app.use('/api/avisos', avisosRoutes)
 app.use('/api/fardamentos', fardamentosRoutes)
 app.use('/api/cursos', cursosRoutes)
-app.use('/api/carteira', carteiraRoutes)
 app.use('/api/notificacoes', notificacoesRoutes)
 app.use('/api/anuncio', anuncioImagemUpload)
-app.use('/api/mensagens', mensagensRoutes)
 app.use('/api/arquivos', arquivosRoutes)
 app.use('/api/relatorios', relatoriosRoutes)
 app.use('/api/boletins', boletinsRoutes)
@@ -214,9 +208,6 @@ async function iniciar(): Promise<void> {
     console.log(`[DU] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
     console.log(`[DU] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
-  iniciarGateway()
-  // Membros aprovados sem tópico válido no fórum de registro atual (ex.: troca de servidor)
-  emSegundoPlano('reparar registros', repararRegistros)
 
   // Rotina (1 min): ausências (início/fim do período) e limpeza de notificações
   const rotina = () => {

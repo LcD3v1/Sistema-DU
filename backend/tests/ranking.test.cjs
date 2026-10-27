@@ -66,6 +66,45 @@ test('segurança: OAuth vinculado ao navegador e troca única sem JWT na URL', a
   }
 })
 
+test('login sem bot: pede guilds.members.read e só entra quem faz parte do servidor', async () => {
+  process.env.DISCORD_CLIENT_SECRET = 'test-only'
+  process.env.DISCORD_REDIRECT_URI = 'http://localhost/api/auth/discord/callback'
+  const originalFetch = global.fetch
+  const pedidos = []
+  let membro = null
+  const entrar = async () => {
+    const start = await originalFetch(base + '/api/auth/discord', { redirect: 'manual' })
+    const loc = new URL(start.headers.get('location'))
+    assert.deepEqual(loc.searchParams.get('scope').split(' ').sort(), ['guilds.members.read', 'identify'])
+    const cookie = start.headers.get('set-cookie').split(';')[0]
+    const cb = await originalFetch(base + `/api/auth/discord/callback?code=fake&state=${loc.searchParams.get('state')}`, { redirect: 'manual', headers: { Cookie: cookie } })
+    return new URL(cb.headers.get('location'))
+  }
+  try {
+    global.fetch = async (url, options) => {
+      const u = String(url)
+      if (u === 'https://discord.com/api/oauth2/token') return new Response(JSON.stringify({ access_token: 'synthetic-test-token' }))
+      if (u === 'https://discord.com/api/users/@me') return new Response(JSON.stringify({ id: '777777777777777777', username: 'novato' }))
+      if (u.startsWith('https://discord.com/api/users/@me/guilds/')) {
+        pedidos.push({ u, auth: options?.headers?.Authorization })
+        return membro ? new Response(JSON.stringify(membro)) : new Response('{}', { status: 404 })
+      }
+      return originalFetch(url, options)
+    }
+    assert.match((await entrar()).search, /reason=fora_servidor/)
+    assert.equal(pedidos[0].u, `https://discord.com/api/users/@me/guilds/${process.env.DISCORD_GUILD_ID}/member`)
+    assert.equal(pedidos[0].auth, 'Bearer synthetic-test-token')       // token da pessoa, não de bot
+    membro = { user: { id: '777777777777777777', username: 'novato' }, nick: 'Novato DU', roles: [] }
+    const ok = await entrar()
+    assert.equal(ok.search, '')
+    assert.ok(new URLSearchParams(ok.hash.slice(1)).get('code'))
+    assert.equal(data.contas.find(c => c.discordId === '777777777777777777').nomeServidor, 'Novato DU')
+  } finally {
+    global.fetch = originalFetch
+    data.contas = data.contas.filter(c => c.discordId !== '777777777777777777'); revision++
+    delete process.env.DISCORD_CLIENT_SECRET
+  }
+})
 test('segurança: logs removem segredos e DTO público descarta campos desconhecidos', () => {
   const { redact } = require('../dist/security/redact')
   const text = redact(`${secret} mongodb://user:synthetic-password@host/db Bearer abc.def.ghi ${token()}`)
@@ -265,7 +304,6 @@ async function get(path, auth = token()) {
 }
 before(async () => {
   process.env.NODE_ENV = 'test'
-  process.env.DISCORD_EXIGIR_SERVIDOR = 'off'
   process.env.DISCORD_GUILD_ID = guild; process.env.DISCORD_CLIENT_ID = bot; process.env.JWT_SECRET = secret
   delete process.env.DISCORD_BOT_TOKEN
   data = makeData()
@@ -276,7 +314,6 @@ before(async () => {
   store.writeData = next => { data = structuredClone(next); revision++ }
   store.dataRevision = () => revision
   require('../dist/security/audit').audit = (...args) => auditEvents.push(args)
-  require('../dist/discord/forum').emSegundoPlano = () => {}
   const express = require('express')
   const app = express()
   const originalInterval = global.setInterval
@@ -292,7 +329,6 @@ before(async () => {
   app.use('/api/acoes', require('../dist/routes/acoes').default)
   app.use('/api/anuncio', require('../dist/routes/anuncioImagem').uploadRouter)
   app.use('/img', require('../dist/routes/anuncioImagem').publicoRouter)
-  app.use('/api/mensagens', require('../dist/routes/mensagens').default)
   app.use('/api/avisos', require('../dist/routes/avisos').default)
   global.setInterval = originalInterval
   app.use((_err, _req, res, _next) => res.status(500).json({ error: 'Erro interno do servidor' }))
@@ -323,9 +359,6 @@ test('responsável da apreensão vem da sessão, nunca do nome enviado pelo clie
     assert.equal(created.comandante, 'Oficial do servidor')
     assert.equal(created.criadoPorContaId, 1)
     assert.equal(data.acoes.find(a => a.id === 900).comandante, 'Oficial do servidor')
-    // Participante do Discord sem bot configurado → recusado (não salva @ sem resolver)
-    assert.equal((await postar({ qru: 'Registradora', tipo: 'convencional', participantesDiscord: ['alguem'] })).status, 400)
-    assert.equal((await get('/api/acoes/participantes')).body.configurado, false)
     // discordId de participante do servidor nunca sai da API
     data.acoes.find(a => a.id === 900).participantesExtras = [{ nome: 'Visitante', discordId: '123456789012345678' }]
     const lista = await get('/api/acoes?limit=200')
@@ -348,104 +381,28 @@ test('responsável da apreensão vem da sessão, nunca do nome enviado pelo clie
   }
 })
 
-test('reset exige cargo autorizado ou admin e bloqueia conta inativa/exonerada', async () => {
+test('placar de apreensões conta só as aprovadas e a rota pública expõe só nome e total', async () => {
   const original = structuredClone(data)
-  const { resetarRanking } = require('../dist/discord/painelApreensoes')
-  const { normalizePermMap } = require('../dist/permAreas')
+  const { calcularRanking } = require('../dist/apreensoes')
   try {
-    const cargo = data.cargosPermissao.find(c => c.id === 20)
-    cargo.permissoes = { pendentes: { ver: true, editar: true }, ranking: { ver: true, editar: true } }
-    assert.equal(normalizePermMap(cargo.permissoes).zerar_rankings.editar, false)
-    const before = structuredClone(data)
-    await assert.rejects(resetarRanking(2), /Acesso negado/)
-    await assert.rejects(resetarRanking(999), /Acesso negado/)
-    assert.deepEqual(data, before)
-    cargo.permissoes.zerar_rankings = { ver: true, editar: false }
-    await assert.rejects(resetarRanking(2), /Acesso negado/)
-    cargo.permissoes.zerar_rankings.editar = true
-    await resetarRanking(2)
-    assert.equal(data.painelApreensoes.resetadoPor, 'operador')
-    assert.deepEqual(data.acoes, before.acoes)
-    const current = data.contas.find(c => c.id === 2)
-    current.cargoPermId = undefined
-    await assert.rejects(resetarRanking(2), /Acesso negado/)
-    current.cargoPermId = 20
-    data.cargosPermissao.find(c => c.id === 20).permissoes = {}
-    data.cargosPermissao.find(c => c.id === 20).admin = true
-    await resetarRanking(2)
-    data.contas.find(c => c.id === 2).ativo = false
-    await assert.rejects(resetarRanking(2), /Acesso negado/)
-    data.contas.find(c => c.id === 2).ativo = true
-    data.contas.find(c => c.id === 2).exonerado = true
-    await assert.rejects(resetarRanking(2), /Acesso negado/)
-  } finally {
-    data = original; revision++
-  }
-})
-
-test('reset guarda o placar no histórico e zera pela hora da aprovação', async () => {
-  const original = structuredClone(data)
-  const { resetarRanking, calcularRanking } = require('../dist/discord/painelApreensoes')
-  try {
-    data.cargosPermissao.find(c => c.id === 20).admin = true
     const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
     data.acoes = [{ id: 1, data: hoje, qru: 'X', tipo: 'convencional', participants: [{ memberId: 1, patenteUnidade: '' }],
-      status: 'aprovada', aprovadaEm: new Date(Date.now() - 60_000).toISOString() }]
+      status: 'aprovada', aprovadaEm: new Date(Date.now() - 60_000).toISOString() },
+      { id: 2, data: hoje, qru: 'X', tipo: 'convencional', participants: [{ memberId: 1, patenteUnidade: '' }], status: 'pendente' }]
     delete data.painelApreensoes; delete data.historicoRankings
-    const antes = calcularRanking(data)
-    assert.equal(antes.total, 1)
-    await resetarRanking(2)
-    // Aprovada antes do reset (mesmo dia) → sai do placar e vai para o histórico
-    assert.equal(calcularRanking(data).total, 0)
-    assert.equal(data.historicoRankings.length, 1)
-    assert.equal(data.historicoRankings[0].total, 1)
-    assert.deepEqual(data.historicoRankings[0].linhas, antes.linhas.map(l => ({ nome: l.nome, total: l.total })))
-    // Aprovada depois do reset → já entra no novo ranking
-    data.acoes.push({ ...data.acoes[0], id: 2, aprovadaEm: new Date(Date.now() + 1000).toISOString() })
     assert.equal(calcularRanking(data).total, 1)
-    // Rota pública: só nome e total (sem passaporte/discordId)
+    // Corte (reset antigo gravado) tira do placar o que foi aprovado antes dele
+    data.painelApreensoes = { resetadoEm: new Date().toISOString() }
+    assert.equal(calcularRanking(data).total, 0)
     const pub = await get('/api/public/ranking-historico', null)
     assert.equal(pub.status, 200)
-    assert.equal(pub.body.anteriores.length, 1)
-    assert.equal(pub.body.atual.total, 1)
-    for (const l of [...pub.body.atual.linhas, ...pub.body.anteriores[0].linhas]) {
-      assert.deepEqual(Object.keys(l).sort(), ['nome', 'total'])
-    }
+    assert.equal(pub.body.atual.total, 0)
+    for (const l of pub.body.atual.linhas) assert.deepEqual(Object.keys(l).sort(), ['nome', 'total'])
   } finally {
     data = original; revision++
   }
 })
 
-test('canal do ranking permanece salvo após consulta e pode ser desvinculado', async () => {
-  const original = structuredClone(data)
-  const forum = require('../dist/discord/forum')
-  const originalConfigured = forum.botConfigurado
-  const originalList = forum.listarForuns
-  const channelId = '444444444444444444'
-  const registro = '555555555555555555'
-  forum.botConfigurado = () => true
-  forum.listarForuns = async () => [{ id: channelId, name: 'ranking', type: 0 }]
-  data.canais = { registro }
-  const save = value => fetch(base + '/api/config/canais', {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rankingApreensoes: value }),
-  })
-  try {
-    const saved = await save(channelId)
-    assert.equal(saved.status, 200)
-    assert.deepEqual((await saved.json()).canais, { registro, rankingApreensoes: channelId })
-    assert.deepEqual((await get('/api/config/canais')).body.canais, { registro, rankingApreensoes: channelId })
-    assert.equal((await save('invalid')).status, 400)
-    assert.equal((await get('/api/config/canais')).body.canais.rankingApreensoes, channelId)
-    assert.equal((await save(null)).status, 200)
-    assert.deepEqual((await get('/api/config/canais')).body.canais, { registro })
-  } finally {
-    forum.botConfigurado = originalConfigured
-    forum.listarForuns = originalList
-    data = original; revision++
-  }
-})
 test('API requer autenticação e sessão da guild/bot correta mesmo com segredo compartilhado', async () => {
   assert.equal((await get('/api/ranking', null)).status, 401)
   assert.equal((await get('/api/ranking', token(1, 'foreign:' + bot))).status, 401)
@@ -568,28 +525,7 @@ test('anúncio: envio exige login e a permissão de editar anúncio; link públi
     assert.equal((await fetch(base + p)).status, 404, p)
 })
 
-// ── Mensagens pelo bot (Components V2) e avisos no Discord ────────────────────
-test('mensagem: painel V2 da DU nunca notifica ninguém', () => {
-  const { montarPainel } = require('../dist/discord/mensagens')
-  const p = montarPainel({ titulo: 'Operação', mensagem: '@everyone <@&123> texto', rotulo: 'Comunicado', autor: '<@1>' })
-  assert.equal(p.flags, 1 << 15)
-  assert.deepEqual(p.allowed_mentions, { parse: [] })
-  assert.equal(p.content, undefined); assert.equal(p.embeds, undefined)   // V2 não aceita content/embeds
-  const container = p.components[0]
-  assert.equal(container.type, 17)
-  assert.ok(JSON.stringify(container).includes('## Operação'))
-})
-test('mensagem: enviar exige login, área mensagens/editar, corpo válido e bot configurado', async () => {
-  const enviar = (auth, body) => fetch(base + '/api/mensagens', { method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(body) })
-  const ok = { canalId: '555555555555555555', mensagem: 'Teste' }
-  assert.equal((await enviar(null, ok)).status, 401)
-  assert.equal((await enviar(token(2), ok)).status, 403)                        // cargo sem a área
-  assert.equal((await enviar(token(1), { ...ok, canalId: '../1' })).status, 400)  // canal inválido
-  assert.equal((await enviar(token(1), { ...ok, extra: 1 })).status, 400)          // campo desconhecido
-  assert.equal((await enviar(token(1), ok)).status, 400)                        // sem bot no teste
-  assert.equal((await get('/api/mensagens/canais', token(2))).status, 403)
-})
+// ── Avisos (registros antigos podem ter o vínculo com uma mensagem do Discord) ──
 test('avisos: listagem não expõe o vínculo com a mensagem do Discord', async () => {
   data.avisos = [{ id: 1, titulo: 'T', mensagem: 'M', autor: 'a', criadoEm: '2026-09-18T00:00:00Z',
     discord: { canalId: '555555555555555555', mensagemId: '666666666666666666' } }]

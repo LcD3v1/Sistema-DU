@@ -1,197 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Download, Upload, CreditCard, Send, RefreshCw, MessagesSquare, AlertTriangle, AtSign, X, Search } from 'lucide-react'
+import { ChevronLeft, Download, Upload, CreditCard } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
-import { usePerms } from '@/hooks/usePerms'
-import { useCarteiraForum, useMembrosDiscord, usePostarCarteira, type MembroDiscord } from '@/hooks/useCarteira'
 import { useMembros } from '@/hooks/useMembros'
 import { useLogo } from '@/hooks/useConfig'
 import { desenharCarteiraDU, validadePadrao, CARTEIRA_W, CARTEIRA_H, type DadosCarteira } from '@/lib/carteiraDU'
 import emblemaPadrao from '@/assets/du-emblem.svg'
-
-const erroApi = (e: unknown, padrao: string) =>
-  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? padrao
-
-/** Escolha de quem marcar no post — busca sobre todos os membros do servidor. */
-function EscolherMembro({ valor, onChange, membros, carregando }: {
-  valor: MembroDiscord | null
-  onChange: (m: MembroDiscord | null) => void
-  membros: MembroDiscord[]
-  carregando: boolean
-}) {
-  const [busca, setBusca] = useState('')
-  const [aberto, setAberto] = useState(false)
-
-  const termo = busca.trim().toLowerCase()
-  const filtrados = (termo
-    ? membros.filter(m => m.nome.toLowerCase().includes(termo) || m.usuario.toLowerCase().includes(termo))
-    : membros).slice(0, 50)
-
-  if (valor) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gold/40 bg-gold/10">
-        <img src={valor.avatar} alt="" className="w-6 h-6 rounded-full" />
-        <span className="flex-1 min-w-0 truncate text-sm text-txt">
-          {valor.nome} <span className="text-gold3 font-mono text-xs">@{valor.usuario}</span>
-        </span>
-        <button type="button" onClick={() => { onChange(null); setBusca(''); setAberto(false) }}
-          className="text-txt3 hover:text-txt" aria-label="Remover marcação"><X size={14} /></button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative">
-      <div className="flex items-center gap-2 bg-card2 border border-bdr2 rounded-lg px-3">
-        <Search size={14} className="text-txt3 shrink-0" />
-        <input
-          value={busca}
-          onChange={e => { setBusca(e.target.value); setAberto(true) }}
-          onFocus={() => setAberto(true)}
-          placeholder={carregando ? 'Carregando membros...' : 'Buscar por nome ou @...'}
-          disabled={carregando}
-          className="flex-1 bg-transparent py-2.5 text-sm font-mono text-txt placeholder-txt3 outline-none disabled:opacity-50"
-        />
-      </div>
-      {aberto && !carregando && (
-        <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-card border border-bdr2 rounded-lg shadow-2xl">
-          {filtrados.length === 0 && <p className="px-3 py-2.5 text-[11px] text-txt3">Nenhum membro encontrado.</p>}
-          {filtrados.map(m => (
-            <button key={m.usuario} type="button"
-              onClick={() => { onChange(m); setAberto(false) }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5">
-              <img src={m.avatar} alt="" className="w-6 h-6 rounded-full shrink-0" />
-              <span className="min-w-0 truncate text-sm text-txt">{m.nome}</span>
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-txt3">@{m.usuario}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Postagem no Discord: o FÓRUM vem de Configurações → Canais (fica salvo e só muda
- * lá); o TÓPICO dentro dele é escolhido a cada envio.
- */
-function PostarNoForum({ gerarPng }: { gerarPng: () => Promise<string | null> }) {
-  const { addToast } = useUIStore()
-  const { canEdit } = usePerms()
-  const podePostar = canEdit('carteira')
-  const { data, isLoading, refetch, isFetching } = useCarteiraForum(podePostar)
-  const { data: membrosData, isLoading: carregandoMembros } = useMembrosDiscord(podePostar)
-  const postar = usePostarCarteira()
-
-  const [topicoId, setTopicoId] = useState('')
-  const [mensagem, setMensagem] = useState('')
-  const [marcado, setMarcado] = useState<MembroDiscord | null>(null)
-
-  if (!podePostar) return null
-
-  async function enviar() {
-    if (!topicoId) { addToast('error', 'Escolha o tópico de destino.'); return }
-    const imagem = await gerarPng()
-    if (!imagem) { addToast('error', 'Falha ao gerar a imagem da carteira.'); return }
-    postar.mutate({ topicoId, imagem, mensagem: mensagem.trim() || undefined, mencionarUsuario: marcado?.usuario ?? null }, {
-      onSuccess: () => {
-        addToast('success', marcado ? `Carteirinha postada e @${marcado.usuario} marcado!` : 'Carteirinha postada no fórum!')
-        setMensagem(''); setMarcado(null)
-      },
-      onError: e => addToast('error', erroApi(e, 'Erro ao postar a carteira.')),
-    })
-  }
-
-  const labelCls = 'font-mono text-[11px] text-txt2 tracking-wider block mb-1.5'
-
-  return (
-    <div className="bg-card border border-bdr rounded-xl p-5 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-txt flex items-center gap-2">
-            <MessagesSquare size={17} className="text-gold3" /> Postar no fórum
-          </h2>
-          <p className="text-[11px] text-txt3 mt-0.5">
-            {data?.forum?.nome
-              ? <>Fórum: <span className="text-gold3">#{data.forum.nome}</span> — escolha o tópico de destino.</>
-              : 'Escolha o tópico de destino dentro do fórum configurado.'}
-          </p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching || !data?.configurado}
-          title="Atualizar lista de tópicos"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-bdr2 text-txt2 text-xs font-mono hover:text-txt hover:bg-bdr transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} /> Atualizar
-        </button>
-      </div>
-
-      {!isLoading && !data?.configurado && (
-        <div className="flex gap-2 px-3 py-2.5 rounded border border-gold/30 bg-gold/6 text-[11px] text-txt2">
-          <AlertTriangle size={14} className="text-gold shrink-0 mt-0.5" />
-          <span>Nenhum fórum de carteira definido. Configure em <span className="text-gold3">Configurações → Canais → Carteira</span>.</span>
-        </div>
-      )}
-
-      {data?.configurado && (
-        <>
-          <div>
-            <label className={labelCls}>Tópico do fórum</label>
-            <select
-              value={topicoId}
-              onChange={e => setTopicoId(e.target.value)}
-              disabled={isFetching}
-              className="w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt disabled:opacity-50"
-            >
-              <option value="">— escolha o tópico —</option>
-              {data.topicos.map(t => (
-                <option key={t.id} value={t.id}>{t.name}{t.arquivado ? ' · arquivado' : ''}</option>
-              ))}
-            </select>
-            {data.topicos.length === 0 && !isFetching && (
-              <p className="text-[11px] text-txt3 mt-1.5">Nenhum tópico encontrado nesse fórum.</p>
-            )}
-          </div>
-
-          <div>
-            <label className={labelCls}><AtSign size={11} className="inline mr-1" />Marcar membro (opcional)</label>
-            <EscolherMembro
-              valor={marcado}
-              onChange={setMarcado}
-              membros={membrosData?.membros ?? []}
-              carregando={carregandoMembros}
-            />
-            <p className="text-[11px] text-txt3 mt-1.5">
-              {membrosData?.membros.length
-                ? `${membrosData.membros.length} membros detectados no servidor.`
-                : 'A pessoa marcada recebe notificação do Discord.'}
-            </p>
-          </div>
-
-          <div>
-            <label className={labelCls}>Mensagem (opcional)</label>
-            <input
-              value={mensagem}
-              onChange={e => setMensagem(e.target.value)}
-              maxLength={300}
-              placeholder="Ex: Carteira emitida em 14/09/2026"
-              className="input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt placeholder-txt3"
-            />
-          </div>
-
-          <button
-            onClick={enviar}
-            disabled={postar.isPending || !topicoId}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors disabled:opacity-50"
-          >
-            <Send size={16} /> {postar.isPending ? 'Postando...' : 'Postar carteirinha'}
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
 
 export default function GerarCarteiraPage() {
   const navigate = useNavigate()
@@ -243,15 +57,6 @@ export default function GerarCarteiraPage() {
     img.src = url
   }
 
-  /** PNG da prévia como data URL — é o que vai como anexo para o Discord. */
-  function gerarPng(): Promise<string | null> {
-    return new Promise(resolve => {
-      const c = canvasRef.current
-      if (!c) { resolve(null); return }
-      try { resolve(c.toDataURL('image/png')) } catch { resolve(null) }
-    })
-  }
-
   function baixar() {
     const c = canvasRef.current; if (!c) return
     c.toBlob(b => {
@@ -277,7 +82,7 @@ export default function GerarCarteiraPage() {
       <div className="mb-6">
         <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Identificação</p>
         <h1 className="text-2xl sm:text-3xl font-bold text-txt flex items-center gap-2"><CreditCard size={26} className="text-gold" /> Carteirinha da DU</h1>
-        <p className="text-sm text-txt2 mt-1">Escolha o investigador para preencher os dados, envie a foto e baixe ou poste a carteirinha.</p>
+        <p className="text-sm text-txt2 mt-1">Escolha o investigador para preencher os dados, envie a foto e baixe a carteirinha.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 sm:gap-6 items-start">
@@ -317,7 +122,6 @@ export default function GerarCarteiraPage() {
             </button>
           </div>
 
-          <PostarNoForum gerarPng={gerarPng} />
         </div>
 
         <div className="bg-card border border-bdr rounded-xl p-5 lg:sticky lg:top-4">

@@ -13,7 +13,6 @@ const REASONS: Record<string, string> = {
   discord_nao_vinculado: 'Acesso negado para este Discord. Contate o administrador.',
   discord_erro: 'Falha na autenticação com o Discord. Tente novamente.',
   fora_servidor: 'Você precisa fazer parte do servidor do Discord da unidade para acessar o painel.',
-  bot_fora_servidor: 'O bot da DU não está no servidor da unidade — o painel está indisponível. Contate o Alto Comando.',
 }
 
 function DiscordIcon({ size = 17 }: { size?: number }) {

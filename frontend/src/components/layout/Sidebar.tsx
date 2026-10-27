@@ -65,7 +65,6 @@ const GROUPS: NavGroup[] = [
       { to: '/carteira',  icon: CreditCard,    label: 'Carteirinha DU',    minNivel: 'membro', area: 'carteira' },
       { to: '/anuncio',   icon: Megaphone,     label: 'Gerar anúncio',     minNivel: 'moderador', area: 'anuncio' },
       { to: '/protocolo', icon: BookOpen,      label: 'Protocolo',         minNivel: 'membro', viewOnly: true, area: 'protocolo' },
-      { to: '/mensagens', icon: Send,          label: 'Enviar mensagem',   minNivel: 'membro', area: 'mensagens' },
     ],
   },
   {

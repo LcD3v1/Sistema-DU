@@ -2,7 +2,6 @@ import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
 import type { Acao, AcoesResponse } from '@/types'
-import type { MembroDiscord } from '@/hooks/useCarteira'
 
 interface AcoesFilter {
   qru?: string
@@ -38,8 +37,7 @@ export function useAllAcoes() {
 
 export function useCreateAcao() {
   return useMutation({
-    // participantesDiscord: @ do Discord; o servidor resolve o ID
-    mutationFn: (body: Omit<Acao, 'id'> & { participantesDiscord?: string[] }) => api.post<Acao>('/acoes', body),
+    mutationFn: (body: Omit<Acao, 'id'>) => api.post<Acao>('/acoes', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['acoes'] })
       queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
@@ -58,14 +56,5 @@ export function useDeleteAcao() {
   return useMutation({
     mutationFn: (id: number) => api.delete(`/acoes/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['acoes'] }),
-  })
-}
-
-/** Todos do servidor do Discord (mesmo sem cadastro na unidade) para marcar como participante. */
-export function useParticipantesServidor() {
-  return useQuery<{ configurado: boolean; membros: MembroDiscord[] }>({
-    queryKey: ['acoes', 'participantes'],
-    queryFn: async () => (await api.get<{ configurado: boolean; membros: MembroDiscord[] }>('/acoes/participantes')).data,
-    staleTime: 60_000,
   })
 }

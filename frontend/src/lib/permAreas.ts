@@ -17,7 +17,6 @@ export const PERM_AREAS = [
   { id: 'anuncio',           label: 'Gerar Anúncio' },
   { id: 'protocolo',         label: 'Protocolo' },
   { id: 'carteira',          label: 'Carteirinha da DU' },
-  { id: 'mensagens',         label: 'Enviar mensagem (Discord)' },
   { id: 'configuracoes',     label: 'Configurações' },
 ] as const
 

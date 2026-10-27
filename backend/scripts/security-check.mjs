@@ -344,72 +344,29 @@ check(/!isDev\(autor, data\) && isDev\(conta, data\)/.test(cfgTs),
 check(/dev \|\| c\.dev !== true/.test(membrosTs),
   'cargo de dev fora da hierarquia exposta a não-devs', 'cargo de dev exposto na hierarquia')
 
-// 15. Postagem da carteirinha no Discord
-console.log('\n[15] Postagem da carteira no Discord')
-const cartTs = ler('src/routes/carteira.ts')
-const idxTs  = ler('src/index.ts')
-const formTs = ler('src/discord/forum.ts')
-
-check(/requireArea\('carteira', 'ver'\)/.test(cartTs) && /requireArea\('carteira', 'editar'\)/.test(cartTs),
-  'carteira: leitura exige ver e postagem exige editar', 'carteira sem requireArea correto')
-check(/validateBody\(carteiraPostSchema\)/.test(cartTs), 'corpo da postagem validado por Zod', 'postagem de carteira sem Zod')
-// O tópico vem do cliente: sem esta conferência dava para postar em qualquer canal do servidor
-check(/topicoPertenceAoForum\(topicoId, forumId\)/.test(cartTs),
-  'tópico conferido contra o fórum configurado', 'tópico de carteira aceito sem conferir o fórum')
-check(/parent_id === forumId/.test(formTs), 'topicoPertenceAoForum compara o canal pai', 'conferência do fórum não compara parent_id')
-check(/89504e470d0a1a0a/.test(cartTs), 'anexo conferido pela assinatura PNG', 'anexo da carteira aceito sem checar assinatura')
-check(/MAX_PNG_BYTES/.test(cartTs), 'tamanho do anexo limitado', 'anexo da carteira sem limite de tamanho')
-check(idxTs.includes('carteira\\/postar'), 'postagem da carteira sob o limitador de upload', 'carteira/postar fora das rotas de upload')
-check(!/err\.message/.test(cartTs.replace(/console\.error[^\n]*/g, '')),
-  'carteira devolve erro genérico ao cliente', 'carteira vaza err.message na resposta')
-check(/audit\('CARTEIRA_POSTADA'/.test(cartTs), 'postagem da carteira auditada', 'postagem da carteira sem auditoria')
-
-// Menção de membro do Discord na carteira
-const identTs = ler('src/discord/identidade.ts')
-check(/router\.get\('\/membros', requireAuth, requireArea\('carteira', 'editar'\)/.test(cartTs),
-  'lista de membros do Discord exige permissão de editar', 'lista de membros exposta sem exigir editar')
-// O painel recebe só o @; o discordId de terceiros fica no servidor
-check(/export interface MembroMencionavel \{ usuario: string; nome: string; avatar: string \}/.test(identTs),
-  'DTO de membro não tem discordId', 'DTO de membro do Discord expõe id')
-check(/\.map\(semId\)/.test(cartTs), 'rota de membros filtra o id com semId', 'rota de membros devolve objeto cru')
-check(/mencionarUsuario/.test(cartTs) && !/mencionarId/.test(cartTs),
-  'menção referenciada pelo @, não pelo id', 'menção ainda usa discordId vindo do cliente')
-// parse: [] impede @everyone/@here e menção de cargo
-check(/return users\.length > 0 \? \{ parse: \[\], users \} : \{ parse: \[\] \}/.test(formTs),
-  'allowed_mentions bloqueia everyone/here e cargos', 'allowed_mentions permite menção ampla')
-check(/allowed_mentions: allowedMentions\(mencionarId \? \[mencionarId\] : \[\]\)/.test(formTs),
-  'postagem da carteira só menciona o usuário escolhido', 'postagem da carteira sem trava de menção')
-
-// 16. Painel de ranking de apreensões (botões do Discord)
-console.log('\n[16] Painel de apreensões no Discord')
-const painelTs = ler('src/discord/painelApreensoes.ts')
-const gwTs = ler('src/discord/gateway.ts')
-
-check(painelTs.length > 0, 'painelApreensoes.ts presente', 'ausente: src/discord/painelApreensoes.ts')
-// O clique chega do Discord: a permissão tem de ser conferida no handler
-const hb = gwTs.slice(gwTs.indexOf('Events.InteractionCreate'))
-check(/canArea\(conta, dados, 'pendentes', 'editar'\)/.test(hb),
-  'atualização do painel exige editar em Aprovações', 'atualização sem checagem de permissão')
-check(/conta\.exonerado \|\| conta\.ativo === false/.test(hb),
-  'exonerado bloqueado nos botões do painel', 'exonerado pode usar os botões do painel')
-const posPerm = hb.indexOf('podeZerarRankings(conta, dados)')
-const posReset = hb.indexOf('resetarRanking(')
-check(posPerm > -1 && posReset > -1 && posPerm < posReset,
-  'permissão conferida antes de resetar', 'reset executado antes da checagem de permissão')
-check(/canArea\(conta, data, 'zerar_rankings', 'editar'\)/.test(ler('src/access.ts')),
-  'reset usa permissão específica compartilhada', 'reset sem permissão específica')
-const resetServico = painelTs.slice(painelTs.indexOf('export async function resetarRanking'))
-check(resetServico.indexOf('!podeZerarRankings(conta, data)') >= 0 &&
-  resetServico.indexOf('!podeZerarRankings(conta, data)') < resetServico.indexOf('writeData(data)'),
-  'serviço de reset revalida autorização antes de gravar', 'serviço de reset permite contornar autorização')
-check(/audit\('UNAUTHORIZED_ACCESS'/.test(hb), 'clique negado é auditado', 'clique negado sem auditoria')
-check(/audit\('RANKING_APREENSOES_RESETADO'/.test(painelTs), 'reset do ranking é auditado', 'reset do ranking sem auditoria')
-// O placar é editado o tempo todo: não pode notificar ninguém
-check(/allowed_mentions: \{ parse: \[\] \}/.test(painelTs),
-  'painel não notifica ninguém (allowed_mentions vazio)', 'painel pode notificar em massa')
-// Resetar não apaga apreensão: só move a data de corte
-check(/resetadoEmData/.test(painelTs) && !/splice|filter\(a => a\.id !==/.test(painelTs),
-  'reset não apaga apreensões, só move o corte', 'reset do ranking apaga dados')
+// 15. O painel da DU não tem bot do Discord
+console.log('\n[15] Sem bot do Discord')
+{
+  const arquivosSrc = []
+  const varrer = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const p = path.join(d, e.name)
+    if (e.isDirectory()) varrer(p); else if (/\.ts$/.test(e.name)) arquivosSrc.push(fs.readFileSync(p, 'utf8'))
+  } }
+  varrer(path.join(ROOT, 'src'))
+  const tudo = arquivosSrc.join('\n')
+  check(!/DISCORD_BOT_TOKEN|Authorization: `Bot /.test(tudo) && !/from 'discord\.js'/.test(tudo),
+    'backend não usa token nem cliente de bot', 'backend ainda usa bot do Discord')
+  const cb = ler('src/routes/auth.ts')
+  check(/scope: 'identify guilds\.members\.read'/.test(cb) && /buscarMembroServidor\(tokenJson\.access_token\)/.test(cb),
+    'vínculo com o servidor conferido pelo OAuth da própria pessoa', 'login sem conferir o servidor pelo OAuth')
+  const ident = ler('src/discord/identidade.ts')
+  check(/users\/@me\/guilds\/\$\{process\.env\.DISCORD_GUILD_ID\}\/member/.test(ident) && /Bearer \$\{accessToken\}/.test(ident),
+    'consulta só o próprio membro (users/@me), com o token da pessoa', 'consulta de membro do servidor fora do users/@me')
+  const posServidor = cb.indexOf('!membroServidor && !dispensaServidor(me.id)')
+  check(posServidor > -1 && posServidor < cb.indexOf('const data = readData()', posServidor),
+    'quem não é do servidor é barrado antes de criar conta', 'conta criada sem conferir o servidor')
+  check(!/\/api\/(mensagens|carteira)/.test(ler('src/index.ts')), 'rotas do bot (mensagens/carteira) removidas', 'rotas do bot ainda montadas')
+}
 
 // Resultado
 const acoesTs = ler('src/routes/acoes.ts')
@@ -432,23 +389,14 @@ check(!/dispensaServidor|discordIdsAcessoExterno/.test(ler('src/middleware/auth.
     'exonerado continua bloqueado mesmo com acesso externo', 'acesso externo pode contornar exoneração')
 }
 
-console.log('\n[ADV] Cargos de advertência no Discord')
+console.log('\n[ADV] Advertências')
 {
-  const cfg = ler('src/routes/config.ts')
-  for (const rota of ["get('/cargos-adv'", "post('/cargos-adv/criar'", "put('/cargos-adv'"]) {
-    const linha = cfg.split('\n').find(l => l.includes(`router.${rota}`)) ?? ''
-    check(/requireAuth, adminOnly, cargosDiscordLimiter/.test(linha), `${rota.split("'")[1]} exige admin + limitador próprio`, `${rota.split("'")[1]} sem admin ou sem limitador`)
-  }
-  check(/router\.put\('\/cargos-adv',[^\n]*validateBody\(cargosAdvSchema\)/.test(cfg) && /cargosAdvSchema = z\.object\(\{[\s\S]{0,300}\}\)\.strict\(\)/.test(ler('src/middleware/validate.ts')),
-    'escolha de cargos validada por Zod (IDs numéricos, sem campos extras)', 'escolha de cargos sem Zod estrito')
   const mem = ler('src/routes/membros.ts')
   const del = mem.slice(mem.indexOf("router.delete('/:id/advertencia/:nivel'"), mem.indexOf("router.delete('/:id/advertencia/:nivel'") + 900)
   check(/requireAuth, requireArea\('membros', 'editar'\)/.test(del) && /podeGerenciar\(/.test(del) && /nivel !== 1 && nivel !== 2 && nivel !== 3/.test(del),
     'retirar ADV exige editar membros, hierarquia e nível válido', 'retirar ADV sem permissão/hierarquia/validação')
   check(!/\bdata\.cargosAdv/.test(ler('src/routes/public.ts')) && !/\bdata\.cargosAdv/.test(mem),
     'IDs dos cargos de ADV não saem em rotas públicas nem na lista de membros', 'IDs dos cargos de ADV expostos')
-  check(/\.filter\(r => r\.id !== guild\(\) && !r\.managed\)/.test(ler('src/discord/cargosAdv.ts')),
-    'lista de cargos exclui @everyone e cargos gerenciados por integrações', 'lista de cargos inclui @everyone/cargos de integração')
 }
 
 console.log('\n[Registro] Tópico/canal do registro no Discord')
@@ -458,9 +406,6 @@ console.log('\n[Registro] Tópico/canal do registro no Discord')
     'lista de membros não expõe discordThreadId nem registroCanal', 'membros expõem IDs do Discord')
   check(/discordThreadId: _t, registroCanal: _r, \.\.\.membroPublico/.test(ler('src/routes/auth.ts')),
     'edição do próprio perfil não devolve IDs do Discord', 'perfil devolve IDs do Discord')
-  const fr = ler('src/discord/forum.ts')
-  check(/const garantindo = new Map/.test(fr) && /registroCanal === canal\) return undefined/.test(fr),
-    'registro não duplica (trava por membro e marca de canal)', 'registro pode ser repostado em duplicidade')
 }
 
 console.log('\n[QRU] Tipo convencional × fechado')
@@ -475,8 +420,6 @@ console.log('\n[QRU] Tipo convencional × fechado')
   const ac = ler('src/routes/acoes.ts')
   check(/tipoDoQru\(data, body\.qru\) !== body\.tipo/.test(ac) && /comandante: responsavel/.test(ac),
     'apreensão só com QRU existente do tipo certo; responsável = conta logada', 'apreensão aceita QRU/responsável de fora')
-  check(/router\.get\('\/participantes', requireAuth, requireArea\('registrar_acao', 'editar'\)/.test(ac) && /\.map\(semId\)/.test(ac),
-    'lista do servidor para participantes exige editar e não traz discordId', 'lista de participantes expõe discordId ou sem permissão')
   check(/function acaoPublica/.test(ac) && !/res\.(status\(\d+\)\.)?json\((novaAcao|acao)\)/.test(ac),
     'apreensões saem da API sem discordId dos participantes', 'apreensão devolvida crua (discordId de participante)')
 }
@@ -519,9 +462,8 @@ check(chamadasPublicas.length > 0 && chamadasPublicas.every(c => c.endsWith(', t
   'rotas públicas usam o snapshot público (dev fora do ranking)', 'rota pública usa o snapshot do painel')
 check(/if \(!row \|\| devs\.has\(id\)\) continue/.test(ler('src/modules/ranking/service.ts')),
   'dev não pontua no ranking público', 'dev pontua no ranking público')
-const presencaTs = ler('src/discord/presenca.ts')
-check(presencaTs && !/writeData|readData|audit\(/.test(presencaTs) && /online: estaOnline\(row\.discordId\)/.test(ler('src/modules/ranking/service.ts')),
-  'presença só em memória e exposta como booleano', 'presença gravada no banco ou exposta com dados do Discord')
+check(/online: null/.test(ler('src/modules/ranking/service.ts')),
+  'sem bot: presença nunca é exposta (online null)', 'presença exposta sem bot')
 console.log('\n[Anúncio] Foto enviada com link público')
 const anuncioImgTs = ler('src/routes/anuncioImagem.ts')
 check(/uploadRouter\.post\('\/imagem', requireAuth, requireArea\('anuncio', 'editar'\), validateBody\(anuncioImagemSchema\)/.test(anuncioImgTs),
@@ -532,16 +474,7 @@ check(/randomBytes\(18\)/.test(anuncioImgTs) && /'X-Content-Type-Options', 'nosn
   'link da foto com ID aleatório, nosniff e CSP sandbox', 'link da foto previsível ou sem nosniff/sandbox')
 check(/app\.use\('\/img', anuncioImagemPublica\)/.test(index) && /anuncio\\\/imagem/.test(index),
   'foto pública fora de /api e envio no limite de upload', 'rota da foto fora do lugar ou sem uploadLimiter')
-console.log('\n[Discord] Mensagens e avisos enviados pelo bot')
-const mensagensTs = ler('src/routes/mensagens.ts')
-const mensagensDiscordTs = ler('src/discord/mensagens.ts')
-check(/router\.post\('\/', requireAuth, requireArea\('mensagens', 'editar'\), mensagemDiscordLimiter, validateBody\(mensagemDiscordSchema\)/.test(mensagensTs)
-  && /router\.get\('\/canais', requireAuth, requireArea\('mensagens', 'ver'\)/.test(mensagensTs),
-  'enviar mensagem exige login, área mensagens, limitador e Zod', 'rota de mensagem sem requireAuth/requireArea/limitador/Zod')
-check(/canalDeTextoValido\(canalId\)/.test(mensagensTs),
-  'mensagem só em canal de texto do próprio servidor', 'mensagem aceita qualquer ID de canal')
-check(/allowed_mentions: \{ parse: \[\] \}/.test(mensagensDiscordTs) && !/parse: \['everyone'|parse: \["everyone"/.test(mensagensDiscordTs),
-  'mensagens do bot nunca notificam @everyone/cargos', 'mensagem do bot pode notificar @everyone/cargos')
+console.log('\n[Avisos] Saída campo a campo')
 check(/\.map\(\(\{ id, titulo, mensagem, autor, criadoEm \}\)/.test(ler('src/routes/avisos.ts')),
   'avisos listados campo a campo (sem IDs do Discord)', 'avisos saem crus (com IDs do Discord)')
 console.log('\n[DU] Relatórios, Boletins, Inquéritos, Galeria e arquivos')

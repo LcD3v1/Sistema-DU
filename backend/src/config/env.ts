@@ -105,7 +105,4 @@ if (PROD) {
       console.warn(`[DU][SEGURANÇA] ${nome} enfraquece a proteção em produção — revise o .env.`)
     }
   }
-  if (process.env.DISCORD_EXIGIR_SERVIDOR === 'off') {
-    console.warn('[DU][SEGURANÇA] DISCORD_EXIGIR_SERVIDOR=off é ignorado em produção.')
-  }
 }

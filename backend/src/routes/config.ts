@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../middleware/roles'
-import { criticalLimiter, cargosDiscordLimiter } from '../middleware/rateLimiter'
+import { criticalLimiter } from '../middleware/rateLimiter'
 import {
   validateBody,
   qruSchema, tipoQruSchema, removerQruSchema, patenteSchema, cargoSchema,
@@ -9,38 +9,17 @@ import {
   logoSchema, recCfgSchema,
   reorderPatenteSchema, reorderQruSchema,
   situacaoAnuncioSchema, situacaoAnuncioUpdateSchema,
-  cargoPermCreateSchema, cargoPermUpdateSchema,
-  canaisSchema, reorderCargosSchema, cargosAdvSchema,
+  cargoPermCreateSchema, cargoPermUpdateSchema, reorderCargosSchema,
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
 import { readData, writeData } from '../data'
-import { Conta, FastData, CargoPermissao, CanaisDiscord, TipoQru } from '../types'
+import { Conta, FastData, CargoPermissao, TipoQru } from '../types'
 import { tipoDoQru, definirTipoQru } from '../qrus'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo } from '../access'
-import { GUILD_ANNOUNCEMENT, GUILD_TEXT, GUILD_FORUM, GUILD_MEDIA, botConfigurado, listarForuns, tentarPostarRegistro, postarAprovacao, emSegundoPlano, repararRegistros } from '../discord/forum'
-import { publicarPainel } from '../discord/painelApreensoes'
-import { NIVEIS_ADV, infoCargosAdv, validarCargosEscolhidos, garantirCargosAdv, sincronizarTodosCargosAdv, retirarCargoDeTodos, type NivelAdvChave } from '../discord/cargosAdv'
 import { notificar } from '../notificacoes'
 
 const router = Router()
-
-/**
- * Canais configuráveis do Discord — fonte única.
- *
- * O tipo `Record<keyof CanaisDiscord, ...>` é proposital: ao acrescentar um canal
- * em `CanaisDiscord`, o TypeScript quebra AQUI até a entrada ser adicionada, então
- * o canal novo nunca fica de fora da validação nem da gravação.
- */
-const CANAIS_CFG: Record<keyof CanaisDiscord, { rotulo: string; tipos?: number[]; exigencia?: string }> = {
-  registro:   { rotulo: 'Registro' },
-  apreensoes: { rotulo: 'Apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio, não fórum' },
-  carteira:   { rotulo: 'Carteira',   tipos: [GUILD_FORUM, GUILD_MEDIA],       exigencia: 'fórum ou mídia' },
-  rankingApreensoes: { rotulo: 'Ranking de apreensões', tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio' },
-  avisos:     { rotulo: 'Avisos',     tipos: [GUILD_TEXT, GUILD_ANNOUNCEMENT], exigencia: 'texto ou anúncio' },
-}
-type ChaveCanal = keyof typeof CANAIS_CFG
-const CHAVES_CANAIS = Object.keys(CANAIS_CFG) as ChaveCanal[]
 
 /** O autor da requisição é dev? (poder total, acima do admin) */
 function souDev(req: Request, data: FastData): boolean {
@@ -282,12 +261,6 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
 
   writeData(data)
   audit('ACCOUNT_UPDATED', req, `ID: ${id} | ${changes.join(', ')}`)
-  if (aprovadoCom) {
-    // Aprovou agora → posta no canal de registro antes de responder (sem atraso)
-    try { await postarAprovacao(conta.id, aprovadoCom, req.user!.username) } catch (err) {
-      console.error('[DU][DISCORD] postar aprovação:', err instanceof Error ? err.message : err)
-    }
-  } else if (conta.cargoPermId) tentarPostarRegistro(conta.id)
   res.json(conta)
 })
 
@@ -411,122 +384,6 @@ router.delete('/cargos-permissao/:id', requireAuth, adminOnly, (req: Request, re
   writeData(data)
   audit('CONFIG_UPDATED', req, `Cargo de permissão removido: #${id}`)
   res.json({ ok: true })
-})
-
-// ── Cargos de advertência (Discord) ─────────────────────────────────────────────
-
-async function respostaCargosAdv(res: Response): Promise<void> {
-  if (!botConfigurado()) { res.json({ botConfigurado: false, cargos: {}, roles: [], podeGerenciar: false }); return }
-  try {
-    res.json({ botConfigurado: true, ...(await infoCargosAdv()) })
-  } catch (err) {
-    console.error('[DU][DISCORD] cargos de ADV:', err instanceof Error ? err.message : err)
-    res.json({ botConfigurado: true, erro: 'Não foi possível consultar os cargos do servidor.', cargos: readData().cargosAdv ?? {}, roles: [], podeGerenciar: false })
-  }
-}
-
-router.get('/cargos-adv', requireAuth, adminOnly, cargosDiscordLimiter, async (_req: Request, res: Response): Promise<void> => {
-  await respostaCargosAdv(res)
-})
-
-// Cria (ou reaproveita pelo nome) ADV DU 1/2/3 para os níveis sem cargo
-router.post('/cargos-adv/criar', requireAuth, adminOnly, cargosDiscordLimiter, async (req: Request, res: Response): Promise<void> => {
-  if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
-  try { await garantirCargosAdv() } catch (err) {
-    console.error('[DU][DISCORD] criar cargos de ADV:', err instanceof Error ? err.message : err)
-    res.status(502).json({ error: 'Não foi possível criar os cargos. Confira se o bot tem a permissão "Gerenciar Cargos".' }); return
-  }
-  audit('CONFIG_UPDATED', req, 'Cargos de advertência criados/verificados no Discord')
-  emSegundoPlano('cargos de advertência', sincronizarTodosCargosAdv)
-  await respostaCargosAdv(res)
-})
-
-router.put('/cargos-adv', requireAuth, adminOnly, cargosDiscordLimiter, validateBody(cargosAdvSchema), async (req: Request, res: Response): Promise<void> => {
-  if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
-  const body = req.body as Partial<Record<NivelAdvChave, string | null>>
-  const escolha = { ...(readData().cargosAdv ?? {}) } as Partial<Record<NivelAdvChave, string | null>>
-  for (const n of NIVEIS_ADV) if (body[n] !== undefined) escolha[n] = body[n]
-  let invalido: string | null
-  try { invalido = await validarCargosEscolhidos(escolha) } catch {
-    res.status(502).json({ error: 'Não foi possível consultar o Discord.' }); return
-  }
-  if (invalido) { res.status(400).json({ error: invalido }); return }
-
-  // Sem await daqui até writeData
-  const data = readData()
-  const antigos = { ...(data.cargosAdv ?? {}) }
-  const novos = { ...antigos }
-  for (const n of NIVEIS_ADV) {
-    if (body[n] === null) delete novos[n]
-    else if (body[n]) novos[n] = body[n]!
-  }
-  data.cargosAdv = novos
-  writeData(data)
-  audit('CONFIG_UPDATED', req, `Cargos de advertência: ${NIVEIS_ADV.map(n => `ADV ${n}=${novos[n] ?? '—'}`).join(' | ')}`)
-  // Cargo que deixou de ser de ADV sai de todo mundo; depois aplica os atuais
-  const trocados = NIVEIS_ADV.map(n => antigos[n]).filter((id): id is string => !!id && !Object.values(novos).includes(id))
-  emSegundoPlano('cargos de advertência', async () => {
-    for (const id of trocados) await retirarCargoDeTodos(id)
-    await sincronizarTodosCargosAdv()
-  })
-  await respostaCargosAdv(res)
-})
-
-// ── Canais do Discord ───────────────────────────────────────────────────────────
-
-router.get('/canais', requireAuth, adminOnly, async (_req: Request, res: Response): Promise<void> => {
-  const data = readData()
-  if (!botConfigurado()) {
-    res.json({ botConfigurado: false, canais: data.canais, foruns: [] }); return
-  }
-  try {
-    res.json({ botConfigurado: true, canais: data.canais, foruns: await listarForuns() })
-  } catch (err) {
-    console.error('[DU][DISCORD] listar canais:', err instanceof Error ? err.message : err)
-    res.json({ botConfigurado: true, erro: 'Não foi possível listar os canais do servidor. Verifique o token do bot e o ID do servidor.', canais: data.canais, foruns: [] })
-  }
-})
-
-router.put('/canais', requireAuth, adminOnly, validateBody(canaisSchema), async (req: Request, res: Response): Promise<void> => {
-  if (!botConfigurado()) { res.status(400).json({ error: 'Bot do Discord não configurado no servidor.' }); return }
-  const body = req.body as Partial<Record<ChaveCanal, string | null>>
-
-  let foruns
-  try { foruns = await listarForuns() } catch {
-    res.status(502).json({ error: 'Não foi possível consultar o Discord.' }); return
-  }
-  const porId = new Map(foruns.map(f => [f.id, f]))
-  for (const [chave, id] of Object.entries(body)) {
-    const cfg = CANAIS_CFG[chave as ChaveCanal]
-    const canal = id ? porId.get(id) : undefined
-    if (id && !canal) {
-      res.status(400).json({ error: `O canal selecionado em "${chave}" não é um canal de postagem acessível deste servidor.` }); return
-    }
-    if (canal && cfg?.tipos && !cfg.tipos.includes(canal.type)) {
-      res.status(400).json({ error: `O canal de ${cfg.rotulo} precisa ser um canal de ${cfg.exigencia}.` }); return
-    }
-  }
-
-  const data = readData()
-  const anteriorPainel = data.canais.rankingApreensoes
-  const anteriorRegistro = data.canais.registro
-  for (const chave of CHAVES_CANAIS) {
-    if (body[chave] === null) delete data.canais[chave]
-    else if (body[chave]) data.canais[chave] = body[chave]
-  }
-  const canalPainelMudou = body.rankingApreensoes !== undefined && anteriorPainel !== data.canais.rankingApreensoes
-  const canalRegistroMudou = anteriorRegistro !== data.canais.registro
-  writeData(data)
-  audit('CANAIS_UPDATED', req, CHAVES_CANAIS.map(k => `${k}: ${data.canais[k] ?? '—'}`).join(' | '))
-  // O painel de apreensões é postado justamente quando o canal é escolhido.
-  if (canalPainelMudou && data.canais.rankingApreensoes) {
-    emSegundoPlano('painel de apreensões', publicarPainel)
-  }
-  // Fórum de registro novo → recria o registro de quem não tem tópico nele
-  if (canalRegistroMudou && data.canais.registro) {
-    emSegundoPlano('reparar registros', repararRegistros)
-  }
-  res.json({ canais: data.canais })
 })
 
 // ── Logo ──────────────────────────────────────────────────────────────────────

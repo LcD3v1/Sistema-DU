@@ -13,10 +13,8 @@ import { Membro, Conta, FastData, LinkPerfil } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { tentarPostarRegistro } from '../discord/forum'
 import { bloqueioDeAcesso } from '../efetivo'
-import { buscarMembroServidor, aplicarIdentidade } from '../discord/identidade'
-import { verificarBotNoServidor } from '../discord/acessoServidor'
+import { buscarMembroServidor, aplicarIdentidade, servidorConfigurado } from '../discord/identidade'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
@@ -80,7 +78,8 @@ router.get('/discord', loginLimiter, (_req: Request, res: Response): void => {
     client_id: process.env.DISCORD_CLIENT_ID!,
     redirect_uri: process.env.DISCORD_REDIRECT_URI!,
     response_type: 'code',
-    scope: 'identify',
+    // guilds.members.read: confere o vínculo com o servidor sem bot
+    scope: 'identify guilds.members.read',
     state,
     prompt: 'consent',
   })
@@ -123,33 +122,23 @@ router.get('/discord/callback', loginLimiter, async (req: Request, res: Response
     // acesso total. O primeiro dono a entrar assume a conta id 1.
     const ehDono = discordIdsDonos().includes(me.id)
 
-    // Vínculo com o servidor: o bot precisa estar no servidor da unidade e a
-    // pessoa precisa fazer parte dele. Donos passam (evita ficar trancado fora).
+    // Vínculo com o servidor: só entra quem faz parte do servidor da unidade,
+    // conferido com o token da própria pessoa. Donos passam (evita ficar trancado fora).
     let membroServidor: Awaited<ReturnType<typeof buscarMembroServidor>>
+    try { membroServidor = await buscarMembroServidor(tokenJson.access_token) } catch (err) {
+      console.error('[DU][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
+      if (!ehDono) { res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return }
+    }
     if (!ehDono) {
-      let botPresente = false
-      try { botPresente = await verificarBotNoServidor() } catch (err) {
-        console.error('[DU][DISCORD] verificar bot no servidor:', err instanceof Error ? err.message : err)
-        res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
-      }
-      if (!botPresente) {
-        audit('DISCORD_LOGIN_DENIED', req, `Bot fora do servidor — Discord: ${me.username} (${me.id})`)
-        res.redirect(`${FRONTEND_URL}/login?reason=bot_fora_servidor`); return
-      }
-      try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
-        console.error('[DU][DISCORD] verificar membro do servidor:', err instanceof Error ? err.message : err)
-        res.redirect(`${FRONTEND_URL}/login?reason=discord_erro`); return
+      if (!servidorConfigurado()) {
+        audit('DISCORD_LOGIN_DENIED', req, `Servidor da unidade não configurado — Discord: ${me.username} (${me.id})`)
+        res.redirect(`${FRONTEND_URL}/login?reason=discord_off`); return
       }
       if (!membroServidor && !dispensaServidor(me.id)) {
         audit('DISCORD_LOGIN_DENIED', req, `Não faz parte do servidor — Discord: ${me.username} (${me.id})`)
         res.redirect(`${FRONTEND_URL}/login?reason=fora_servidor`); return
       }
       if (!membroServidor) audit('DISCORD_LOGIN_SUCCESS', req, `Acesso externo (fora do servidor) liberado — Discord: ${me.username} (${me.id})`)
-    } else {
-      // Dono: identidade do servidor é opcional (não bloqueia o acesso)
-      try { membroServidor = await buscarMembroServidor(me.id) } catch (err) {
-        console.error('[DU][DISCORD] identidade no servidor:', err instanceof Error ? err.message : err)
-      }
     }
 
     // Sem await daqui até writeData: evita sobrescrever gravações concorrentes
@@ -395,8 +384,6 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   }
   writeData(data)
   audit('ONBOARDING_DONE', req, `Membro: ${membro.policial} (#${membro.id})`)
-  // Sempre: readmitido refazendo o cadastro também precisa do registro no canal
-  tentarPostarRegistro(conta.id)
   res.json({ ok: true, membroId: membro.id })
 })
 

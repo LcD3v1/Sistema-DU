@@ -1,9 +1,11 @@
 import { Conta } from '../types'
-import { botConfigurado, discordFetch } from './forum'
 
 /**
  * Identidade do usuário NO SERVIDOR da unidade: apelido e foto do servidor
  * (não o nome/foto globais do Discord). Usada no topo e na dashboard.
+ *
+ * O painel não tem bot: o vínculo com o servidor é lido no login, com o token
+ * OAuth da própria pessoa (escopo `guilds.members.read`).
  */
 
 export interface MembroServidor {
@@ -13,7 +15,13 @@ export interface MembroServidor {
   roles?: string[]
 }
 
+const API = 'https://discord.com/api'
 const CDN = 'https://cdn.discordapp.com'
+const TIMEOUT_MS = 10_000
+
+export function servidorConfigurado(): boolean {
+  return /^\d{17,20}$/.test(process.env.DISCORD_GUILD_ID ?? '')
+}
 
 export function avatarDoMembro(guildId: string, m: MembroServidor): string {
   if (m.avatar) return `${CDN}/guilds/${guildId}/users/${m.user.id}/avatars/${m.avatar}.png?size=128`
@@ -26,12 +34,18 @@ export function nomeDoMembro(m: MembroServidor): string {
   return m.nick || m.user.global_name || m.user.username
 }
 
-/** Busca o membro no servidor pelo bot (REST). Retorna undefined se não estiver no servidor. */
-export async function buscarMembroServidor(discordId: string): Promise<MembroServidor | undefined> {
-  if (!botConfigurado()) return undefined
-  const res = await discordFetch('GET', `/guilds/${process.env.DISCORD_GUILD_ID}/members/${discordId}`)
+/**
+ * Membro do servidor da unidade, lido com o token OAuth de quem está entrando.
+ * Retorna undefined se a pessoa não fizer parte do servidor.
+ */
+export async function buscarMembroServidor(accessToken: string): Promise<MembroServidor | undefined> {
+  if (!servidorConfigurado()) return undefined
+  const res = await fetch(`${API}/users/@me/guilds/${process.env.DISCORD_GUILD_ID}/member`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
   if (res.status === 404) return undefined
-  if (!res.ok) throw new Error(`Discord membro ${discordId} → ${res.status}`)
+  if (!res.ok) throw new Error(`Discord membro do servidor → ${res.status}`)
   return await res.json() as MembroServidor
 }
 
@@ -46,55 +60,4 @@ export function aplicarIdentidade(conta: Conta, m: MembroServidor): boolean {
   conta.avatarServidor = avatar
   if (roles) conta.discordRoleIds = roles
   return true
-}
-
-// ── Lista de membros do servidor ──────────────────────────────────────────────
-
-/**
- * Membro do servidor. `id` é o discordId e fica SÓ no backend — o painel recebe
- * apenas `usuario` (o @ do Discord, único) e usa ele como referência; o id é
- * resolvido aqui na hora de montar a menção.
- */
-export interface MembroServidorLista { id: string; usuario: string; nome: string; avatar: string }
-
-/** O que vai para o navegador: sem discordId. */
-export interface MembroMencionavel { usuario: string; nome: string; avatar: string }
-
-export const semId = (m: MembroServidorLista): MembroMencionavel =>
-  ({ usuario: m.usuario, nome: m.nome, avatar: m.avatar })
-
-const MEMBROS_TTL_MS = 60_000
-const LIMITE_PAGINA = 1000
-const TETO_MEMBROS = 10_000   // trava de segurança: não varre um servidor gigante sem fim
-let cacheMembros: { em: number; lista: Promise<MembroServidorLista[]> } | undefined
-
-async function buscarTodosMembros(): Promise<MembroServidorLista[]> {
-  const guildId = process.env.DISCORD_GUILD_ID
-  const out: MembroServidorLista[] = []
-  let after = '0'
-  while (out.length < TETO_MEMBROS) {
-    const res = await discordFetch('GET', `/guilds/${guildId}/members?limit=${LIMITE_PAGINA}&after=${after}`)
-    if (!res.ok) throw new Error(`Discord membros → ${res.status}`)
-    const pagina = await res.json() as MembroServidor[]
-    for (const m of pagina) {
-      if (m.user?.bot) continue
-      out.push({ id: m.user.id, usuario: m.user.username, nome: nomeDoMembro(m), avatar: avatarDoMembro(guildId!, m) })
-    }
-    if (pagina.length < LIMITE_PAGINA) break
-    after = pagina[pagina.length - 1].user.id
-  }
-  return out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-}
-
-/**
- * Todos os membros do servidor (sem bots), com cache curto — a paginação é cara
- * e a lista muda pouco. Chamadas simultâneas compartilham a mesma requisição.
- */
-export function listarMembrosServidor(): Promise<MembroServidorLista[]> {
-  if (!cacheMembros || Date.now() - cacheMembros.em > MEMBROS_TTL_MS) {
-    const lista = buscarTodosMembros()
-    cacheMembros = { em: Date.now(), lista }
-    lista.catch(() => { if (cacheMembros?.lista === lista) cacheMembros = undefined })
-  }
-  return cacheMembros.lista
 }

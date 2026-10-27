@@ -6,7 +6,6 @@ import { validateBody, ausenciaSchema, recusarSchema } from '../middleware/valid
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Ausencia, FastData } from '../types'
-import { postarAusencia, emSegundoPlano } from '../discord/forum'
 import { hoje, statusAusencia, podeGerenciar, verificarAusencias, contaDoMembro } from '../efetivo'
 import { notificar, notificarAprovadores } from '../notificacoes'
 
@@ -115,12 +114,6 @@ router.put('/:id/aprovar', requireAuth, requireArea('ausencias', 'editar'), (req
   verificarAusencias()   // já marca o status "Ausência" se começa hoje
 
   audit('AUSENCIA_APROVADA', req, `#${aus.id} ${aus.nome} | ${aus.dataInicio} → ${aus.dataFim}`)
-  if (membro) {
-    const snap = readData()
-    const por = req.user!.username
-    const a = { ...aus }
-    emSegundoPlano('ausência aprovada', () => postarAusencia(snap, membro, 'aprovada', a.dataInicio, a.dataFim, por, a.motivo || undefined))
-  }
   res.json(aus)
 })
 
@@ -156,12 +149,6 @@ router.put('/:id/encerrar', requireAuth, requireArea('ausencias', 'editar'), (re
   writeData(data)
 
   audit('AUSENCIA_ENCERRADA', req, `#${aus.id} ${aus.nome} — retirada manualmente`)
-  if (membro) {
-    const snap = structuredClone(data)
-    const por = req.user!.username
-    const a = { ...aus }
-    emSegundoPlano('ausência encerrada', () => postarAusencia(snap, membro, 'encerrada', a.dataInicio, a.dataFim, por))
-  }
   res.json(aus)
 })
 

@@ -10,7 +10,6 @@ const jwt = require('jsonwebtoken')
 const secret = 'preview-only-not-a-real-credential-0123456789abcdef'
 process.env.NODE_ENV = 'test'
 process.env.JWT_SECRET = secret
-process.env.DISCORD_EXIGIR_SERVIDOR = 'off'
 delete process.env.DISCORD_BOT_TOKEN
 
 const { scopeKey, configuredScope } = require('../dist/modules/ranking/scope')
@@ -65,8 +64,6 @@ app.get('/api/notificacoes', (_q, r) => r.json({ notificacoes: [], naoLidas: 0 }
 app.get('/api/avisos', (_q, r) => r.json({ avisos: [], naoVistos: 0 }))
 app.get('/api/ausencias', (_q, r) => r.json([]))
 app.get('/api/cursos/livros', (_q, r) => r.json([]))
-app.get('/api/carteira/forum', (_q, r) => r.json({ configurado: false, topicos: [] }))
-app.get('/api/carteira/membros-discord', (_q, r) => r.json({ membros: [] }))
 app.use('/api/relatorios', require('../dist/routes/relatorios').default)
 app.use('/api/boletins', require('../dist/routes/boletins').default)
 app.use('/api/inqueritos', require('../dist/routes/inqueritos').default)

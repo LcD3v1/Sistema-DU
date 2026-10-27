@@ -5,8 +5,6 @@ import { validateBody, membroSchema, membroUpdateSchema, reorderSchema, promover
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
 import { Membro, FastData, NivelAdvertencia } from '../types'
-import { postarExoneracao, postarMudancaCargo, postarAdvertencia, postarPerfilAtualizado, emSegundoPlano } from '../discord/forum'
-import { sincronizarCargosAdv } from '../discord/cargosAdv'
 import { notificar, notificarArea } from '../notificacoes'
 import { avatarAtual, aplicarCampoPerfil } from '../identidadeMembro'
 import { contaDoMembro, nivelHierarquia, podeGerenciar, exonerarMembro, nomeCargoAtual, ausenciaAtivaDoMembro, hoje } from '../efetivo'
@@ -183,8 +181,6 @@ router.post('/:id/promover', requireAuth, requireArea('promocoes', 'editar'), va
 
   const por = req.user!.username
   audit(tipo === 'promocao' ? 'MEMBRO_PROMOVIDO' : 'MEMBRO_REBAIXADO', req, `${membro.policial} (#${membro.id}): ${de} → ${destino.nome}`)
-  const snap = structuredClone(data)
-  emSegundoPlano('promoção', () => postarMudancaCargo(snap, membro, tipo, de, destino.nome, por, motivo || undefined))
   res.json({ tipo, de, para: destino.nome, membro: comVinculo(data, membro) })
 })
 
@@ -207,10 +203,6 @@ router.post('/:id/advertencia', requireAuth, requireArea('membros', 'editar'), v
   writeData(data)
 
   audit('ADVERTENCIA_APLICADA', req, `${membro.policial} (#${membro.id}) ADV ${nivel}: ${motivo}`)
-  const snap = structuredClone(data)
-  const discordId = contaDoMembro(data, membro.id)?.discordId
-  emSegundoPlano('advertência', () => postarAdvertencia(snap, membro, { tipo: 'aplicada', nivel }, por, motivo))
-  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json(comVinculo(data, membro))
 })
 
@@ -234,10 +226,6 @@ router.delete('/:id/advertencia/:nivel', requireAuth, requireArea('membros', 'ed
   writeData(data)
 
   audit('ADVERTENCIA_REMOVIDA', req, `${membro.policial} (#${membro.id}) ADV ${nivel}`)
-  const snap = structuredClone(data)
-  const discordId = contaDoMembro(data, membro.id)?.discordId
-  emSegundoPlano('remoção de advertência', () => postarAdvertencia(snap, membro, { tipo: 'retirada', nivel: nivel as NivelAdvertencia }, por))
-  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json(comVinculo(data, membro))
 })
 
@@ -254,10 +242,6 @@ router.delete('/:id/advertencia', requireAuth, requireArea('membros', 'editar'),
   writeData(data)
   const por = req.user!.username
   audit('ADVERTENCIA_REMOVIDA', req, `${membro.policial} (#${membro.id})`)
-  const snap = structuredClone(data)
-  const discordId = contaDoMembro(data, membro.id)?.discordId
-  emSegundoPlano('remoção de advertência', () => postarAdvertencia(snap, membro, { tipo: 'todas' }, por))
-  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json(comVinculo(data, membro))
 })
 
@@ -304,10 +288,6 @@ router.put('/solicitacoes-perfil/:id/aprovar', requireAuth, requireArea('membros
   writeData(data)
 
   audit('PERFIL_APROVADO', req, `${membro.policial} (#${membro.id}) — solicitação #${sp.id}`)
-  const snap = structuredClone(data)
-  const solicitante = data.contas.find(c => c.id === sp.contaId)?.username ?? '—'
-  const alteracoes = sp.alteracoes
-  emSegundoPlano('perfil atualizado', () => postarPerfilAtualizado(snap, membro, alteracoes, solicitante, por))
   res.json(comVinculo(data, membro))
 })
 
@@ -327,7 +307,7 @@ router.put('/solicitacoes-perfil/:id/recusar', requireAuth, requireArea('membros
   res.json({ ok: true })
 })
 
-// POST /api/membros/:id/exonerar — exonera, bloqueia o acesso e registra no Discord
+// POST /api/membros/:id/exonerar — exonera e bloqueia o acesso
 router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), validateBody(exonerarSchema), (req: Request, res: Response): void => {
   const ctx = carregarMembro(req, res); if (!ctx) return
   const { data, membro } = ctx
@@ -335,7 +315,6 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
   if (negado) { res.status(403).json({ error: negado }); return }
 
   const { motivo } = req.body as { motivo: string }
-  const discordId = contaDoMembro(data, membro.id)?.discordId   // antes: a exoneração desvincula o membro
   try {
     exonerarMembro(data, membro, req.user!.username, motivo)
     notificarArea(data, 'membros', [req.user!.contaId], 'exoneracao', `${membro.policial} foi exonerado`,
@@ -347,7 +326,6 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
   }
   writeData(data)
   audit('MEMBRO_EXONERADO', req, `${membro.policial} (#${membro.id}): ${motivo}`)
-  emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
   res.json({ ok: true })
 })
 
@@ -425,10 +403,6 @@ router.put('/:id', requireAuth, requireArea('membros', 'editar'), validateBody(m
 
   writeData(data)
   audit('MEMBRO_UPDATED', req, `ID: ${id}`)
-  if ('adv1' in body || 'adv2' in body || 'adv3' in body) {
-    const discordId = contaDoMembro(data, id)?.discordId
-    emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
-  }
   res.json(comVinculo(data, data.membros[idx]))
 })
 
@@ -446,10 +420,8 @@ router.delete('/:id', requireAuth, requireArea('membros', 'editar'), (req: Reque
   const nome = removido.policial
   // Com conta vinculada: vira exoneração (bloqueio total, dados guardados para readmissão)
   if (contaDoMembro(data, id)) {
-    const discordId = contaDoMembro(data, id)?.discordId
     exonerarMembro(data, removido, req.user!.username, 'Removido do efetivo')
     writeData(data)
-    emSegundoPlano('cargo de advertência', () => sincronizarCargosAdv(discordId))
     audit('MEMBRO_EXONERADO', req, `ID: ${id} | Nome: ${nome} | via remoção`)
     res.json({ ok: true, exonerado: true }); return
   }
@@ -458,10 +430,6 @@ router.delete('/:id', requireAuth, requireArea('membros', 'editar'), (req: Reque
   writeData(data)
 
   audit('MEMBRO_DELETED', req, `ID: ${id} | Nome: ${nome}`)
-  if (removido.discordThreadId) {
-    const por = req.user!.username
-    emSegundoPlano('exoneração', () => postarExoneracao(data, removido, por))
-  }
   res.json({ ok: true })
 })
 

@@ -23,7 +23,6 @@ api.interceptors.response.use(
       let reason = ''
       if (body.error === 'CONTA_DESATIVADA') reason = '?reason=desativada'
       else if (body.error === 'EXONERADO') reason = '?reason=exonerado'
-      else if (body.error === 'BOT_FORA_DO_SERVIDOR') reason = '?reason=bot_fora_servidor'
       else if (body.error === 'AUSENTE') reason = `?reason=ausente&ate=${encodeURIComponent(body.ate ?? '')}`
       window.location.href = '/login' + reason
     }

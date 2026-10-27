@@ -6,8 +6,6 @@ import { AuthPayload } from '../types'
 import { isRevoked } from '../security/tokenBlacklist'
 import { peekData } from '../data'
 import { bloqueioDeAcesso, ehContaDona } from '../efetivo'
-import { botNoServidorConhecido } from '../discord/acessoServidor'
-import { botConfigurado } from '../discord/forum'
 import { configuredScope, scopeKey, belongsToScope } from '../modules/ranking/scope'
 
 declare global {
@@ -64,15 +62,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return
   }
 
-  // 3. Bot fora do servidor da unidade → painel indisponível (donos passam)
-  // (desligável só fora de produção, para testes automatizados: DISCORD_EXIGIR_SERVIDOR=off)
-  const exigirServidor = process.env.NODE_ENV === 'production' || process.env.DISCORD_EXIGIR_SERVIDOR !== 'off'
-  if (exigirServidor && !ehContaDona(conta) && (!botConfigurado() || botNoServidorConhecido() === false)) {
-    res.status(401).json({ error: 'BOT_FORA_DO_SERVIDOR' })
-    return
-  }
-
-  // 4. Em ausência aprovada → sem acesso até o fim do período
+  // 3. Em ausência aprovada → sem acesso até o fim do período
   const bloqueio = bloqueioDeAcesso(conta, data)
   if (bloqueio?.codigo === 'AUSENTE') {
     res.status(401).json({ error: 'AUSENTE', ate: bloqueio.ate })

@@ -2,7 +2,6 @@ import { Ausencia, Conta, FastData, Membro } from './types'
 import { readData, writeData } from './data'
 import { isAdmin, isDev, getCargo, ehDono, cargoConcedeEditar } from './access'
 import { audit } from './security/audit'
-import { postarAusencia, postarExoneracao, emSegundoPlano } from './discord/forum'
 import { notificar } from './notificacoes'
 
 /**
@@ -126,15 +125,13 @@ export function exonerarMembro(data: FastData, membro: Membro, por: string, moti
       sp.motivoRecusa = 'Membro exonerado'
     }
   }
-  const snapshot = structuredClone(data)
-  emSegundoPlano('exoneração', () => postarExoneracao(snapshot, membro, por, motivo))
   return conta
 }
 
 /**
  * Rotina periódica das ausências:
  *  - ausência aprovada que começou → status do membro "Ausência";
- *  - ausência aprovada que terminou → encerra, status "Ativo" e posta o retorno.
+ *  - ausência aprovada que terminou → encerra e volta o status para "Ativo".
  */
 export function verificarAusencias(): void {
   const data = readData()
@@ -155,9 +152,6 @@ export function verificarAusencias(): void {
         if (!outra && m.status === 'Ausência') m.status = 'Ativo'
         notificar(data, contaDoMembro(data, m.id)?.id, 'ausencia', 'Ausência encerrada',
           'Seu período de ausência terminou. O acesso ao painel foi liberado — bem-vindo de volta!', '/ausencias')
-        const snap = structuredClone(data)
-        const aus = { ...a }
-        emSegundoPlano('retorno de ausência', () => postarAusencia(snap, m, 'retorno', aus.dataInicio, aus.dataFim, 'Sistema (automático)'))
       }
       audit('AUSENCIA_ENCERRADA', undefined, `#${a.id} ${a.nome} — fim do período`)
     } else if (a.dataInicio <= d && m && m.status !== 'Ausência') {
