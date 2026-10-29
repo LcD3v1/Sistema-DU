@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import { pastaDeArquivos } from '../armazenamento'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
-import { validateBody, anuncioImagemSchema, anuncioSalvasSchema } from '../middleware/validate'
+import { validateBody, anuncioImagemSchema, anuncioSalvasSchema, CAMINHO_IMAGEM_ANUNCIO } from '../middleware/validate'
 import { readData, writeData } from '../data'
 import { audit } from '../security/audit'
 
@@ -49,8 +49,12 @@ const idDoCaminho = (caminho: string) => caminho.slice('/img/'.length).split('.'
 
 function limparImagensAntigas(): void {
   const limite = Date.now() - EXPIRA_DIAS * 86_400_000
-  // Fotos salvas por alguém (as 2 do Gerar anúncio) nunca expiram: o link está colado no boletim do RP
-  const salvas = new Set(readData().contas.flatMap(c => (c.imagensAnuncio ?? []).filter((x): x is string => Boolean(x)).map(idDoCaminho)))
+  // Fotos em uso nunca expiram: as 2 salvas do Gerar anúncio e as dos fardamentos (links colados no RP)
+  const data = readData()
+  const salvas = new Set([
+    ...data.contas.flatMap(c => (c.imagensAnuncio ?? []).filter((x): x is string => Boolean(x))),
+    ...data.fardamentos.map(f => f.imagem).filter(x => CAMINHO_IMAGEM_ANUNCIO.test(x)),
+  ].map(idDoCaminho))
   for (const { id, meta } of pasta.listar()) if (Date.parse(meta.criadoEm) < limite && !salvas.has(id)) pasta.apagar(id)
 }
 setInterval(() => {
@@ -60,24 +64,36 @@ setInterval(() => {
 // ── Envio (painel, com login) ─────────────────────────────────────────────────
 export const uploadRouter = Router()
 
+/**
+ * Guarda a foto (bytes conferidos) e responde com o link fixo { caminho: "/img/<id>.<ext>" }.
+ * Usado pelo Gerar anúncio e pelo Fardamento (cada rota com a sua área/permissão).
+ */
+export function responderComLink(req: Request, res: Response, origem: string): void {
+  const img = decodificarImagem(req.body.imagem)
+  if (!img) { res.status(400).json({ error: 'Envie uma imagem PNG, JPG, WEBP ou GIF de até 3 MB.' }); return }
+  try {
+    // Mesma foto enviada de novo reaproveita o link (não duplica no banco)
+    const hash = crypto.createHash('sha256').update(img.bytes).digest('hex')
+    const existente = pasta.listar().find(a => a.meta.hash === hash && a.meta.ext === img.ext)
+    const id = existente?.id ?? crypto.randomBytes(18).toString('base64url')
+    if (existente) pasta.atualizar(id, { ...existente.meta, criadoEm: new Date().toISOString() })
+    else pasta.salvar(id, img.bytes, { ext: img.ext, tamanho: img.bytes.length, hash, contaId: req.user!.contaId, criadoEm: new Date().toISOString() })
+    audit('ANUNCIO_IMAGEM_ENVIADA', req, `${origem}: bytes=${img.bytes.length}; tipo=${img.ext}${existente ? '; reaproveitada' : ''}`)
+    res.status(201).json({ caminho: `/img/${id}.${img.ext}` })
+  } catch (err) {
+    console.error('[DU][ANUNCIO] salvar imagem:', err instanceof Error ? err.message : err)
+    res.status(500).json({ error: 'Não foi possível salvar a imagem.' })
+  }
+}
+
+/** A imagem do link "/img/<id>.<ext>" existe no sistema? */
+export const imagemDoSistemaExiste = (caminho: string) => {
+  const meta = CAMINHO_IMAGEM_ANUNCIO.test(caminho) ? pasta.meta(idDoCaminho(caminho)) : undefined
+  return Boolean(meta && caminho === `/img/${idDoCaminho(caminho)}.${meta.ext}`)
+}
+
 uploadRouter.post('/imagem', requireAuth, requireArea('anuncio', 'editar'), validateBody(anuncioImagemSchema),
-  async (req: Request, res: Response): Promise<void> => {
-    const img = decodificarImagem(req.body.imagem)
-    if (!img) { res.status(400).json({ error: 'Envie uma imagem PNG, JPG, WEBP ou GIF de até 3 MB.' }); return }
-    try {
-      // Mesma foto enviada de novo reaproveita o link (não duplica no banco)
-      const hash = crypto.createHash('sha256').update(img.bytes).digest('hex')
-      const existente = pasta.listar().find(a => a.meta.hash === hash && a.meta.ext === img.ext)
-      const id = existente?.id ?? crypto.randomBytes(18).toString('base64url')
-      if (existente) pasta.atualizar(id, { ...existente.meta, criadoEm: new Date().toISOString() })
-      else pasta.salvar(id, img.bytes, { ext: img.ext, tamanho: img.bytes.length, hash, contaId: req.user!.contaId, criadoEm: new Date().toISOString() })
-      audit('ANUNCIO_IMAGEM_ENVIADA', req, `bytes=${img.bytes.length}; tipo=${img.ext}${existente ? '; reaproveitada' : ''}`)
-      res.status(201).json({ caminho: `/img/${id}.${img.ext}` })
-    } catch (err) {
-      console.error('[DU][ANUNCIO] salvar imagem:', err instanceof Error ? err.message : err)
-      res.status(500).json({ error: 'Não foi possível salvar a imagem.' })
-    }
-  })
+  (req: Request, res: Response): void => responderComLink(req, res, 'anúncio'))
 
 // ── As 2 fotos salvas de cada pessoa (links fixos para colar no boletim do RP) ────────
 const normalizarSalvas = (lista: (string | null)[] | undefined) => [0, 1].map(i => lista?.[i] ?? null)

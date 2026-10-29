@@ -70,16 +70,27 @@ export async function conectarBanco(): Promise<CofreDados | undefined> {
     maxPoolSize: 5,          // um único processo: poucas conexões bastam
     retryWrites: true,
   })
-  // Algumas tentativas no início (banco acordando / rede): sem banco, o servidor não sobe
-  // (subir com dados velhos e depois sobrescrever o banco seria pior)
+  // Produção: algumas tentativas (banco acordando / rede) e, sem banco, o servidor NÃO sobe
+  // (subir com dados velhos e depois sobrescrever o banco seria pior).
+  // No PC (npm start, sem NODE_ENV=production): uma tentativa e, sem banco, segue só com o arquivo local,
+  // SEM tocar no banco (ex.: banco da Discloud com endereço interno, que só existe lá dentro).
+  const producao = process.env.NODE_ENV === 'production'
+  const maxTentativas = producao ? 5 : 1
   for (let tentativa = 1; ; tentativa++) {
     try {
       await cliente.connect()
       await cliente.db(process.env.MONGODB_DB?.trim() || 'sistema_du').command({ ping: 1 })
       break
     } catch (err) {
-      if (tentativa >= 5) throw new Error(`Não foi possível conectar ao MongoDB: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
-      console.warn(`[DU][BANCO] Conexão com o MongoDB falhou (tentativa ${tentativa}/5). Tentando de novo…`)
+      if (tentativa >= maxTentativas) {
+        if (!producao) {
+          await cliente.close().catch(() => {})
+          console.warn('[DU][BANCO] MongoDB fora do alcance neste computador — rodando SÓ com o arquivo local (o banco não é tocado).')
+          return undefined
+        }
+        throw new Error(`Não foi possível conectar ao MongoDB: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+      }
+      console.warn(`[DU][BANCO] Conexão com o MongoDB falhou (tentativa ${tentativa}/${maxTentativas}). Tentando de novo…`)
       await new Promise(r => setTimeout(r, 3_000 * tentativa))
     }
   }

@@ -181,7 +181,7 @@ export const avisoSchema = z.object({
 export const fardamentoSchema = z.object({
   patente:     safeStr(1, 50),
   titulo:      safeStrOpt(100).default(''),
-  imagem:      z.string().min(1).max(3_500_000).refine(imagemValida, 'Imagem inválida (use upload ou URL http/https)'),
+  imagem:      z.string().min(1).max(3_500_000).refine(v => imagemValida(v) || CAMINHO_IMAGEM_ANUNCIO.test(v), 'Imagem inválida (use upload ou URL http/https)'),
   observacoes: safeStrOpt(500).default(''),
 })
 
@@ -305,7 +305,7 @@ export const livroUpdateSchema = z.object({
 export const fardamentoUpdateSchema = z.object({
   patente:     safeStr(1, 50).optional(),
   titulo:      safeStrOpt(100).optional(),
-  imagem:      z.string().min(1).max(3_500_000).refine(imagemValida, 'Imagem inválida').optional(),
+  imagem:      z.string().min(1).max(3_500_000).refine(v => imagemValida(v) || CAMINHO_IMAGEM_ANUNCIO.test(v), 'Imagem inválida').optional(),
   observacoes: safeStrOpt(500).optional(),
 }).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
   message: 'Nenhum campo fornecido',

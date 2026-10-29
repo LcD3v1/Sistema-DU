@@ -63,7 +63,7 @@ export default function RecrutamentoPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="p-3 sm:p-6 space-y-6 max-w-3xl mx-auto">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8 space-y-6">
       <BannerModulo sobretitulo="Seleção de candidatos" icone={UserPlus} titulo="Recrutamento" subtitulo="Detective Unit — Detroit Police Department"
         acoes={canEdit && (
           <button type="button" onClick={() => setShowModal(true)}

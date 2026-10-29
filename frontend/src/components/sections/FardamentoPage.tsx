@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Shirt, Plus, Trash2, Pencil, Upload, Image as ImageIcon } from 'lucide-react'
+import { Shirt, Plus, Trash2, Pencil, Upload, Image as ImageIcon, Link2, Loader2 } from 'lucide-react'
+import api from '@/lib/axios'
 import { useFardamentos, useCreateFardamento, useUpdateFardamento, useDeleteFardamento, type Fardamento } from '@/hooks/useFardamentos'
 import { usePatentes } from '@/hooks/useConfig'
 import { usePerms } from '@/hooks/usePerms'
@@ -15,6 +16,11 @@ const EASE = [0.16, 1, 0.3, 1] as const
 
 interface Form { patente: string; titulo: string; imagem: string; observacoes: string }
 const EMPTY: Form = { patente: '', titulo: '', imagem: '', observacoes: '' }
+
+/** Link para colar no RP: foto do sistema ("/img/...") vira link completo; link externo fica como está; upload antigo não tem link. */
+const linkDaImagem = (imagem: string) =>
+  imagem.startsWith('/img/') ? `${window.location.origin}${imagem}` : /^https?:\/\//i.test(imagem) ? imagem : null
+const erroDaApi = (e: unknown, padrao: string) => (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? padrao
 
 
 export default function FardamentoPage() {
@@ -52,14 +58,41 @@ export default function FardamentoPage() {
     setForm({ patente: f.patente, titulo: f.titulo, imagem: f.imagem, observacoes: f.observacoes })
     setModalOpen(true)
   }
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  // Foto enviada → o sistema guarda e devolve um link fixo (o mesmo do Gerar anúncio) para colar no RP
+  const [enviando, setEnviando] = useState(false)
+  async function linkDaFoto(dataUrl: string): Promise<string> {
+    return (await api.post<{ caminho: string }>('/fardamentos/imagem', { imagem: dataUrl })).data.caminho
+  }
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; e.target.value = ''; if (!f) return
-    fotoDoArquivo(f, { maxLado: 1600, formato: 'image/webp' })
-      .then(url => setForm(p => ({ ...p, imagem: url })))
-      .catch(err => addToast('error', mensagemErroFoto(err)))
+    setEnviando(true)
+    try {
+      let dataUrl: string
+      try { dataUrl = await fotoDoArquivo(f, { maxLado: 1600, formato: 'image/webp', manterGifAte: 3 * 1024 * 1024 }) }
+      catch (err) { addToast('error', mensagemErroFoto(err)); return }
+      const caminho = await linkDaFoto(dataUrl)
+      setForm(p => ({ ...p, imagem: caminho }))
+    } catch (err) { addToast('error', erroDaApi(err, 'Não foi possível enviar a foto.')) }
+    finally { setEnviando(false) }
+  }
+  async function copiar(link: string) {
+    try { await navigator.clipboard.writeText(link); addToast('success', 'Link da foto copiado!') }
+    catch { addToast('error', 'Não foi possível copiar. Copie manualmente.') }
+  }
+  // Fardamento antigo (foto guardada dentro do registro): gera o link fixo e já troca no fardamento
+  const [gerando, setGerando] = useState<number | null>(null)
+  async function gerarLink(f: Fardamento) {
+    setGerando(f.id)
+    try {
+      const caminho = await linkDaFoto(f.imagem)
+      await atualizar.mutateAsync({ id: f.id, imagem: caminho })
+      await copiar(linkDaImagem(caminho)!)
+    } catch (err) { addToast('error', erroDaApi(err, 'Não foi possível gerar o link.')) }
+    finally { setGerando(null) }
   }
   function salvar() {
     if (!form.patente.trim()) { addToast('error', 'Escolha a patente.'); return }
+    if (enviando) { addToast('error', 'Espere a foto terminar de enviar.'); return }
     if (!form.imagem.trim()) { addToast('error', 'Anexe uma imagem do fardamento.'); return }
     const body = { patente: form.patente, titulo: form.titulo, imagem: form.imagem, observacoes: form.observacoes }
     const onOk = () => { addToast('success', editId ? 'Fardamento atualizado!' : 'Fardamento adicionado!'); setModalOpen(false) }
@@ -95,7 +128,7 @@ export default function FardamentoPage() {
           <p className="text-txt2 text-sm">Nenhum fardamento cadastrado{podeEditar ? ' — clique em “Adicionar fardamento”.' : '.'}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
           {lista.map((f, i) => (
             <motion.div
               key={f.id}
@@ -108,11 +141,11 @@ export default function FardamentoPage() {
               <div className="relative aspect-[3/4] bg-black/40">
                 <img src={f.imagem} alt={f.patente} className="w-full h-full object-cover" />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 55%, rgba(5,7,12,0.9))' }} />
-                <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-gold/85 text-white text-[10px] font-mono font-bold tracking-wider">
+                <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-gold/85 text-white text-xs font-mono font-bold tracking-wider">
                   {f.patente}
                 </span>
                 {podeEditar && (
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => abrirEdicao(f)} title="Editar"
                       className="w-7 h-7 rounded-md bg-black/60 backdrop-blur border border-white/15 text-white/80 hover:text-white flex items-center justify-center">
                       <Pencil size={13} />
@@ -124,10 +157,29 @@ export default function FardamentoPage() {
                     </button>
                   </div>
                 )}
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  {f.titulo && <p className="text-sm font-semibold text-white truncate">{f.titulo}</p>}
-                  {f.observacoes && <p className="text-[11px] text-white/70 line-clamp-2 mt-0.5">{f.observacoes}</p>}
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  {f.titulo && <p className="text-base font-semibold text-white truncate">{f.titulo}</p>}
+                  {f.observacoes && <p className="text-xs text-white/70 line-clamp-3 mt-1">{f.observacoes}</p>}
                 </div>
+              </div>
+              {/* Link da foto para colar no RP */}
+              <div className="flex items-center gap-3 px-4 py-3 border-t border-bdr">
+                {linkDaImagem(f.imagem) ? (
+                  <>
+                    <p className="flex-1 min-w-0 font-mono text-[11px] text-txt3 truncate" title={linkDaImagem(f.imagem)!}>{linkDaImagem(f.imagem)}</p>
+                    <button type="button" onClick={() => copiar(linkDaImagem(f.imagem)!)}
+                      className="shrink-0 flex items-center gap-1.5 font-mono text-[11px] text-gold3 hover:text-txt transition-colors">
+                      <Link2 size={13} /> Copiar link
+                    </button>
+                  </>
+                ) : podeEditar ? (
+                  <button type="button" onClick={() => gerarLink(f)} disabled={gerando !== null}
+                    className="flex items-center gap-1.5 font-mono text-[11px] text-gold3 hover:text-txt transition-colors disabled:opacity-60">
+                    {gerando === f.id ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />} Gerar link da foto
+                  </button>
+                ) : (
+                  <p className="font-mono text-[11px] text-txt3">Sem link — peça para quem edita gerar.</p>
+                )}
               </div>
             </motion.div>
           ))}
@@ -135,7 +187,7 @@ export default function FardamentoPage() {
       )}
 
       {/* Modal criar/editar */}
-      <ModalOverlay open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'EDITAR FARDAMENTO' : 'NOVO FARDAMENTO'}>
+      <ModalOverlay open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'EDITAR FARDAMENTO' : 'NOVO FARDAMENTO'} maxWidth="max-w-3xl">
         <div className="space-y-4">
           <div>
             <label className="font-mono text-xs text-txt2 block mb-1">PATENTE</label>
@@ -160,18 +212,30 @@ export default function FardamentoPage() {
           <div>
             <label className="font-mono text-xs text-txt2 block mb-1">IMAGEM DO FARDAMENTO</label>
             <input ref={fileRef} type="file" accept={ACEITA_FOTO} onChange={onFile} className="hidden" />
-            {form.imagem ? (
-              <div className="relative rounded-lg overflow-hidden border border-bdr2">
-                <img src={form.imagem} alt="" className="w-full max-h-64 object-contain bg-black/40" />
-                <button onClick={() => fileRef.current?.click()}
-                  className="absolute bottom-2 right-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur border border-white/15 text-white/80 text-xs hover:text-white">
-                  <Upload size={13} /> Trocar
-                </button>
+            {enviando ? (
+              <div className="w-full flex flex-col items-center justify-center gap-3 py-24 rounded-lg border border-dashed border-bdr2 text-txt3">
+                <Loader2 size={30} className="animate-spin text-gold3" /> <span className="text-sm">Enviando a foto…</span>
               </div>
+            ) : form.imagem ? (
+              <>
+                <div className="relative rounded-lg overflow-hidden border border-bdr2">
+                  <img src={form.imagem} alt="" className="w-full max-h-[60vh] min-h-64 object-contain bg-black/40" />
+                  <button onClick={() => fileRef.current?.click()}
+                    className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-md bg-black/60 backdrop-blur border border-white/15 text-white/80 text-sm hover:text-white">
+                    <Upload size={14} /> Trocar
+                  </button>
+                </div>
+                {linkDaImagem(form.imagem) && (
+                  <button type="button" onClick={() => copiar(linkDaImagem(form.imagem)!)}
+                    className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-gold3 hover:text-txt transition-colors">
+                    <Link2 size={13} /> Copiar link da foto
+                  </button>
+                )}
+              </>
             ) : (
               <button onClick={() => fileRef.current?.click()}
-                className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border border-dashed border-bdr2 text-txt3 hover:text-txt hover:border-gold/40 transition-colors">
-                <ImageIcon size={22} /> <span className="text-xs">Clique para anexar uma imagem ou PDF (máx 500 MB)</span>
+                className="w-full flex flex-col items-center justify-center gap-3 py-24 rounded-lg border border-dashed border-bdr2 text-txt3 hover:text-txt hover:border-gold/40 transition-colors">
+                <ImageIcon size={34} /> <span className="text-sm">Clique para enviar a foto — o link fica pronto para colar no RP</span>
               </button>
             )}
           </div>

@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
-import { validateBody, fardamentoSchema, fardamentoUpdateSchema } from '../middleware/validate'
+import { validateBody, fardamentoSchema, fardamentoUpdateSchema, anuncioImagemSchema, CAMINHO_IMAGEM_ANUNCIO } from '../middleware/validate'
+import { responderComLink, imagemDoSistemaExiste } from './anuncioImagem'
 import { audit } from '../security/audit'
 import { readData, writeData, peekData } from '../data'
 import { nomeDaConta } from '../registros'
@@ -17,10 +18,18 @@ router.get('/', requireAuth, requireArea('fardamento', 'ver'), (_req, res) => {
   res.json(sorted)
 })
 
+// POST /api/fardamentos/imagem — guarda a foto e devolve o link fixo (/img/<id>.<ext>) para colar no RP
+router.post('/imagem', requireAuth, requireArea('fardamento', 'editar'), validateBody(anuncioImagemSchema),
+  (req: Request, res: Response): void => responderComLink(req, res, 'fardamento'))
+
+/** Link do próprio sistema só vale se a imagem existir (nunca um caminho inventado). */
+const linkInvalido = (imagem: unknown) => typeof imagem === 'string' && CAMINHO_IMAGEM_ANUNCIO.test(imagem) && !imagemDoSistemaExiste(imagem)
+
 // POST /api/fardamentos — cria um fardamento
 router.post('/', requireAuth, requireArea('fardamento', 'editar'), validateBody(fardamentoSchema), (req: Request, res: Response): void => {
   const data = readData()
   const body = req.body as Omit<Fardamento, 'id' | 'criadoEm'>
+  if (linkInvalido(body.imagem)) { res.status(400).json({ error: 'Imagem não encontrada. Envie a foto de novo.' }); return }
   const novo: Fardamento = {
     id: data.nextFardId,
     patente: body.patente,
@@ -46,6 +55,7 @@ router.put('/:id', requireAuth, requireArea('fardamento', 'editar'), validateBod
   const f = data.fardamentos.find(x => x.id === id)
   if (!f) { res.status(404).json({ error: 'Fardamento não encontrado' }); return }
   const body = req.body as Partial<Fardamento>
+  if (linkInvalido(body.imagem)) { res.status(400).json({ error: 'Imagem não encontrada. Envie a foto de novo.' }); return }
   if (body.patente !== undefined) f.patente = body.patente
   if (body.titulo !== undefined) f.titulo = body.titulo
   if (body.imagem !== undefined) f.imagem = body.imagem

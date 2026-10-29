@@ -809,6 +809,11 @@ check(/uploadRouter\.get\('\/salvas', requireAuth, requireArea\('anuncio', 'ver'
   && /CAMINHO_IMAGEM_ANUNCIO = \/\^\\\/img\\\/\[A-Za-z0-9_-\]\{24\}\\\.\(png\|jpg\|gif\|webp\)\$\//.test(ler('src/middleware/validate.ts'))
   && /if \(!meta \|\| c !== `\/img\/\$\{idDoCaminho\(c\)\}\.\$\{meta\.ext\}`\)/.test(anuncioImgTs),
   'fotos salvas do anúncio: login, área, Zod e só imagens do próprio sistema', 'fotos salvas do anúncio sem login/área/Zod ou aceitando link de fora')
+// Foto do fardamento com link fixo: login + área fardamento/editar + Zod; link do sistema só se a imagem existir
+const fardTs = ler('src/routes/fardamentos.ts')
+check(/router\.post\('\/imagem', requireAuth, requireArea\('fardamento', 'editar'\), validateBody\(anuncioImagemSchema\)/.test(fardTs)
+  && (fardTs.match(/if \(linkInvalido\(body\.imagem\)\)/g) || []).length === 2,
+  'foto do fardamento: login, área, Zod e link só de imagem existente', 'foto do fardamento sem login/área/Zod ou aceitando link inventado')
 console.log('\n[Avisos] Saída campo a campo')
 check(/\.map\(\(\{ id, titulo, mensagem, autor, criadoEm \}\)/.test(ler('src/routes/avisos.ts')),
   'avisos listados campo a campo (sem IDs do Discord)', 'avisos saem crus (com IDs do Discord)')
