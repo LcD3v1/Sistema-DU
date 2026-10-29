@@ -856,6 +856,10 @@ console.log('\n[Dados] Armazenamento: memória + arquivo + MongoDB opcional (ped
   check(/MONGODB_URI sem TLS/.test(envTs) && /MONGODB_URI sem usuário e senha/.test(envTs) && /tlsAllowInvalidCertificates/.test(envTs)
     && /mongodb\(\?:\\\+srv\)\?:\\\/\\\/\[\^\\s\]\+\/gi, '\[REDACTED_DATABASE_URI\]'/.test(ler('src/security/redact.ts')),
     'conexão com o banco: TLS + usuário/senha em produção, certificado sempre verificado, URI apagada dos logs', 'conexão com o banco sem TLS/credenciais ou URI no log')
+  // Exceção sem TLS: só rede interna da hospedagem (nome SEM ponto, mongodb://), e usuário/senha continuam obrigatórios
+  check(envTs.includes("const redeInterna = protocolo === 'mongodb' && servidores.split(',').every(h => /^[a-z0-9][a-z0-9-]{0,62}(:\\d+)?$/i.test(h)")
+    && /if \(!tls && !redeInterna\) fail\(/.test(envTs) && /if \(!usuario \|\| !senha\) fail\(/.test(envTs),
+    'banco sem TLS só na rede interna da hospedagem (nome sem ponto), sempre com usuário/senha', 'exceção de TLS do banco larga demais')
   check(/if \(cofre && doBanco === undefined\) \{[\s\S]{0,300}criarBackup\(\)/.test(dataTs) && /gravarAgora\(true\)   \/\/ reserva local igual ao banco/.test(dataTs),
     'primeira importação para o banco com backup cifrado; arquivo local segue como reserva', 'importação para o banco sem backup')
   check(/renameSync\(tmp, destino\)/.test(arm) && /mode: 0o600/.test(arm),

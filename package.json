@@ -11,6 +11,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "security": "cd backend && npm run security && cd ../frontend && npm audit --audit-level=high",
-    "audit": "cd backend && npm audit && cd ../frontend && npm audit"
+    "audit": "cd backend && npm audit && cd ../frontend && npm audit",
+    "start:discloud": "npm run build && cd backend && npm run start:discloud"
   }
 }

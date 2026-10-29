@@ -17,7 +17,8 @@
     "security:check": "node scripts/security-check.mjs",
     "audit": "npm audit --omit=dev --audit-level=high",
     "audit:fix": "npm audit fix",
-    "security": "npm run security:check && npm run audit && npm run typecheck"
+    "security": "npm run security:check && npm run audit && npm run typecheck",
+    "start:discloud": "cross-env NODE_ENV=production PORT=8080 PUBLIC_URL=https://duunit.discloud.app DISCORD_REDIRECT_URI=https://duunit.discloud.app/api/auth/discord/callback node dist/index.js"
   },
   "keywords": [],
   "author": "",

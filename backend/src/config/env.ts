@@ -103,10 +103,13 @@ if (PROD && !process.env.ALLOWED_ORIGIN) {
     const [, protocolo, usuario, senha, servidores, consulta] = m!
     const q = new URLSearchParams(consulta ?? '')
     const local = servidores.split(',').every(h => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(h))
+    // Rede interna da hospedagem (site e banco na mesma Discloud): nome SEM ponto (ex.: "meubanco123"),
+    // que não existe na internet — o tráfego não sai da rede privada. Só aí o TLS pode faltar.
+    const redeInterna = protocolo === 'mongodb' && servidores.split(',').every(h => /^[a-z0-9][a-z0-9-]{0,62}(:\d+)?$/i.test(h) && !/^localhost(:\d+)?$/i.test(h))
     const tls = protocolo === 'mongodb+srv' || /^true$/i.test(q.get('tls') ?? q.get('ssl') ?? '')
     if (PROD && !local) {
       if (!usuario || !senha) fail('MONGODB_URI sem usuário e senha — o banco não pode ficar aberto.')
-      if (!tls) fail('MONGODB_URI sem TLS — acrescente ?tls=true (o banco é acessado pela internet).')
+      if (!tls && !redeInterna) fail('MONGODB_URI sem TLS — acrescente ?tls=true (o banco é acessado pela internet).')
     }
     if (/^true$/i.test(q.get('tlsAllowInvalidCertificates') ?? '') || /^true$/i.test(q.get('tlsInsecure') ?? '') || /^true$/i.test(q.get('tlsAllowInvalidHostnames') ?? '')) {
       fail('MONGODB_URI desliga a verificação do certificado TLS — remova tlsInsecure/tlsAllowInvalid*.')
