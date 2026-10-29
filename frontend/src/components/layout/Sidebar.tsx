@@ -37,6 +37,7 @@ const GROUPS: NavGroup[] = [
       { to: '/dashboard', icon: LayoutGrid, label: 'Visão geral', minNivel: 'membro', area: 'dashboard' },
       { to: '/avisos',    icon: Bell,       label: 'Avisos',      minNivel: 'membro', viewOnly: true, area: 'avisos' },
       { to: '/protocolo', icon: BookOpen,   label: 'Protocolo',   minNivel: 'membro', viewOnly: true, area: 'protocolo' },
+      { to: '/galeria',   icon: Images,     label: 'Galeria da DU', minNivel: 'membro', area: 'galeria' },
     ],
   },
   {
@@ -48,7 +49,6 @@ const GROUPS: NavGroup[] = [
       { to: '/investigacoes',   icon: ClipboardList, label: 'Registro de Investigação', minNivel: 'membro', area: 'investigacoes' },
       { to: '/investigacoes/aprovacoes', icon: ShieldCheck, label: 'Aprovar investigações', minNivel: 'membro', area: 'investigacoes_gestao', editOnly: true },
       { to: '/inqueritos',      icon: FolderArchive, label: 'Arquivo de Inquéritos', minNivel: 'membro', area: 'inqueritos' },
-      { to: '/galeria',         icon: Images,        label: 'Galeria da DU',        minNivel: 'membro', area: 'galeria' },
       { to: '/arvores',         icon: GitBranch,     label: 'Árvore de investigação', minNivel: 'membro', area: 'arvore' },
     ],
   },

@@ -4,16 +4,19 @@ import { requireArea, requireAprovado } from '../middleware/roles'
 import { validateBody, membroSchema, membroUpdateSchema, reorderSchema, promoverSchema, advertenciaSchema, exonerarSchema, recusarSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
 import { readData, writeData, peekData } from '../data'
-import { Membro, DuData, NivelAdvertencia } from '../types'
+import { Membro, DuData, NivelAdvertencia, CampoPerfil } from '../types'
 import { notificar, notificarArea } from '../notificacoes'
 import { avatarAtual, aplicarCampoPerfil } from '../identidadeMembro'
 import { contaDoMembro, nivelHierarquia, podeGerenciar, exonerarMembro, nomeCargoAtual, ausenciaAtivaDoMembro, hoje } from '../efetivo'
 import { canArea, isAdmin, isDev, PROTECTED_OWNER_ID } from '../access'
-import { aplicarPerfilNoDiscord, sincronizarAdvertencias, valorDePerfilInvalido } from '../setagem'
+import { aplicarPerfilNoDiscord, sincronizarAdvertencias, valorDePerfilInvalido, exonerarNoDiscord, registrarNoForum, camposDasAlteracoes, COR_REGISTRO, ROTULO_CAMPO } from '../setagem'
 
 import { nomeDoMembro, nomeDaConta } from '../registros'
 import { fotoSemIds } from '../fotoPublica'
 const router = Router()
+
+/** Campos da ficha fora do perfil (status, datas, advertências) nos painéis do fórum de registro. */
+const ROTULO_FICHA: Record<string, string> = { status: 'Status', entrada: 'Entrada', promocao: 'Última promoção', adv1: 'ADV 1', adv2: 'ADV 2', adv3: 'ADV 3' }
 
 router.get('/', requireAuth, (req, res) => {
   const data = readData()
@@ -147,6 +150,7 @@ router.post('/exonerados/:id/retirar', requireAuth, requireArea('membros', 'edit
     'Sua exoneração foi retirada. Entre novamente e preencha o cadastro para solicitar set de novo.', '/perfil')
   writeData(data)
   audit('ACCOUNT_READMITTED', req, `Conta ${conta.username} (#${conta.id}) — exoneração retirada por ${nomeDaConta(peekData(), req.user!.contaId)}`)
+  void registrarNoForum(conta.id, { titulo: 'READMISSÃO · Exoneração retirada', emoji: '↩️', cor: COR_REGISTRO.aviso, texto: 'Precisa refazer o cadastro e passar por nova aprovação.', por: nomeDaConta(peekData(), req.user!.contaId) })
   res.json({ ok: true })
 })
 
@@ -193,6 +197,8 @@ router.post('/:id/promover', requireAuth, requireArea('promocoes', 'editar'), va
 
   const por = nomeDaConta(peekData(), req.user!.contaId)
   audit(tipo === 'promocao' ? 'MEMBRO_PROMOVIDO' : 'MEMBRO_REBAIXADO', req, `${nomeDoMembro(data, membro)} (#${membro.id}): ${de} → ${destino.nome}`)
+  void registrarNoForum(conta?.id, { titulo: tipo === 'promocao' ? 'PROMOÇÃO' : 'REBAIXAMENTO', emoji: tipo === 'promocao' ? '⬆️' : '⬇️',
+    cor: tipo === 'promocao' ? COR_REGISTRO.aprovado : COR_REGISTRO.recusado, campos: [['Patente', `${de || '—'} → ${destino.nome}`]], ...(motivo ? { motivo } : {}), por })
   res.json({ tipo, de, para: destino.nome, membro: comVinculo(data, membro) })
 })
 
@@ -215,6 +221,7 @@ router.post('/:id/advertencia', requireAuth, requireArea('membros', 'editar'), v
   writeData(data)
 
   audit('ADVERTENCIA_APLICADA', req, `${nomeDoMembro(data, membro)} (#${membro.id}) ADV ${nivel}: ${motivo}`)
+  void registrarNoForum(contaDoMembro(data, membro.id)?.id, { titulo: `ADVERTÊNCIA · ADV ${nivel}`, emoji: '⚠️', cor: COR_REGISTRO.recusado, motivo, por })
   void sincronizarAdvertencias(membro.id)   // cargo de advertência no Discord
   res.json(comVinculo(data, membro))
 })
@@ -239,6 +246,7 @@ router.delete('/:id/advertencia/:nivel', requireAuth, requireArea('membros', 'ed
   writeData(data)
 
   audit('ADVERTENCIA_REMOVIDA', req, `${nomeDoMembro(data, membro)} (#${membro.id}) ADV ${nivel}`)
+  void registrarNoForum(contaDoMembro(data, membro.id)?.id, { titulo: `ADVERTÊNCIA · ADV ${nivel} retirada`, emoji: '✅', cor: COR_REGISTRO.aprovado, por })
   void sincronizarAdvertencias(membro.id)
   res.json(comVinculo(data, membro))
 })
@@ -256,6 +264,7 @@ router.delete('/:id/advertencia', requireAuth, requireArea('membros', 'editar'),
   writeData(data)
   const por = nomeDaConta(peekData(), req.user!.contaId)
   audit('ADVERTENCIA_REMOVIDA', req, `${nomeDoMembro(data, membro)} (#${membro.id})`)
+  void registrarNoForum(contaDoMembro(data, membro.id)?.id, { titulo: 'ADVERTÊNCIA · Todas retiradas', emoji: '✅', cor: COR_REGISTRO.aprovado, por })
   void sincronizarAdvertencias(membro.id)
   res.json(comVinculo(data, membro))
 })
@@ -306,6 +315,7 @@ router.put('/solicitacoes-perfil/:id/aprovar', requireAuth, requireArea('membros
   writeData(data)
 
   audit('PERFIL_APROVADO', req, `${nomeDoMembro(data, membro)} (#${membro.id}) — solicitação #${sp.id}`)
+  void registrarNoForum(sp.contaId, { titulo: 'ATUALIZAÇÃO · Perfil aprovado', emoji: '✅', cor: COR_REGISTRO.aprovado, texto: 'Alteração aprovada e já valendo.', campos: camposDasAlteracoes(sp.alteracoes), por })
   // Só depois de aprovado: patente/setor/apelido também mudam no Discord
   if (sp.alteracoes.some(a => ['patenteInterna', 'setor', 'codinome', 'passaporte'].includes(a.campo))) void aplicarPerfilNoDiscord(membro.id, antes)
   res.json(comVinculo(data, membro))
@@ -324,6 +334,7 @@ router.put('/solicitacoes-perfil/:id/recusar', requireAuth, requireArea('membros
     `Sua alteração de perfil foi recusada por ${sp.decididoPor}${motivo ? `. Motivo: ${motivo}` : '.'}`, '/perfil')
   writeData(data)
   audit('PERFIL_RECUSADO', req, `${nomeDoMembro(data, membro)} (#${membro.id}) — solicitação #${sp.id}`)
+  void registrarNoForum(sp.contaId, { titulo: 'ATUALIZAÇÃO · Pedido recusado', emoji: '❌', cor: COR_REGISTRO.recusado, texto: 'Nada foi alterado.', campos: camposDasAlteracoes(sp.alteracoes), ...(motivo ? { motivo } : {}), por: sp.decididoPor })
   res.json({ ok: true })
 })
 
@@ -335,8 +346,9 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
   if (negado) { res.status(403).json({ error: negado }); return }
 
   const { motivo } = req.body as { motivo: string }
+  let contaExonerada: { id: number; discordId?: string } | undefined
   try {
-    exonerarMembro(data, membro, nomeDaConta(peekData(), req.user!.contaId), motivo)
+    contaExonerada = exonerarMembro(data, membro, nomeDaConta(peekData(), req.user!.contaId), motivo)
     notificarArea(data, 'membros', [req.user!.contaId], 'exoneracao', `${nomeDoMembro(data, membro)} foi exonerado`,
       `Exonerado por ${nomeDaConta(peekData(), req.user!.contaId)}. Motivo: ${motivo}`, '/membros')
   } catch (err) {
@@ -346,6 +358,9 @@ router.post('/:id/exonerar', requireAuth, requireArea('membros', 'editar'), vali
   }
   writeData(data)
   audit('MEMBRO_EXONERADO', req, `${nomeDoMembro(data, membro)} (#${membro.id}): ${motivo}`)
+  // Discord: motivo no privado, cargos retirados e expulsão (em segundo plano; resultado vai para a auditoria)
+  void registrarNoForum(contaExonerada?.id, { titulo: 'EXONERAÇÃO', emoji: '⛔', cor: COR_REGISTRO.recusado, motivo, por: nomeDaConta(peekData(), req.user!.contaId) })
+  if (contaExonerada?.discordId) void exonerarNoDiscord(contaExonerada.discordId, motivo, nomeDoMembro(data, membro)).catch(() => {})
   res.json({ ok: true })
 })
 
@@ -437,6 +452,13 @@ router.put('/:id', requireAuth, requireArea('membros', 'editar'), validateBody(m
   // Log: o que mudou em cada campo (para a página de Logs)
   const mudancas = allowed.filter(f => f in body && String(valoresAntes[f] ?? '') !== String(m[f] ?? '')).map(f => `${f}: ${String(valoresAntes[f] ?? '') || '—'} → ${String(m[f] ?? '') || '—'}`)
   audit('MEMBRO_UPDATED', req, [`${nomeDoMembro(data, m)} (#${id})`, ...mudancas].join('\n'))
+  // Fórum de registro: toda alteração da ficha (aqui feita por quem cuida do efetivo) vai para o tópico da pessoa
+  const mudados = allowed.filter(f => f in body && String(valoresAntes[f] ?? '') !== String(m[f] ?? ''))
+  if (mudados.length) void registrarNoForum(contaDoMembro(data, id)?.id, {
+    titulo: 'ATUALIZAÇÃO · Ficha editada', emoji: '✏️', cor: COR_REGISTRO.aviso, texto: 'Editada por quem cuida do efetivo.',
+    por: nomeDaConta(peekData(), req.user!.contaId),
+    campos: mudados.map(f => [ROTULO_CAMPO[f as CampoPerfil] ?? ROTULO_FICHA[f] ?? f, `${String(valoresAntes[f] ?? '') || '—'} → ${String(m[f] ?? '') || '—'}`]),
+  })
   // Promoção/setor/apelido e advertências refletem no Discord
   if (antes.patente !== m.patenteInterna || antes.setor !== m.setor || antes.codinome !== m.codinome || antes.passaporte !== m.passaporte) {
     void aplicarPerfilNoDiscord(id, { patente: antes.patente, setor: antes.setor })
@@ -459,9 +481,11 @@ router.delete('/:id', requireAuth, requireArea('membros', 'editar'), (req: Reque
   const nome = nomeDoMembro(data, removido)
   // Com conta vinculada: vira exoneração (bloqueio total, dados guardados para readmissão)
   if (contaDoMembro(data, id)) {
-    exonerarMembro(data, removido, nomeDaConta(peekData(), req.user!.contaId), 'Removido do efetivo')
+    const exonerada = exonerarMembro(data, removido, nomeDaConta(peekData(), req.user!.contaId), 'Removido do efetivo')
     writeData(data)
     audit('MEMBRO_EXONERADO', req, `ID: ${id} | Nome: ${nome} | via remoção`)
+    void registrarNoForum(exonerada?.id, { titulo: 'EXONERAÇÃO', emoji: '⛔', cor: COR_REGISTRO.recusado, motivo: 'Removido do efetivo', por: nomeDaConta(peekData(), req.user!.contaId) })
+    if (exonerada?.discordId) void exonerarNoDiscord(exonerada.discordId, 'Removido do efetivo', nome).catch(() => {})
     res.json({ ok: true, exonerado: true }); return
   }
   data.membros.splice(idx, 1)

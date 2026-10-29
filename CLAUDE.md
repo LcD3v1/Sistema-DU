@@ -17,11 +17,16 @@ Detalhes: `docs/SECURITY.md`.
 - Login é **só pelo Discord** (OAuth2 `identify`). Não reintroduza login por senha. Token do bot, segredo do app e chamadas à API do
   Discord ficam só em `backend/src/discord.ts`; o bot só lê o servidor (membros, cargos, canais, emojis, registro de auditoria para a página Logs; ícone/banner passam pelo backend porque a URL leva o ID do servidor) e publica/edita as mensagens dos painéis (hierarquia e setagem, menções sem notificar).
   Escrita além disso, só na setagem (`backend/src/setagem.ts`): trocar apelido, DAR o cargo da patente e do setor na aprovação, criar/apagar
-  o canal temporário do pedido (ID guardado no pedido) e avisar no privado; e postar a carteirinha no fórum (`routes/carteira.ts`,
+  o canal temporário do pedido (ID guardado no pedido) e avisar no privado; postar no **fórum de registro** (configurado na setagem;
+  pedido do usuário em 2026-10-29): ao aprovar o set abre o tópico da pessoa e TODA atualização dela (cadastro, pedido de alteração,
+  aprovação/recusa, promoção, advertência, exoneração, readmissão, ficha editada) vira um painel V2 nesse tópico (`registrarNoForum`
+  em `setagem.ts`; ID do tópico em `conta.topicoRegistro`, nunca sai da API); e postar a carteirinha no fórum (`routes/carteira.ts`,
   só quando alguém com "editar carteira" clica em Postar; no tópico do membro ou num tópico escolhido, conferido como sendo do fórum configurado). Depois de aprovado (perfil/promoção em Membros): TIRAR os cargos de patente/setor
   antigos, DAR os novos e trocar o apelido (`aplicarPerfilNoDiscord`); advertências da dashboard dão/tiram os cargos ADV 1–3
   (`sincronizarAdvertencias`), e só esses cargos podem ser CRIADOS pelo bot, sempre com `permissions: "0"` (`criarCargo`).
-  Patente/setor pedidos têm de existir na setagem (`valorDePerfilInvalido`). Nunca banir, expulsar, apagar outro canal nem dar/tirar cargo com moderação/administração. Esse cargo pode ser configurado numa patente/setor, mas o bot só avisa quem aprovou para dá-lo à mão.
+  Patente/setor pedidos têm de existir na setagem (`valorDePerfilInvalido`). Na **exoneração** (pedido do usuário em 2026-10-29), e só nela:
+  painel V2 no privado com a logo e o motivo, TIRAR os cargos da pessoa e EXPULSAR (kick) do servidor (`exonerarNoDiscord` em `setagem.ts`
+  → `expulsarMembro` em `discord.ts`; donos nunca). Nunca banir, expulsar fora da exoneração, apagar outro canal nem dar/tirar cargo com moderação/administração. Esse cargo pode ser configurado numa patente/setor, mas o bot só avisa quem aprovou para dá-lo à mão.
 - **Nome das pessoas (regra):** em TODO lugar (site, Discord, logs, chat, árvore, notificações) a pessoa aparece pelo **codinome**. Use `nomeDaConta`/`nomeDoMembro`/`nomeDeExibicao` (`registros.ts`); nunca monte o nome com `nomeServidor`/`policial` direto.
 - **Rodapé de TODO painel do Discord (regra):** igual ao rodapé de um embed — fotinha pequena + nome do servidor (o que a pessoa configurou), em letra pequena, embaixo à esquerda: `-# <emoji> **Nome**` (`rodapeV2` em `hierarquia.ts`). Nunca miniatura grande à direita. A fotinha (upload ou link copiado pelo navegador; vazio = foto do bot) vira **emoji do próprio bot** (`rodapeDiscord.ts`, nomes `du_<hash>`): o bot só cria/apaga esses emojis da aplicação, nunca emojis do servidor.
   Quem avalia no Discord é conferido pelos cargos que o Discord envia (aprovadores configurados, administrador ou dono), nunca o próprio pedido. Cliques chegam pelo Gateway sem intents, só do servidor da unidade. Falha da API do Discord nunca exonera nem libera acesso.

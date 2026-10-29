@@ -3,7 +3,8 @@ import crypto from 'crypto'
 import { pastaDeArquivos } from '../armazenamento'
 import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
-import { validateBody, anuncioImagemSchema } from '../middleware/validate'
+import { validateBody, anuncioImagemSchema, anuncioSalvasSchema } from '../middleware/validate'
+import { readData, writeData } from '../data'
 import { audit } from '../security/audit'
 
 /**
@@ -43,9 +44,14 @@ interface ImagemMeta {
 
 const pasta = pastaDeArquivos<ImagemMeta>('anuncio-imagens')
 
+/** ID da imagem a partir do caminho salvo ("/img/<id>.<ext>"). */
+const idDoCaminho = (caminho: string) => caminho.slice('/img/'.length).split('.')[0]
+
 function limparImagensAntigas(): void {
   const limite = Date.now() - EXPIRA_DIAS * 86_400_000
-  for (const { id, meta } of pasta.listar()) if (Date.parse(meta.criadoEm) < limite) pasta.apagar(id)
+  // Fotos salvas por alguém (as 2 do Gerar anúncio) nunca expiram: o link está colado no boletim do RP
+  const salvas = new Set(readData().contas.flatMap(c => (c.imagensAnuncio ?? []).filter((x): x is string => Boolean(x)).map(idDoCaminho)))
+  for (const { id, meta } of pasta.listar()) if (Date.parse(meta.criadoEm) < limite && !salvas.has(id)) pasta.apagar(id)
 }
 setInterval(() => {
   try { limparImagensAntigas() } catch (err) { console.error('[DU][ANUNCIO] limpeza:', err instanceof Error ? err.message : err) }
@@ -72,6 +78,33 @@ uploadRouter.post('/imagem', requireAuth, requireArea('anuncio', 'editar'), vali
       res.status(500).json({ error: 'Não foi possível salvar a imagem.' })
     }
   })
+
+// ── As 2 fotos salvas de cada pessoa (links fixos para colar no boletim do RP) ────────
+const normalizarSalvas = (lista: (string | null)[] | undefined) => [0, 1].map(i => lista?.[i] ?? null)
+
+uploadRouter.get('/salvas', requireAuth, requireArea('anuncio', 'ver'), (req: Request, res: Response): void => {
+  const conta = readData().contas.find(c => c.id === req.user!.contaId)
+  // Só as que ainda existem (lista branca: só o caminho público da imagem)
+  res.json({ imagens: normalizarSalvas(conta?.imagensAnuncio).map(c => (c && pasta.meta(idDoCaminho(c)) ? c : null)) })
+})
+
+uploadRouter.put('/salvas', requireAuth, requireArea('anuncio', 'editar'), validateBody(anuncioSalvasSchema), (req: Request, res: Response): void => {
+  const { imagens } = req.body as { imagens: (string | null)[] }
+  // Só imagens que existem no sistema (nunca link de fora)
+  for (const c of imagens) {
+    if (!c) continue
+    const meta = pasta.meta(idDoCaminho(c))
+    if (!meta || c !== `/img/${idDoCaminho(c)}.${meta.ext}`) { res.status(400).json({ error: 'Imagem não encontrada. Envie a foto de novo.' }); return }
+  }
+  const data = readData()
+  const conta = data.contas.find(c => c.id === req.user!.contaId)
+  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
+  if (imagens.some(Boolean)) conta.imagensAnuncio = normalizarSalvas(imagens)
+  else delete conta.imagensAnuncio
+  writeData(data)
+  audit('ANUNCIO_IMAGEM_ENVIADA', req, `fotos salvas: ${imagens.filter(Boolean).length}/2`)
+  res.json({ imagens: normalizarSalvas(conta.imagensAnuncio) })
+})
 
 // ── Link público (/img/<id>.<ext>) ─────────────────────────────────────────────
 export const publicoRouter = Router()

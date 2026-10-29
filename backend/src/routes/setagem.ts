@@ -24,7 +24,7 @@ const router = Router()
 /** Saída campo a campo (o ID da mensagem publicada não sai). */
 function configPublica(s: Setagem) {
   return {
-    titulo: s.titulo, descricao: s.descricao ?? null, categoriaId: s.categoriaId ?? null, canalId: s.canalId ?? null,
+    titulo: s.titulo, descricao: s.descricao ?? null, categoriaId: s.categoriaId ?? null, canalId: s.canalId ?? null, forumRegistroId: s.forumRegistroId ?? null,
     aprovadores: s.aprovadores ?? [], imagem: s.imagem ?? null, rodapeTexto: s.rodapeTexto ?? null,
     imagens: (s.imagens ?? []).map(i => ({ posicao: i.posicao, url: i.url, lado: i.lado ?? null })),
     modeloApelido: s.modeloApelido,
@@ -59,6 +59,7 @@ router.get('/discord', requireAuth, requireArea('setagem', 'editar'), async (req
   res.json({
     categorias: info.todosCanais.filter(c => c.tipo === 'categoria').map(c => ({ id: c.id, nome: c.nome })),
     canais: info.todosCanais.filter(c => c.tipo === 'texto' || c.tipo === 'anuncios').map(c => ({ id: c.id, nome: c.nome, categoriaId: c.categoriaId ?? null })),
+    foruns: info.todosCanais.filter(c => c.tipo === 'forum').map(c => ({ id: c.id, nome: c.nome })),
     // Cargos com moderação/administração e de bots não podem ser dados pela setagem
     cargos: info.todosCargos.filter(r => !r.integracao).map(r => ({ id: r.id, nome: r.nome, cor: r.cor, bloqueado: r.perigoso })),
     cargosSite: autor ? data.cargosPermissao.filter(c => podeAtribuirCargo(autor, c, data)).map(c => ({ id: c.id, nome: c.nome })) : [],
@@ -67,7 +68,7 @@ router.get('/discord', requireAuth, requireArea('setagem', 'editar'), async (req
 
 // PUT /api/setagem — salva (versão confere edição simultânea) e publica o painel
 router.put('/', requireAuth, requireArea('setagem', 'editar'), hierarquiaLimiter, validateBody(setagemSchema), async (req: Request, res: Response): Promise<void> => {
-  const body = req.body as { titulo: string; descricao: string | null; categoriaId: string | null; canalId: string | null; versao: number
+  const body = req.body as { titulo: string; descricao: string | null; categoriaId: string | null; canalId: string | null; forumRegistroId?: string | null; versao: number
     aprovadores: string[]; imagem: string | null; rodapeTexto: string | null; advertencias?: string[]; imagens?: ImagemPainel[]
     patentes: { id: number | null; nome: string; prefixo: string; roleIds: string[]; cargoPermId: number | null }[] }
   if (!body.titulo) { res.status(400).json({ error: 'Informe o título do painel.' }); return }
@@ -79,6 +80,7 @@ router.put('/', requireAuth, requireArea('setagem', 'editar'), hierarquiaLimiter
   const canal = body.canalId ? info.todosCanais.find(c => c.id === body.canalId && (c.tipo === 'texto' || c.tipo === 'anuncios')) : undefined
   if (body.canalId && !canal) { res.status(400).json({ error: 'Canal não encontrado no servidor.' }); return }
   if (body.categoriaId && !info.todosCanais.some(c => c.id === body.categoriaId && c.tipo === 'categoria')) { res.status(400).json({ error: 'Categoria não encontrada no servidor.' }); return }
+  if (body.forumRegistroId && !info.todosCanais.some(c => c.id === body.forumRegistroId && c.tipo === 'forum')) { res.status(400).json({ error: 'Escolha um canal do tipo fórum para o registro.' }); return }
   if (body.imagem && !(body.imagem.startsWith('data:') ? imagemEnviada(body.imagem) : ehLinkImagem(body.imagem))) {
     res.status(400).json({ error: 'Imagem inválida: envie PNG, JPG, WEBP ou GIF (até 1 MB) ou cole um link http/https.' }); return
   }
@@ -127,6 +129,8 @@ router.put('/', requireAuth, requireArea('setagem', 'editar'), hierarquiaLimiter
     ...(body.descricao ? { descricao: body.descricao } : {}),
     ...(body.categoriaId ? { categoriaId: body.categoriaId } : {}),
     ...(body.canalId ? { canalId: body.canalId } : {}),
+    // Fórum de registro: sem o campo no corpo (versão antiga do site) mantém o atual
+    ...(body.forumRegistroId !== undefined ? (body.forumRegistroId ? { forumRegistroId: body.forumRegistroId } : {}) : (atual.forumRegistroId ? { forumRegistroId: atual.forumRegistroId } : {})),
     aprovadores: [...new Set(body.aprovadores)],
     ...(body.imagem ? { imagem: body.imagem } : {}),
     ...(body.rodapeTexto ? { rodapeTexto: body.rodapeTexto } : {}),

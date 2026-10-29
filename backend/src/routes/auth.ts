@@ -13,7 +13,7 @@ import { Membro, LinkPerfil } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { vincularContasAoEfetivo, aplicarPerfilNoDiscord, valorDePerfilInvalido, setagemAtual } from '../setagem'
+import { vincularContasAoEfetivo, aplicarPerfilNoDiscord, valorDePerfilInvalido, setagemAtual, registrarNoForum, camposDasAlteracoes, COR_REGISTRO } from '../setagem'
 import { bloqueioDeAcesso, MOTIVO_SAIU_DO_SERVIDOR, hoje } from '../efetivo'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
@@ -322,6 +322,12 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   }
   writeData(data)
   audit('ONBOARDING_DONE', req, `Membro: ${nomeDoMembro(data, membro)} (#${membro.id})`)
+  void registrarNoForum(conta.id, {
+    titulo: 'CADASTRO · Novo membro', emoji: '📝', cor: COR_REGISTRO.cadastro,
+    texto: aprovado ? 'Cadastro inicial confirmado no site.' : 'Cadastro enviado no site — aguardando aprovação.',
+    campos: [['Nome', membro.policial], ['Codinome', membro.codinome ?? ''], ['ID do jogador', membro.passaporte], ['Distintivo', membro.badge],
+      ['Patente DPD', membro.patenteDPD], ['Patente interna', membro.patenteInterna], ['Nível', String(membro.nivel ?? '')]],
+  })
   res.json({ ok: true, membroId: membro.id })
 })
 
@@ -338,6 +344,7 @@ router.post('/me/nivel', requireAuth, validateBody(nivelInicialSchema), (req: Re
   membro.nivel = (req.body as { nivel: number }).nivel
   writeData(data)
   audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id}: nível informado ${membro.nivel}`)
+  void registrarNoForum(conta!.id, { titulo: 'CADASTRO · Nível informado', emoji: '📝', cor: COR_REGISTRO.cadastro, campos: [['Nível', String(membro.nivel)]] })
   res.json({ ok: true, nivel: membro.nivel })
 })
 
@@ -358,6 +365,7 @@ router.post('/me/nivel/solicitar', requireAuth, validateBody(nivelInicialSchema)
     membro.nivel = nivel
     writeData(data)
     audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona): nível ${atual}→${nivel}`)
+    void registrarNoForum(conta.id, { titulo: 'ATUALIZAÇÃO · Perfil atualizado', emoji: '✏️', cor: COR_REGISTRO.aprovado, texto: 'Conta dona: aplicado direto.', campos: [['Nível', `${atual} → ${nivel}`]] })
     res.json({ pendente: false, nivel })
     return
   }
@@ -383,6 +391,7 @@ router.post('/me/nivel/solicitar', requireAuth, validateBody(nivelInicialSchema)
     `${nomeDoMembro(data, membro)} pediu para atualizar o nível: ${atual} → ${nivel}.`, '/membros')
   writeData(data)
   audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: nivel=${nivel}`)
+  void registrarNoForum(conta.id, { titulo: 'ATUALIZAÇÃO · Pedido enviado', emoji: '🕒', cor: COR_REGISTRO.pedido, texto: 'Aguardando aprovação de um superior.', campos: camposDasAlteracoes(alteracoes) })
   res.status(202).json({ pendente: true, solicitacao: sol })
 })
 
@@ -415,6 +424,7 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
     for (const a of alteracoes) aplicarCampoPerfil(membro, a.campo, a.para)
     writeData(data)
     audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona)`)
+    void registrarNoForum(conta.id, { titulo: 'ATUALIZAÇÃO · Perfil atualizado', emoji: '✏️', cor: COR_REGISTRO.aprovado, texto: 'Conta dona: aplicado direto.', campos: camposDasAlteracoes(alteracoes) })
     if (alteracoes.some(a => ['patenteInterna', 'setor', 'codinome', 'passaporte'].includes(a.campo))) void aplicarPerfilNoDiscord(membro.id, antes)
     const { discordThreadId: _t, registroCanal: _r, ...membroPublico } = membro
     res.json({ pendente: false, membro: membroPublico })
@@ -438,6 +448,7 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
     `${nomeDoMembro(data, membro)} pediu para alterar: ${alteracoes.map(a => a.campo).join(', ')}.`, '/membros')
   writeData(data)
   audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: ${alteracoes.map(a => `${a.campo}=${a.para}`).join(', ')}`)
+  void registrarNoForum(conta.id, { titulo: 'ATUALIZAÇÃO · Pedido enviado', emoji: '🕒', cor: COR_REGISTRO.pedido, texto: 'Aguardando aprovação de um superior.', campos: camposDasAlteracoes(alteracoes) })
   res.status(202).json({ pendente: true, solicitacao: sol })
 })
 

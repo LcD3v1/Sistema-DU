@@ -733,6 +733,21 @@ export async function tirarCargo(cfg: DiscordConfig, discordId: string, roleId: 
 }
 
 /**
+ * EXPULSA (kick, nunca ban) o membro do servidor. Só na exoneração (setagem.ts → exonerarNoDiscord),
+ * depois do aviso no privado. Donos (acesso livre) nunca. 404 = já saiu (ok).
+ */
+export async function expulsarMembro(cfg: DiscordConfig, discordId: string, motivo: string): Promise<ResultadoMembro> {
+  if (!ehSnowflake(discordId) || acessoLivre(cfg, discordId)) return 'erro'
+  try {
+    const res = await chamar(`${API}/guilds/${cfg.guildId}/members/${discordId}`, {
+      method: 'DELETE', headers: { Authorization: `Bot ${cfg.botToken}`, 'X-Audit-Log-Reason': encodeURIComponent(motivo.slice(0, 80)) },
+    })
+    if (res.ok || res.status === 404) lembrarMembro(discordId, null)
+    return res.status === 404 ? 'ok' : resultadoMembro(res)
+  } catch { return 'erro' }
+}
+
+/**
  * Cria um cargo SEM NENHUMA permissão (permissions "0", não mencionável, não separado na lista).
  * Usado só para os cargos de advertência que faltarem no servidor. Devolve o ID ou undefined.
  */
@@ -903,6 +918,33 @@ export async function enviarPrivado(cfg: DiscordConfig, discordId: string, compo
     if (res.ok) return 'ok'
     return res.status === 403 ? 'fechado' : 'erro'
   } catch { return 'erro' }
+}
+
+// ── Fórum de registro (setagem): um tópico por membro, um painel V2 por atualização ──
+
+/**
+ * Posta um painel V2 no tópico do membro; sem tópico (ou apagado), cria um novo no fórum com o painel.
+ * Menções nunca notificam. Devolve o ID do tópico, 'sem_acesso' (bot sem permissão / fórum inexistente) ou undefined.
+ */
+export async function postarV2NoForum(cfg: DiscordConfig, forumId: string, topicoId: string | undefined, nomeTopico: string, componentes: unknown[]):
+  Promise<{ topicoId: string; novo: boolean } | 'sem_acesso' | undefined> {
+  if (!ehSnowflake(forumId)) return 'sem_acesso'
+  try {
+    if (topicoId && ehSnowflake(topicoId)) {
+      const res = await chamar(`${API}/channels/${topicoId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${cfg.botToken}` }, body: corpoV2(componentes, []) })
+      if (res.ok) return { topicoId, novo: false }
+      if (res.status !== 404 && res.status !== 403) return undefined
+      // Tópico apagado (ou sem acesso a ele): cria outro abaixo
+    }
+    const res = await chamar(`${API}/channels/${forumId}/threads`, {
+      method: 'POST', headers: { Authorization: `Bot ${cfg.botToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nomeTopico.slice(0, 100) || 'Registro', message: { flags: FLAG_V2, components: componentes, allowed_mentions: { parse: [] } } }),
+    })
+    if (res.status === 403 || res.status === 404) return 'sem_acesso'
+    if (!res.ok) return undefined
+    const t = await res.json() as { id?: unknown }
+    return ehSnowflake(t.id) ? { topicoId: t.id, novo: true } : undefined
+  } catch { return undefined }
 }
 
 // ── Fórum das carteirinhas ──────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BookOpen, Maximize2, ExternalLink, ShieldCheck, Pencil, Save, Send, RefreshCw, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
-import Brand from '@/components/ui/Brand'
+import BannerModulo from '@/components/ui/BannerModulo'
 import LoadingHud from '@/components/ui/LoadingHud'
 import ModalOverlay from '@/components/ui/ModalOverlay'
 import ImagensPainel from '@/components/ui/ImagensPainel'
@@ -153,41 +153,26 @@ export default function ProtocoloPage() {
   return (
     <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       {/* ── Banner ─────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl border border-gold/25 mb-6"
-           style={{ background: 'radial-gradient(120% 140% at 15% 0%, rgba(139, 92, 246,0.28), rgba(20,33,61,0.5) 40%, #070a12 80%)' }}>
-        <div className="absolute inset-0 grain-noise opacity-[0.05] pointer-events-none" />
-        <div className="relative flex items-center gap-3 sm:gap-5 p-4 sm:p-6 md:p-8 flex-wrap">
-          <div className="shrink-0" style={{ filter: 'drop-shadow(0 0 24px rgba(139, 92, 246,0.4))' }}>
-            <Brand size={84} />
-          </div>
-          <div className="flex-1">
-            <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1 flex items-center gap-2">
-              <ShieldCheck size={13} /> Documento oficial
-            </p>
-            <h1 className="wordmark text-2xl md:text-3xl text-white tracking-wide">Protocolo Operacional</h1>
-            <p className="text-sm text-white/70 mt-1">Force Action Strike Terrestrial — Detroit Police Department</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {canEdit('protocolo') && (
-              <button type="button" onClick={() => setEditando(true)} title="Trocar o livro (link do flipbook)" aria-label="Trocar o livro do protocolo"
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
-                <Pencil size={15} /> <span className="hidden sm:inline">Trocar livro</span>
-              </button>
-            )}
-            {canEdit('protocolo') && (
-              <button type="button" onClick={() => setPainelAberto(true)} title="Publicar o protocolo como painel no Discord" aria-label="Painel do protocolo no Discord"
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
-                <Send size={15} /> <span className="hidden sm:inline">Painel no Discord</span>
-                {data.painel.publicado && <span className="w-1.5 h-1.5 rounded-full bg-green" title="Publicado" />}
-              </button>
-            )}
-            <a href={flipbook} target="_blank" rel="noopener noreferrer"
-               className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(139, 92, 246,0.7)]">
-              <Maximize2 size={15} /> Abrir em tela cheia
-            </a>
-          </div>
-        </div>
-      </div>
+      <BannerModulo sobretitulo="Documento oficial" icone={ShieldCheck} titulo="Protocolo Operacional" subtitulo="Detective Unit — Detroit Police Department"
+        acoes={<>
+        {canEdit('protocolo') && (
+          <button type="button" onClick={() => setEditando(true)} title="Trocar o livro (link do flipbook)" aria-label="Trocar o livro do protocolo"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
+            <Pencil size={15} /> <span className="hidden sm:inline">Trocar livro</span>
+          </button>
+        )}
+        {canEdit('protocolo') && (
+          <button type="button" onClick={() => setPainelAberto(true)} title="Publicar o protocolo como painel no Discord" aria-label="Painel do protocolo no Discord"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
+            <Send size={15} /> <span className="hidden sm:inline">Painel no Discord</span>
+            {data.painel.publicado && <span className="w-1.5 h-1.5 rounded-full bg-green" title="Publicado" />}
+          </button>
+        )}
+        <a href={flipbook} target="_blank" rel="noopener noreferrer"
+           className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(139,92,246,0.7)]">
+          <Maximize2 size={15} /> Abrir em tela cheia
+        </a>
+        </>} />
 
       {/* ── Índice de seções ───────────────────────────────── */}
       {secoes.length > 0 && (

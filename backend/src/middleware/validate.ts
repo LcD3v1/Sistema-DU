@@ -453,6 +453,12 @@ export const anuncioImagemSchema = z.object({
   imagem: z.string().max(4_300_000).refine(ehImagemEnviada, 'Envie uma imagem PNG, JPG, WEBP ou GIF'),
 }).strict()
 
+// As 2 fotos salvas do Gerar anúncio: só links do próprio sistema (/img/<id>.<ext>) ou vazio
+export const CAMINHO_IMAGEM_ANUNCIO = /^\/img\/[A-Za-z0-9_-]{24}\.(png|jpg|gif|webp)$/
+export const anuncioSalvasSchema = z.object({
+  imagens: z.array(z.string().regex(CAMINHO_IMAGEM_ANUNCIO, 'Link de imagem inválido').nullable()).length(2),
+}).strict()
+
 // Aceite dos termos: só a versão vigente é aceita (evita aceitar texto antigo)
 export const termosAceiteSchema = z.object({ versao: z.string().regex(/^\d{4}-\d{2}-\d{2}(-\d{1,3})?$/) }).strict()
 
@@ -531,6 +537,7 @@ export const setagemSchema = z.object({
   titulo:        safeStr(1, 45),
   descricao:     z.string().trim().max(500).nullable(),
   categoriaId:   idDiscord.nullable(),          // onde os canais temporários dos pedidos são criados
+  forumRegistroId: idDiscord.nullable().optional(),   // fórum de registro (tópico por membro)
   canalId:       idDiscord.nullable(),          // canal do painel
   aprovadores:   z.array(idDiscord).max(15),    // cargos do Discord que aprovam/reprovam/pedem correção
   // Imagem do rodapé (à direita): upload (conferido pelos bytes na rota) ou link http/https

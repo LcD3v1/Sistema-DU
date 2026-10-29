@@ -109,6 +109,8 @@ export interface Conta {
   senhaPadrao?: boolean   // LEGADO
   sessaoVersao?: number   // sobe ao "sair de todos": invalida tokens antigos
   cadastroSetagem?: { codinome: string; passaporte: string; patente: string; setor?: string }  // dados da setagem (pré-preenchem o cadastro)
+  topicoRegistro?: string    // tópico da pessoa no fórum de registro (setagem); nunca sai da API
+  imagensAnuncio?: (string | null)[]  // 2 fotos salvas do Gerar anúncio ("/img/<id>.<ext>"), para colar no boletim do RP
 }
 
 /** Pedido de acesso criado no primeiro login pelo Discord; o comando aprova e vira conta. */
@@ -615,6 +617,7 @@ export interface Setagem {
   titulo: string
   descricao?: string
   categoriaId?: string           // categoria onde os canais temporários dos pedidos são criados
+  forumRegistroId?: string       // fórum onde cada membro aprovado ganha um tópico com o cadastro e toda atualização
   canalId?: string               // canal do painel "Solicitar set"
   mensagemId?: string
   aprovadores?: string[]         // cargos do Discord que aprovam/reprovam/pedem correção

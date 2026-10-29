@@ -19,12 +19,13 @@ import {
   discordConfig, responderInteracao, editarResposta, alterarApelido, darCargo, infoServidor,
   publicarV2, criarCanalTemporario, apagarCanalTemporario, enviarPrivado, tirarCargo, criarCargo,
   usuarioLivre, contaDoDiscord, Interacao, DiscordConfig, ResultadoMembro, AnexoPainel,
+  situacaoNoServidor, expulsarMembro, acessoLivre, postarV2NoForum,
 } from './discord'
-import { imagemEnviada, rodapeV2, galeriasDoPainel } from './hierarquia'
+import { imagemEnviada, rodapeV2, galeriasDoPainel, horaDiscord, ESTICAR_LARGURA } from './hierarquia'
 import { emojiDoRodape } from './rodapeDiscord'
 import { notificar, notificarArea, notificarQuemAprova } from './notificacoes'
 import { audit } from './security/audit'
-import { CargoPermissao, Conta, DuData, Membro, PatenteSetagem, Setagem, SetorSetagem, SolicitacaoAcesso } from './types'
+import { CampoPerfil, CargoPermissao, Conta, DuData, Membro, PatenteSetagem, Setagem, SetorSetagem, SolicitacaoAcesso } from './types'
 import { nomeDaConta } from './registros'
 import { hoje as hojeSP } from './efetivo'
 import { cargoConcedeEditar, podeAtribuirCargo } from './access'
@@ -633,6 +634,12 @@ export async function aprovarPedido(solId: number, op: { por: string; cargoPermI
   const { resultado: cargoDiscord, manuais: cargosManuais } = await concederPatente(sol, patente, setor)
   await finalizarNoDiscord(sol, 'Set aprovado ✅', `Seu set foi aprovado como **${patente.nome}**${setor ? ` no setor **${setor.nome}**` : ''}.${urlDoSite() ? `\nEntre com o Discord em ${urlDoSite()} para completar o cadastro.` : ''}`, false)
   if (cargosManuais.length) avisarCargosManuais(nova.id, cargosManuais)
+  // Fórum de registro: abre o tópico da pessoa com os dados aprovados
+  void registrarNoForum(nova.id, {
+    titulo: 'SET APROVADO · Novo membro', emoji: '✅', cor: COR_REGISTRO.aprovado, texto: 'Pedido de set aprovado.', por: op.por,
+    campos: [['Codinome', sol.setagem!.codinome], ['ID do jogador', sol.setagem!.passaporte], ['Patente', patente.nome],
+      ...(setor ? [['Setor', setor.nome] as [string, string]] : []), ['Apelido', sol.setagem!.apelido]],
+  })
   return { contaId: nova.id, cargoDiscord, cargosManuais }
 }
 
@@ -822,4 +829,147 @@ export function valorDePerfilInvalido(data: DuData, campo: string, valor: unknow
   if (campo === 'setor' && v && !(s.setores ?? []).some(x => x.nome.toLowerCase() === v)) return 'Setor não cadastrado. Escolha um da lista.'
   if (campo === 'patenteInterna' && v && s.patentes.length && !s.patentes.some(p => p.nome.toLowerCase() === v)) return 'Patente não cadastrada. Escolha uma da lista.'
   return undefined
+}
+
+// ── Exoneração no Discord ──────────────────────────────────────────────────────
+
+const COR_EXONERACAO = 0xe74c3c
+
+/** Painel no privado de quem foi exonerado: título com a logo do sistema à direita, motivo, data e rodapé padrão. */
+function painelExoneracao(motivo: string, info: InfoPainel, rodapeTexto?: string): { componentes: unknown[]; anexos: AnexoPainel[] } {
+  const logo = imagemEnviada(readData().logo || '', 2 * 1024 * 1024)
+  const anexos: AnexoPainel[] = logo ? [{ nome: `logo.${logo.ext}`, mime: logo.mime, dados: logo.dados }] : []
+  const urlLogo = logo ? `attachment://logo.${logo.ext}` : info.botAvatar
+  const titulo = [texto('# Você foi exonerado'), texto(ESTICAR_LARGURA)]
+  return {
+    anexos,
+    componentes: [{
+      type: 17,
+      accent_color: COR_EXONERACAO,
+      components: [
+        urlLogo ? { type: 9, components: titulo, accessory: { type: 11, media: { url: urlLogo }, description: 'Logo' } } : titulo[0],
+        linha(),
+        texto([
+          'Você foi **exonerado** da unidade. Seu acesso ao sistema foi bloqueado, seus cargos foram retirados e você foi removido do servidor.',
+          `**Motivo:**\n> ${motivo.replace(/\n/g, '\n> ')}`,
+          `**Data:** ${horaDiscord(new Date())}`,
+        ].join('\n\n')),
+        linha(),
+        rodapeV2(rodapeTexto || info.servidor || 'Exoneração', info.emoji ?? ''),
+      ],
+    }],
+  }
+}
+
+export interface ResultadoExoneracao { privado: 'ok' | 'fechado' | 'erro'; cargos: ResultadoMembro; expulso: ResultadoMembro; manuais: string[] }
+
+/**
+ * Exoneração no Discord (pedido do usuário em 2026-10-29), nesta ordem:
+ *  1. painel V2 no privado com o motivo (antes de expulsar: depois o bot não alcança mais a pessoa);
+ *  2. tira os cargos que ela tem — menos os de moderação/administração/integração (voltam em `manuais`);
+ *  3. EXPULSA (kick, nunca ban) do servidor.
+ * Donos (acesso livre) nunca. Falha do Discord não muda nada no site (a exoneração já foi gravada).
+ */
+export async function exonerarNoDiscord(discordId: string, motivo: string, nome: string): Promise<ResultadoExoneracao | undefined> {
+  const cfg = discordConfig()
+  if (!cfg || acessoLivre(cfg, discordId)) return undefined
+  const situacao = await situacaoNoServidor(cfg, discordId)
+  if (situacao.status === 'fora') return undefined
+  const info = await infoBasica(cfg)
+  const { componentes, anexos } = painelExoneracao(motivo, info, setagemAtual(readData()).rodapeTexto)
+  const privado = await enviarPrivado(cfg, discordId, componentes, anexos)
+
+  let cargos: ResultadoMembro = situacao.status === 'membro' ? 'ok' : 'erro'
+  const manuais: string[] = []
+  if (situacao.status === 'membro') {
+    const perigosos = await cargosPerigosos(cfg)
+    for (const r of new Set(situacao.cargos)) {
+      const nome = perigosos.get(r)
+      if (nome !== undefined) { manuais.push(nome); continue }
+      const res = await tirarCargo(cfg, discordId, r, 'Painel DU: exoneração')
+      if (res !== 'ok') cargos = res
+    }
+  }
+  const expulso = await expulsarMembro(cfg, discordId, 'Painel DU: exoneração')
+  // Não deu para expulsar e sobrou cargo alto: quem cuida do efetivo tira à mão
+  if (expulso !== 'ok' && manuais.length) {
+    const data = readData()
+    notificarArea(data, 'membros', [], 'exoneracao', 'Exonerado ainda no Discord',
+      `Não foi possível expulsar ${nome} (exonerado). Tire à mão: ${manuais.map(c => `@${c}`).join(', ')} (cargo com moderação/administração).`, '/membros')
+    writeData(data)
+  }
+  audit('MEMBRO_EXONERADO', undefined, `Discord (${nome}): privado ${privado}, cargos ${cargos}, expulsão ${expulso}${manuais.length ? `, cargos à mão: ${manuais.join(', ')}` : ''}`)
+  return { privado, cargos, expulso, manuais }
+}
+
+// ── Fórum de registro: um tópico por membro com o cadastro e TODA atualização ─────────────
+
+/** Nome de cada campo do perfil nos painéis do fórum. */
+export const ROTULO_CAMPO: Record<CampoPerfil, string> = {
+  nivel: 'Nível', policial: 'Nome', codinome: 'Codinome', badge: 'Distintivo', passaporte: 'ID do jogador',
+  patenteDPD: 'Patente DPD', patenteInterna: 'Patente interna', setor: 'Setor',
+}
+export const COR_REGISTRO = { cadastro: 0xf59e0b, pedido: 0x3b82f6, aprovado: 0x22c55e, recusado: 0xef4444, aviso: 0x8b5cf6 }
+
+export interface EventoRegistro {
+  titulo: string          // ex.: "CADASTRO · Novo membro"
+  emoji: string
+  cor: number
+  texto?: string          // linha abaixo do nome (texto livre do usuário vai em `motivo`)
+  campos?: [string, string][]
+  motivo?: string
+  por?: string            // quem aprovou/decidiu (codinome)
+}
+
+/** Texto do usuário sem menção/formatação do Discord. */
+const limpoRegistro = (t: string, max = 200) => t.replace(/[`*_~|<>#@\\]/g, '').replace(/\s*\n\s*/g, ' ').trim().slice(0, max)
+
+/** Alterações do perfil → campos "Rótulo: antes → depois". */
+export const camposDasAlteracoes = (alteracoes: { campo: CampoPerfil; de: string; para: string }[]): [string, string][] =>
+  alteracoes.map(a => [ROTULO_CAMPO[a.campo] ?? a.campo, `${a.de || '—'} → ${a.para || '—'}`])
+
+function painelRegistro(ev: EventoRegistro, discordId: string, nome: string, info: InfoPainel, rodapeTexto?: string): unknown[] {
+  const campos = (ev.campos ?? []).map(([r, v]) => `**${r}:** ${limpoRegistro(v) || '—'}`)
+  const corpo = [
+    `<@${discordId}> ${limpoRegistro(nome, 80)}${ev.texto ? `\n${ev.texto}` : ''}`,
+    ...(campos.length ? [campos.join('\n')] : []),
+    ...(ev.motivo ? [`**Motivo:**\n> ${limpoRegistro(ev.motivo, 1000)}`] : []),
+    `-# ${ev.por ? `Por ${limpoRegistro(ev.por, 80)} · ` : ''}${horaDiscord(new Date())}`,
+  ].join('\n\n')
+  return [{
+    type: 17,
+    accent_color: ev.cor,
+    components: [texto(`## ${ev.emoji} ${ev.titulo}`), linha(), texto(corpo), linha(), rodapeV2(rodapeTexto || info.servidor || 'Registro', info.emoji ?? '')],
+  }]
+}
+
+let filaRegistro: Promise<unknown> = Promise.resolve()
+
+/**
+ * Posta o evento no tópico da pessoa no fórum de registro (configurado na setagem). Sem tópico, cria um
+ * (nome "Codinome | ID") e guarda o ID na conta. Fila única: dois eventos seguidos nunca criam dois tópicos.
+ * Nunca lança; sem fórum/Discord/discordId não faz nada.
+ */
+export function registrarNoForum(contaId: number | undefined, ev: EventoRegistro): Promise<void> {
+  const tarefa = filaRegistro.then(async () => {
+    const cfg = discordConfig()
+    const data = readData()
+    const s = setagemAtual(data)
+    const conta = contaId !== undefined ? data.contas.find(c => c.id === contaId) : undefined
+    if (!cfg || !s.forumRegistroId || !conta?.discordId) return
+    const nome = nomeDaConta(data, conta.id)
+    const membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : conta.membroArquivado
+    const passaporte = membro?.passaporte || conta.cadastroSetagem?.passaporte || ''
+    const info = await infoBasica(cfg)
+    const r = await postarV2NoForum(cfg, s.forumRegistroId, conta.topicoRegistro, `${limpoRegistro(nome, 80)}${passaporte ? ` | ${limpoRegistro(passaporte, 20)}` : ''}`,
+      painelRegistro(ev, conta.discordId, nome, info, s.rodapeTexto))
+    if (r === 'sem_acesso' || !r) { audit('CONFIG_UPDATED', undefined, `Fórum de registro: falha ao postar (${r ?? 'discord'}) — conta #${conta.id}`); return }
+    if (r.topicoId !== conta.topicoRegistro) {
+      const atual = readData()
+      const alvo = atual.contas.find(c => c.id === conta.id)
+      if (alvo) { alvo.topicoRegistro = r.topicoId; writeData(atual) }
+    }
+  })
+  filaRegistro = tarefa.catch(() => undefined)
+  return tarefa.catch(() => undefined)
 }

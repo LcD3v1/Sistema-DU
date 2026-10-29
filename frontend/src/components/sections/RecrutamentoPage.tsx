@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, ChevronRight, Users, Lock, Unlock } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, Users, Lock, Unlock, UserPlus } from 'lucide-react'
 import { useRecrutos, useCreateRecruta, useDeleteRecruta } from '@/hooks/useRecrutos'
 import { useAuthStore } from '@/store/authStore'
 import { usePerms } from '@/hooks/usePerms'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
+import BannerModulo from '@/components/ui/BannerModulo'
 import HudButton from '@/components/ui/HudButton'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { formatDate } from '@/lib/utils'
@@ -63,16 +64,13 @@ export default function RecrutamentoPage() {
 
   return (
     <div className="p-3 sm:p-6 space-y-6 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="font-orbitron text-sm font-bold text-gold tracking-wider">RECRUTAMENTO</h2>
-        {canEdit && (
-          <HudButton size="sm" onClick={() => setShowModal(true)}>
-            <Plus size={14} className="inline mr-1.5" />
-            NOVO CANDIDATO
-          </HudButton>
-        )}
-      </div>
+      <BannerModulo sobretitulo="Seleção de candidatos" icone={UserPlus} titulo="Recrutamento" subtitulo="Detective Unit — Detroit Police Department"
+        acoes={canEdit && (
+          <button type="button" onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors shadow-[0_10px_30px_-12px_rgba(139,92,246,0.7)]">
+            <Plus size={15} /> Novo candidato
+          </button>
+        )} />
 
       {/* Lista */}
       <GlowCard>

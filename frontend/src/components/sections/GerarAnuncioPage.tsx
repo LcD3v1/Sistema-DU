@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Copy, Eraser, Info, Settings, ImagePlus, Link2, Loader2 } from 'lucide-react'
+import { ChevronLeft, Copy, Eraser, Info, Settings, ImagePlus, Link2, Loader2, Trash2, CornerDownLeft, Bookmark } from 'lucide-react'
 import api from '@/lib/axios'
 import { useUIStore } from '@/store/uiStore'
 import { useAnuncioSituacoes } from '@/hooks/useConfig'
 import Brand from '@/components/ui/Brand'
 import LoadingHud from '@/components/ui/LoadingHud'
 import { ACEITA_FOTO, fotoDoArquivo, mensagemErroFoto } from '@/lib/imagemArquivo'
+import { usePerms } from '@/hooks/usePerms'
+import { useAnuncioSalvas, useSalvarAnuncioSalvas, linkDaFoto } from '@/hooks/useAnuncioSalvas'
 
 /** Brasão padrão do anúncio: brasão da DU, com fallback pro emblema DU se não existir. */
 function DefaultEmblem({ size = 56 }: { size?: number }) {
@@ -71,20 +73,56 @@ export default function GerarAnuncioPage() {
   // Foto enviada → o sistema guarda e devolve um link fixo para colar no jogo
   const arquivoRef = useRef<HTMLInputElement>(null)
   const [enviando, setEnviando] = useState(false)
-  async function enviarFoto(arquivo: File) {
-    setEnviando(true)
+  /** Envia a foto e devolve o caminho do link fixo ("/img/<id>.<ext>"), ou null se falhar. */
+  async function subirFoto(arquivo: File): Promise<string | null> {
     try {
       let dataUrl: string
       try { dataUrl = await fotoDoArquivo(arquivo, { maxLado: 1600, formato: 'image/webp', manterGifAte: MAX_FOTO }) }
-      catch (e) { addToast('error', mensagemErroFoto(e)); return }
+      catch (e) { addToast('error', mensagemErroFoto(e)); return null }
       const { data } = await api.post<{ caminho: string }>('/anuncio/imagem', { imagem: dataUrl })
-      const link = `${window.location.origin}${data.caminho}`
-      setImagem(link)
-      await copiar(link, 'Imagem enviada! Link copiado.')
+      return data.caminho
     } catch (err) {
       const msg = (err as { response?: { data?: { error?: string } } }).response?.data?.error
       addToast('error', msg || 'Não foi possível enviar a imagem.')
+      return null
+    }
+  }
+  async function enviarFoto(arquivo: File) {
+    setEnviando(true)
+    try {
+      const caminho = await subirFoto(arquivo)
+      if (!caminho) return
+      setImagem(linkDaFoto(caminho))
+      await copiar(linkDaFoto(caminho), 'Imagem enviada! Link copiado.')
     } finally { setEnviando(false) }
+  }
+
+  // As 2 fotos salvas da pessoa: ficam na conta com o link pronto para colar no boletim do RP
+  const { canEdit } = usePerms()
+  const podeSalvar = canEdit('anuncio')
+  const { data: salvas } = useAnuncioSalvas()
+  const salvarFotos = useSalvarAnuncioSalvas()
+  const fotos = [0, 1].map(i => salvas?.[i] ?? null)
+  const slot1 = useRef<HTMLInputElement>(null)
+  const slot2 = useRef<HTMLInputElement>(null)
+  const slotRefs = [slot1, slot2]
+  const [enviandoSlot, setEnviandoSlot] = useState<number | null>(null)
+  async function gravarSlot(i: number, caminho: string | null) {
+    try { await salvarFotos.mutateAsync(fotos.map((f, k) => (k === i ? caminho : f))); return true }
+    catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } }).response?.data?.error
+      addToast('error', msg || 'Não foi possível salvar a foto.'); return false
+    }
+  }
+  async function enviarParaSlot(i: number, arquivo: File) {
+    setEnviandoSlot(i)
+    try {
+      const caminho = await subirFoto(arquivo)
+      if (caminho && await gravarSlot(i, caminho)) await copiar(linkDaFoto(caminho), `Foto ${i + 1} salva! Link copiado.`)
+    } finally { setEnviandoSlot(null) }
+  }
+  async function removerSlot(i: number) {
+    if (await gravarSlot(i, null)) addToast('success', `Foto ${i + 1} removida.`)
   }
 
   const inputCls = 'input-gold w-full bg-card2 border border-bdr2 rounded-lg px-3 py-2.5 text-sm font-mono text-txt placeholder-txt3'
@@ -182,10 +220,68 @@ export default function GerarAnuncioPage() {
                 </div>
                 {imagem.trim() && (
                   <button type="button" onClick={() => copiar(imagem.trim(), 'Link da imagem copiado!')}
-                    className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-gold3 hover:text-txt transition-colors">
+                    className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-gold3 hover:text-txt transition-colors">
                     <Link2 size={12} /> Copiar link da imagem
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* ── Fotos salvas (2) ── */}
+            <div className="rounded-xl border border-bdr2 bg-card2/40 p-4 sm:p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Bookmark size={13} className="text-gold3" />
+                <span className="font-mono text-[11px] text-txt2 tracking-wider">Fotos salvas</span>
+              </div>
+              <p className="text-[11px] text-txt3 mb-4">Envie até 2 fotos: o link fica salvo na sua conta para colar no boletim dentro do RP.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {fotos.map((caminho, i) => (
+                  <div key={i} className="rounded-xl border border-bdr bg-card p-3 sm:p-4 flex flex-col gap-3">
+                    <button type="button" onClick={() => podeSalvar && enviandoSlot === null && slotRefs[i].current?.click()} disabled={!podeSalvar}
+                      title={podeSalvar ? (caminho ? 'Trocar foto' : 'Enviar foto') : undefined}
+                      className="w-full aspect-video rounded-lg overflow-hidden border border-bdr2 bg-black/40 flex flex-col items-center justify-center gap-2 text-txt3 hover:border-bdrg transition-colors disabled:cursor-default">
+                      {enviandoSlot === i
+                        ? <Loader2 size={28} className="animate-spin text-gold3" />
+                        : caminho
+                          ? <img src={caminho} alt={`Foto salva ${i + 1}`} className="w-full h-full object-contain" />
+                          : <><ImagePlus size={30} /><span className="font-mono text-[11px] tracking-wider">{podeSalvar ? 'Clique para enviar' : 'Nenhuma foto'}</span></>}
+                    </button>
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] text-txt2 tracking-wider uppercase mb-1">Foto {i + 1}</p>
+                      <p className="font-mono text-[11px] text-txt3 truncate" title={caminho ? linkDaFoto(caminho) : undefined}>
+                        {caminho ? linkDaFoto(caminho) : 'Nenhuma foto salva'}
+                      </p>
+                      <input ref={slotRefs[i]} type="file" accept={ACEITA_FOTO} className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) enviarParaSlot(i, f) }} />
+                      <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+                        {podeSalvar && (
+                          <button type="button" onClick={() => slotRefs[i].current?.click()} disabled={enviandoSlot !== null}
+                            className="flex items-center gap-1 font-mono text-[11px] text-gold3 hover:text-txt transition-colors disabled:opacity-60">
+                            {enviandoSlot === i ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />} {caminho ? 'Trocar' : 'Enviar foto'}
+                          </button>
+                        )}
+                        {caminho && (
+                          <>
+                            <button type="button" onClick={() => copiar(linkDaFoto(caminho), `Link da foto ${i + 1} copiado!`)}
+                              className="flex items-center gap-1 font-mono text-[11px] text-gold3 hover:text-txt transition-colors">
+                              <Link2 size={12} /> Copiar link
+                            </button>
+                            <button type="button" onClick={() => { setImagem(linkDaFoto(caminho)); addToast('success', `Foto ${i + 1} no anúncio.`) }}
+                              className="flex items-center gap-1 font-mono text-[11px] text-gold3 hover:text-txt transition-colors">
+                              <CornerDownLeft size={12} /> Usar no anúncio
+                            </button>
+                            {podeSalvar && (
+                              <button type="button" onClick={() => removerSlot(i)} aria-label={`Remover foto ${i + 1}`}
+                                className="flex items-center gap-1 font-mono text-[11px] text-txt3 hover:text-red transition-colors">
+                                <Trash2 size={12} /> Remover
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 

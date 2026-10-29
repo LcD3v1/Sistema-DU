@@ -82,7 +82,7 @@ export default function SetagemPage() {
 
   const enviar = () => {
     const corpo = {
-      titulo: form.titulo.trim(), descricao: form.descricao?.trim() || null, categoriaId: form.categoriaId, canalId: form.canalId,
+      titulo: form.titulo.trim(), descricao: form.descricao?.trim() || null, categoriaId: form.categoriaId, canalId: form.canalId, forumRegistroId: form.forumRegistroId ?? null,
       aprovadores: form.aprovadores, imagem: form.imagem || null, rodapeTexto: form.rodapeTexto?.trim() || null,
       imagens: form.imagens.filter(i => i.url),
       advertencias: [0, 1, 2].map(n => form.advertencias[n] ?? ''),
@@ -224,6 +224,14 @@ export default function SetagemPage() {
                   ))}
                 </div>
                 {!form.aprovadores.length && <p className="text-[11px] text-gold3 mt-2">Nenhum cargo escolhido: só administradores do servidor e os donos avaliam no Discord.</p>}
+              </div>
+              <div>
+                <label htmlFor="s-forum" className={rotulo}>Fórum de registro</label>
+                <p className="text-[11px] text-txt3 mb-2">Ao aprovar o set, o bot abre um tópico da pessoa neste fórum com os dados aprovados. Cadastro, pedidos de alteração, aprovações, recusas, promoções, advertências e exoneração entram no mesmo tópico.</p>
+                <select id="s-forum" value={form.forumRegistroId ?? ''} onChange={e => atualizar({ forumRegistroId: e.target.value || null })} className={campo}>
+                  <option value="">Sem fórum de registro</option>
+                  {(d?.foruns ?? []).map(c => <option key={c.id} value={c.id}>#{c.nome}</option>)}
+                </select>
               </div>
             </Secao>
 

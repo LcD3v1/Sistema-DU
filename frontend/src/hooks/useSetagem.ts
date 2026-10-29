@@ -11,6 +11,7 @@ export interface SetagemConfig {
   descricao: string | null
   categoriaId: string | null      // categoria dos canais temporários dos pedidos
   canalId: string | null          // canal do painel
+  forumRegistroId: string | null  // fórum de registro: um tópico por membro com o cadastro e toda atualização
   aprovadores: string[]           // cargos do Discord que avaliam os pedidos
   imagem: string | null           // imagem do rodapé (upload ou link)
   rodapeTexto: string | null
@@ -38,6 +39,7 @@ export interface SetagemResp { config: SetagemConfig; estado: EstadoSetagem; pen
 export interface SetagemDiscord {
   categorias: { id: string; nome: string }[]
   canais: { id: string; nome: string; categoriaId: string | null }[]
+  foruns: { id: string; nome: string }[]
   cargos: { id: string; nome: string; cor: number; bloqueado: boolean }[]
   cargosSite: { id: number; nome: string }[]
 }

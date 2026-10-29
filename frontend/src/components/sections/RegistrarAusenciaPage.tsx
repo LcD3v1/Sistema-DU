@@ -1,4 +1,5 @@
 import GlowCard from '@/components/ui/GlowCard';
+import BannerModulo from '@/components/ui/BannerModulo';
 import HudButton from '@/components/ui/HudButton';
 import LoadingHud from '@/components/ui/LoadingHud';
 import { useCreateAusencia } from '@/hooks/useAusencias';
@@ -72,18 +73,9 @@ export default function RegistrarAusenciaPage() {
 
   return (
     <div className="p-3 sm:p-6 max-w-2xl mx-auto">
+      <BannerModulo sobretitulo="Efetivo · Afastamento" icone={CalendarPlus} titulo="Registrar ausência" subtitulo="Detective Unit — Detroit Police Department" />
       <GlowCard>
         <div className="p-4 sm:p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-11 h-11 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center">
-              <CalendarPlus size={18} className="text-gold" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-txt leading-tight">Registrar ausência</h2>
-              <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase">Efetivo · aDUamento</p>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Nome / membro */}
             <div>

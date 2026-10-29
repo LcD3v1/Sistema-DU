@@ -20,7 +20,7 @@ import { tipoDoQru, definirTipoQru } from '../qrus'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo, PROTECTED_OWNER_ID } from '../access'
 import { notificar } from '../notificacoes'
-import { criarContaDeSolicitacao, aprovarPedido, reprovarPedido, solicitarCorrecao, setagemAtual } from '../setagem'
+import { criarContaDeSolicitacao, aprovarPedido, reprovarPedido, solicitarCorrecao, setagemAtual, registrarNoForum, COR_REGISTRO } from '../setagem'
 import { imagemEnviada } from '../hierarquia'
 
 import { nomeDaConta } from '../registros'
@@ -335,6 +335,7 @@ router.post('/solicitacoes-acesso/:id/aprovar', requireAuth, adminOnly, hierarqu
   const nova = criarContaDeSolicitacao(data, sol, cargo)
   writeData(data)
   audit('SIGNUP_APPROVED', req, `Usuário: ${nova.username} | Cargo: #${nova.cargoPermId ?? '—'}`)
+  void registrarNoForum(nova.id, { titulo: 'ACESSO APROVADO · Novo membro', emoji: '✅', cor: COR_REGISTRO.aprovado, texto: 'Pedido de acesso aprovado.', por: nomeDaConta(peekData(), req.user!.contaId) })
   res.status(201).json(contaPublica(nova))
 })
 

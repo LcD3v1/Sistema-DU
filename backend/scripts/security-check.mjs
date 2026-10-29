@@ -444,14 +444,35 @@ console.log('\n[15] Discord só para login, verificação de membro e painel de 
   // Escrita no Discord: PUT só para DAR cargo (patente/setor/advertência); DELETE só da própria mensagem de painel,
   // do canal temporário do pedido e para TIRAR cargo de membro (patente/setor/advertência antigos). Sem banir/expulsar.
   const deletes = [...discordTs.matchAll(/chamar\(`\$\{API\}([^`]*)`, \{\s*method: 'DELETE'/g)].map(m => m[1])
-  check(deletes.length === 4 && deletes.includes('/channels/${canalId}/messages/${mensagemId}') && deletes.includes('/channels/${canalId}')
+  check(deletes.length === 5 && deletes.includes('/channels/${canalId}/messages/${mensagemId}') && deletes.includes('/channels/${canalId}')
     && deletes.includes('/guilds/${cfg.guildId}/members/${discordId}/roles/${roleId}')
     && deletes.includes('/applications/${cfg.clientId}/emojis/${emoji.id}')
-    && (discordTs.match(/method: 'DELETE'/g) || []).length === 4
+    && deletes.includes('/guilds/${cfg.guildId}/members/${discordId}')
+    && (discordTs.match(/method: 'DELETE'/g) || []).length === 5
     && !/init\('DELETE'\)/.test(discordTs) && (discordTs.match(/method: 'PUT'/g) || []).length === 1
     && /\/members\/\$\{discordId\}\/roles\/\$\{roleId\}`, \{\s*method: 'PUT'/.test(discordTs)
     && !/\/bans\/|\/prune/.test(discordTs),
-    'bot só apaga o próprio painel/canal temporário, os próprios emojis do rodapé e só dá/tira cargos de membro (sem banir/expulsar)', 'bot faz DELETE ou PUT inesperado na API do Discord')
+    'bot só apaga o próprio painel/canal temporário, os próprios emojis do rodapé e só dá/tira cargos de membro; expulsa só na exoneração (nunca bane)', 'bot faz DELETE ou PUT inesperado na API do Discord')
+  // Expulsão (kick) só na exoneração: expulsarMembro nunca expulsa dono, só setagem.ts a chama (em exonerarNoDiscord,
+  // depois do privado) e só as rotas de exoneração/remoção de membros chamam exonerarNoDiscord
+  const expulsarTs = discordTs.slice(discordTs.indexOf('export async function expulsarMembro'), discordTs.indexOf('export async function criarCargo'))
+  const setagemSrc = ler('src/setagem.ts')
+  const exonerarNoDiscordTs = setagemSrc.slice(setagemSrc.indexOf('export async function exonerarNoDiscord'))
+  const usamExpulsar = arquivosSrc.filter(([rel, txt]) => rel !== 'src/discord.ts' && /expulsarMembro\(/.test(txt)).map(([rel]) => rel)
+  const usamExonerarDiscord = arquivosSrc.filter(([rel, txt]) => rel !== 'src/setagem.ts' && /exonerarNoDiscord\(/.test(txt)).map(([rel]) => rel)
+  check(/if \(!ehSnowflake\(discordId\) \|\| acessoLivre\(cfg, discordId\)\) return 'erro'/.test(expulsarTs)
+    && usamExpulsar.length === 1 && usamExpulsar[0] === 'src/setagem.ts' && (setagemSrc.match(/expulsarMembro\(/g) || []).length === 1
+    && exonerarNoDiscordTs.indexOf('enviarPrivado(') < exonerarNoDiscordTs.indexOf('expulsarMembro(')
+    && /if \(nome !== undefined\) \{ manuais\.push\(nome\); continue \}/.test(exonerarNoDiscordTs)
+    && usamExonerarDiscord.length === 1 && usamExonerarDiscord[0] === 'src/routes/membros.ts',
+    'expulsão só na exoneração (aviso no privado antes, nunca dono, cargos com moderação ficam)', 'expulsão do Discord fora do fluxo de exoneração ou sem as travas')
+  // Fórum de registro: só setagem.ts posta (registrarNoForum, menções sem notificar); o ID do tópico nunca sai da API
+  const usamForumV2 = arquivosSrc.filter(([rel, txt]) => rel !== 'src/discord.ts' && /postarV2NoForum\(/.test(txt)).map(([rel]) => rel)
+  const forumV2Ts = discordTs.slice(discordTs.indexOf('export async function postarV2NoForum'), discordTs.indexOf('// ── Fórum das carteirinhas'))
+  const rotasSrc = arquivosSrc.filter(([rel]) => rel.startsWith('src/routes/'))
+  check(usamForumV2.length === 1 && usamForumV2[0] === 'src/setagem.ts' && /allowed_mentions: \{ parse: \[\] \}/.test(forumV2Ts)
+    && !rotasSrc.some(([, txt]) => /topicoRegistro/.test(txt)),
+    'fórum de registro: só a setagem posta, sem notificar menções, tópico do membro fora da API', 'fórum de registro postado fora da setagem ou ID do tópico exposto')
   // Emoji do rodapé: só emoji da APLICAÇÃO do bot, nome sempre du_<hash>; nunca emoji do servidor; imagem só data URL ou CDN do Discord
   const rodTs = ler('src/rodapeDiscord.ts')
   const emojiTs = discordTs.slice(discordTs.indexOf('export const NOME_EMOJI_RODAPE'), discordTs.indexOf('// ── Foto do membro'))
@@ -463,7 +484,6 @@ console.log('\n[15] Discord só para login, verificação de membro e painel de 
     'rodapé: fotinha = emoji do próprio bot (du_<hash>), sem tocar nos emojis do servidor e sem baixar link de usuário', 'emoji do rodapé fora da regra')
   // Criar cargo: só em criarCargo, SEMPRE sem permissão nenhuma, e só para os cargos de advertência
   const criaCargo = discordTs.slice(discordTs.indexOf('export async function criarCargo'), discordTs.indexOf('// ── Gateway'))
-  const setagemSrc = ler('src/setagem.ts')
   check((discordTs.match(/\/roles`, \{\s*method: 'POST'/g) || []).length === 1 && /permissions: '0'/.test(criaCargo) && /mentionable: false/.test(criaCargo)
     && (setagemSrc.match(/criarCargo\(/g) || []).length === 1 && /criarCargo\(cfg, NOMES_ADV\[n\], CORES_ADV\[n\]\)/.test(setagemSrc),
     'bot só cria cargos de advertência, sempre SEM permissão nenhuma', 'bot cria cargo com permissão ou fora das advertências')
@@ -783,6 +803,12 @@ check(/randomBytes\(18\)/.test(anuncioImgTs) && /'X-Content-Type-Options', 'nosn
   'link da foto com ID aleatório, nosniff e CSP sandbox', 'link da foto previsível ou sem nosniff/sandbox')
 check(/app\.use\('\/img', anuncioImagemPublica\)/.test(index) && /anuncio\\\/imagem/.test(index),
   'foto pública fora de /api e envio no limite de upload', 'rota da foto fora do lugar ou sem uploadLimiter')
+// Fotos salvas do anúncio: login + área (ver/editar), Zod só com links do próprio sistema, e a imagem tem de existir
+check(/uploadRouter\.get\('\/salvas', requireAuth, requireArea\('anuncio', 'ver'\)/.test(anuncioImgTs)
+  && /uploadRouter\.put\('\/salvas', requireAuth, requireArea\('anuncio', 'editar'\), validateBody\(anuncioSalvasSchema\)/.test(anuncioImgTs)
+  && /CAMINHO_IMAGEM_ANUNCIO = \/\^\\\/img\\\/\[A-Za-z0-9_-\]\{24\}\\\.\(png\|jpg\|gif\|webp\)\$\//.test(ler('src/middleware/validate.ts'))
+  && /if \(!meta \|\| c !== `\/img\/\$\{idDoCaminho\(c\)\}\.\$\{meta\.ext\}`\)/.test(anuncioImgTs),
+  'fotos salvas do anúncio: login, área, Zod e só imagens do próprio sistema', 'fotos salvas do anúncio sem login/área/Zod ou aceitando link de fora')
 console.log('\n[Avisos] Saída campo a campo')
 check(/\.map\(\(\{ id, titulo, mensagem, autor, criadoEm \}\)/.test(ler('src/routes/avisos.ts')),
   'avisos listados campo a campo (sem IDs do Discord)', 'avisos saem crus (com IDs do Discord)')
