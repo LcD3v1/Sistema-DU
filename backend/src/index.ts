@@ -56,7 +56,7 @@ import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPubl
 const app = express()
 const PROD = env.PROD
 
-// Exatamente 1 proxy (ShardCloud/cloudflared) → req.ip = IP real do cliente.
+// Exatamente 1 proxy (proxy da hospedagem: Discloud/ShardCloud/cloudflared) → req.ip = IP real do cliente.
 // Deve vir antes de firewall e rate limit (ambos usam req.ip).
 app.set('trust proxy', 1)
 app.disable('x-powered-by')
