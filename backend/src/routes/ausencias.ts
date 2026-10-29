@@ -91,7 +91,7 @@ router.post('/', requireAuth, validateBody(ausenciaSchema), (req: Request, res: 
   notificarAprovadores(data, 'ausencias', membro.id, req.user!.contaId, 'pendente_aprovacao', 'Ausência aguardando aprovação',
     membro.id === solicitante.membroId
       ? `${nomeDoMembro(data, membro)} solicitou ausência (${periodo}).`
-      : `${nomeDaConta(peekData(), req.user!.contaId)} solicitou ausência para ${nomeDoMembro(data, membro)} (${periodo}).`, '/ausencias')
+      : `${nomeDaConta(peekData(), req.user!.contaId)} solicitou ausência para ${nomeDoMembro(data, membro)} (${periodo}).`, '/pendentes')
   writeData(data)
 
   audit('AUSENCIA_CREATED', req, `${nova.nome} | ${nova.dataInicio} → ${nova.dataFim} | pendente`)

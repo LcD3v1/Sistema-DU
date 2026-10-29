@@ -182,7 +182,7 @@ export default function RegistroInvestigacaoPage() {
 
   return (
     <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
-      <CabecalhoPagina sobretitulo="Investigação" titulo="Registro de Investigação" icone={ClipboardList}
+      <CabecalhoPagina sobretitulo="Investigação" titulo="Saídas à Paisana" icone={ClipboardList}
         descricao="Solicite uma investigação, acompanhe a aprovação, os participantes e o andamento de cada uma.">
         {podeRegistrar && <BotaoPrimario onClick={novo}><Plus size={15} /> Solicitar investigação</BotaoPrimario>}
       </CabecalhoPagina>
@@ -249,7 +249,7 @@ export default function RegistroInvestigacaoPage() {
       )}
 
       {/* Detalhes */}
-      <ModalOverlay open={!!aberto} onClose={() => setAbertoId(null)} title="REGISTRO DE INVESTIGAÇÃO" maxWidth="max-w-2xl">
+      <ModalOverlay open={!!aberto} onClose={() => setAbertoId(null)} title="SAÍDA À PAISANA" maxWidth="max-w-2xl">
         {aberto && (
           <div className="space-y-5">
             <div>

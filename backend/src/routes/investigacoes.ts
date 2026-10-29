@@ -130,7 +130,7 @@ router.post('/', requireAuth, requireArea('investigacoes', 'editar'), validateBo
   data.nextRegistroInvestigacaoId = id + 1
   const resumo = `${novo.nome} · ${quando(novo)} · ${MOTIVO[novo.motivo]} · ${LOCAL[novo.local]}`
   avisarEnvolvidos(data, novo, conta.id, 'Você foi marcado numa investigação', `${autorNome} marcou você: ${resumo}`)
-  notificarQuemAprova(data, 'investigacoes_gestao', [conta.id], 'pendente_aprovacao', 'Pedido de investigação', `${autorNome} pediu: ${resumo}`, '/investigacoes/aprovacoes')
+  notificarQuemAprova(data, 'investigacoes_gestao', [conta.id], 'pendente_aprovacao', 'Pedido de investigação', `${autorNome} pediu: ${resumo}`, '/pendentes')
   writeData(data)
   audit('INVESTIGACAO_REGISTRADA', req, `#${id} | ${participantes.length} participante(s)`)
   res.status(201).json(publico(data, conta, novo))

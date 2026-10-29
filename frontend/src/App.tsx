@@ -24,6 +24,7 @@ const BoletinsPage = paginaLazy('/boletins')
 const InqueritosPage = paginaLazy('/inqueritos')
 const RegistroInvestigacaoPage = paginaLazy('/investigacoes')
 const AprovarInvestigacoesPage = paginaLazy('/investigacoes/aprovacoes')
+const PendentesPage = paginaLazy('/pendentes')
 const GaleriaPage = paginaLazy('/galeria')
 const AvisosPage = paginaLazy('/avisos')
 const ProfilePage = paginaLazy('/perfil')
@@ -109,6 +110,10 @@ export default function App() {
             <ProtectedRoute><AppShell /></ProtectedRoute>
           }>
             <Route index element={<RootRedirect />} />
+            {/* Pendentes: cada lista é liberada pela permissão de aprovar daquele tipo de pedido */}
+            <Route path="pendentes" element={
+              <ProtectedRoute><PendentesPage /></ProtectedRoute>
+            } />
             <Route path="dashboard" element={
               <ProtectedRoute area="dashboard"><DashboardPage /></ProtectedRoute>
             } />

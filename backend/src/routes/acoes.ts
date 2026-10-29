@@ -118,7 +118,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
   notificar(data, req.user!.contaId, 'solicitacao', 'Apreensão enviada',
     `Sua apreensão (${novaAcao.qru}) foi enviada. Você está aguardando a aprovação.`, '/acoes/historico')
   notificarAprovadores(data, 'pendentes', undefined, req.user!.contaId, 'pendente_aprovacao', 'Apreensão aguardando aprovação',
-    `${nomeDaConta(peekData(), req.user!.contaId)} registrou uma apreensão (${novaAcao.qru}).`, '/acoes/pendentes')
+    `${nomeDaConta(peekData(), req.user!.contaId)} registrou uma apreensão (${novaAcao.qru}).`, '/pendentes')
   writeData(data)
 
   audit('ACAO_CREATED', req, `ID: ${novaAcao.id} | QRU: ${novaAcao.qru} | ${novaAcao.resultado ?? 'convencional'} | PENDENTE`)

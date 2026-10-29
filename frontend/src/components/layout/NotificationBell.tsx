@@ -64,6 +64,8 @@ export default function NotificationBell() {
 
   const lista = data?.notificacoes ?? []
   const naoLidas = data?.naoLidas ?? 0
+  // Alarme: há pedido esperando a SUA aprovação ainda não lido → o sino sacode e pulsa em vermelho
+  const alarme = lista.some(n => !n.lida && n.tipo === 'pendente_aprovacao')
 
   function abrir(n: Notificacao) {
     if (!n.lida) marcarLida.mutate(n.id)
@@ -77,9 +79,10 @@ export default function NotificationBell() {
         className={`relative w-9 h-9 rounded-full flex items-center justify-center border transition-colors ${
           aberto ? 'border-gold/50 bg-gold/10 text-gold3' : 'border-bdr2 text-txt2 hover:text-txt hover:border-bdr2 hover:bg-white/3'
         }`}
-        aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}`}
+        aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}${alarme ? ' — há pedidos esperando aprovação' : ''}`}
       >
-        <Bell size={16} className="text-gold" />
+        {alarme && <span aria-hidden className="absolute inset-0 rounded-full border-2 border-red/70 animate-ping" />}
+        <Bell size={16} className={alarme ? 'text-red sino-alarme' : 'text-gold'} />
         {naoLidas > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-red text-white text-[10px] font-bold flex items-center justify-center">
             {naoLidas > 99 ? '99+' : naoLidas}

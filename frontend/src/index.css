@@ -96,6 +96,10 @@ h1, h2, h3 {
 @keyframes logo-aura  { 0%,100% { opacity: .4; transform: scale(1); } 50% { opacity: .9; transform: scale(1.12); } }
 @keyframes logo-ring  { to { transform: rotate(360deg); } }
 @keyframes logo-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+/* Sino de notificações: pedido esperando aprovação (sacode a cada 2 s) */
+@keyframes sino-alarme { 0%,60%,100% { transform: rotate(0); } 10% { transform: rotate(16deg); } 20% { transform: rotate(-14deg); } 30% { transform: rotate(10deg); } 40% { transform: rotate(-8deg); } 50% { transform: rotate(4deg); } }
+.sino-alarme { transform-origin: 50% 0; animation: sino-alarme 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sino-alarme { animation: none; } }
 @keyframes du-pan { from { transform: scale(1.04) translate3d(-1.5%, 0, 0); } to { transform: scale(1.1) translate3d(1.5%, -1%, 0); } }
 
 /* ── Fundo animado da login (assets próprios, sem vídeo) ───────── */

@@ -35,7 +35,7 @@ const AJUDA: Record<string, TextoAjuda> = {
     passos: ['Abra um inquérito para ver documentos, imagens e evidências.', 'Anexe links ou arquivos direto do computador.', 'Use a busca para achar um inquérito pelo nome.'],
   },
   '/investigacoes': {
-    titulo: 'Registro de Investigação',
+    titulo: 'Saídas à Paisana',
     passos: [
       'Clique em "Solicitar investigação" e dê um nome e a data.',
       'Marque cada investigador com @ (codinome ou ID) — você já entra na lista e pode se tirar ou se incluir.',
@@ -46,7 +46,15 @@ const AJUDA: Record<string, TextoAjuda> = {
     ],
     dicas: [
       'As investigações são privadas: você só vê as que solicitou ou em que foi marcado.',
-      'Ver todas só com acesso total ou com a permissão "Registro de Investigação — gestão".',
+      'Ver todas só com acesso total ou com a permissão "Saídas à Paisana — gestão".',
+    ],
+  },
+  '/pendentes': {
+    titulo: 'Pendentes',
+    passos: [
+      'Aqui aparece tudo que espera a sua aprovação: alterações de perfil, pedidos de acesso e de set, ausências e investigações.',
+      'Cada pessoa só vê os tipos de pedido que pode aprovar. O número vermelho no menu é o total.',
+      'Nada muda antes da aprovação: o pedido só vale depois que alguém aprova.',
     ],
   },
   '/investigacoes/aprovacoes': {
@@ -56,7 +64,7 @@ const AJUDA: Record<string, TextoAjuda> = {
       'Autorizar: a investigação já começa "em andamento" e é criada a árvore de investigação do responsável e dos participantes.',
       'Negar: escreva o motivo (opcional) — todos os envolvidos são avisados.',
     ],
-    dicas: ['Só aparece para quem tem "Registro de Investigação — gestão → Editar".'],
+    dicas: ['Só aparece para quem tem "Saídas à Paisana — gestão → Editar".'],
   },
   '/galeria': {
     titulo: 'Galeria da DU',

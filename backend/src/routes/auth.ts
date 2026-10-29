@@ -128,7 +128,7 @@ router.get('/discord/callback', discordLoginLimiter, async (req: Request, res: R
       data.solicitacoesAcesso.push({ id: data.nextSolAcessoId++, discordId, username: usuario.username, nome,
         ...(usuario.avatar ? { avatar: usuario.avatar } : {}), criadoEm: new Date().toISOString() })
       notificarAdmins(data, undefined, 'pendente_aprovacao', 'Pedido de acesso',
-        `${nome} (@${usuario.username}) pediu acesso ao painel.`, '/configuracoes')
+        `${nome} (@${usuario.username}) pediu acesso ao painel.`, '/pendentes')
       writeData(data)
       audit('SIGNUP_REQUESTED', req, `Discord: @${usuario.username}`)
     }
@@ -318,7 +318,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     notificar(data, conta.id, 'solicitacao', 'Cadastro enviado',
       'Seu cadastro foi enviado. Você está aguardando a aprovação do comando.', '/perfil')
     notificarAdmins(data, conta.id, 'pendente_aprovacao', 'Cadastro aguardando aprovação',
-      `${resumo} enviou o cadastro e aguarda aprovação.`, '/configuracoes')
+      `${resumo} enviou o cadastro e aguarda aprovação.`, '/pendentes')
   }
   writeData(data)
   audit('ONBOARDING_DONE', req, `Membro: ${nomeDoMembro(data, membro)} (#${membro.id})`)
@@ -388,7 +388,7 @@ router.post('/me/nivel/solicitar', requireAuth, validateBody(nivelInicialSchema)
   notificar(data, conta.id, 'solicitacao', 'Atualização de nível enviada',
     `Seu pedido para atualizar o nível para ${nivel} foi enviado. Você está aguardando a aprovação de um superior.`, '/perfil')
   notificarAprovadores(data, 'membros', membro.id, conta.id, 'pendente_aprovacao', 'Atualização de nível aguardando aprovação',
-    `${nomeDoMembro(data, membro)} pediu para atualizar o nível: ${atual} → ${nivel}.`, '/membros')
+    `${nomeDoMembro(data, membro)} pediu para atualizar o nível: ${atual} → ${nivel}.`, '/pendentes')
   writeData(data)
   audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: nivel=${nivel}`)
   void registrarNoForum(conta.id, { titulo: 'ATUALIZAÇÃO · Pedido enviado', emoji: '🕒', cor: COR_REGISTRO.pedido, texto: 'Aguardando aprovação de um superior.', campos: camposDasAlteracoes(alteracoes) })
@@ -445,7 +445,7 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
   notificar(data, conta.id, 'solicitacao', 'Alteração de perfil enviada',
     'Sua solicitação de alteração de perfil foi enviada. Você está aguardando a aprovação de um superior.', '/perfil')
   notificarAprovadores(data, 'membros', membro.id, conta.id, 'pendente_aprovacao', 'Alteração de perfil aguardando aprovação',
-    `${nomeDoMembro(data, membro)} pediu para alterar: ${alteracoes.map(a => a.campo).join(', ')}.`, '/membros')
+    `${nomeDoMembro(data, membro)} pediu para alterar: ${alteracoes.map(a => a.campo).join(', ')}.`, '/pendentes')
   writeData(data)
   audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: ${alteracoes.map(a => `${a.campo}=${a.para}`).join(', ')}`)
   void registrarNoForum(conta.id, { titulo: 'ATUALIZAÇÃO · Pedido enviado', emoji: '🕒', cor: COR_REGISTRO.pedido, texto: 'Aguardando aprovação de um superior.', campos: camposDasAlteracoes(alteracoes) })

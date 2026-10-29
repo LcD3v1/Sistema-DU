@@ -3,11 +3,12 @@ import {
   LayoutGrid, FilePlus2, FileSearch, FolderArchive, Images, GitBranch, ClipboardList, ShieldCheck,
   Users, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
-  Settings, ArrowUpRight, Code2, Bell, X, Network, Server, ClipboardCheck,
+  Settings, ArrowUpRight, Code2, Bell, X, Network, Server, ClipboardCheck, Inbox,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAvisos } from '@/hooks/useAvisos'
 import { usePerms } from '@/hooks/usePerms'
+import { usePendentes } from '@/hooks/usePendentes'
 import Brand from '@/components/ui/Brand'
 import { precarregarRota } from '@/lib/rotas'
 import type { Nivel } from '@/types'
@@ -22,6 +23,8 @@ interface NavItem {
   viewOnly?: boolean
   /** Só aparece para quem pode EDITAR a área (ex.: cadastrar) */
   editOnly?: boolean
+  /** Só aparece para quem aprova algum tipo de pedido (contador = total pendente) */
+  aprovador?: boolean
   badge?: number
   external?: boolean
 }
@@ -34,6 +37,7 @@ const GROUPS: NavGroup[] = [
   {
     title: 'Painel',
     items: [
+      { to: '/pendentes', icon: Inbox,      label: 'Pendentes',   minNivel: 'membro', aprovador: true },
       { to: '/dashboard', icon: LayoutGrid, label: 'Visão geral', minNivel: 'membro', area: 'dashboard' },
       { to: '/avisos',    icon: Bell,       label: 'Avisos',      minNivel: 'membro', viewOnly: true, area: 'avisos' },
       { to: '/protocolo', icon: BookOpen,   label: 'Protocolo',   minNivel: 'membro', viewOnly: true, area: 'protocolo' },
@@ -46,7 +50,7 @@ const GROUPS: NavGroup[] = [
       { to: '/relatorios/novo', icon: FilePlus2,     label: 'Cadastrar relatório',  minNivel: 'membro', area: 'relatorios', editOnly: true },
       { to: '/relatorios',      icon: FileSearch,    label: 'Relatórios',           minNivel: 'membro', area: 'relatorios' },
       { to: '/boletins',        icon: ScrollText,    label: 'Boletins',             minNivel: 'membro', area: 'boletins' },
-      { to: '/investigacoes',   icon: ClipboardList, label: 'Registro de Investigação', minNivel: 'membro', area: 'investigacoes' },
+      { to: '/investigacoes',   icon: ClipboardList, label: 'Saídas à Paisana', minNivel: 'membro', area: 'investigacoes' },
       { to: '/investigacoes/aprovacoes', icon: ShieldCheck, label: 'Aprovar investigações', minNivel: 'membro', area: 'investigacoes_gestao', editOnly: true },
       { to: '/inqueritos',      icon: FolderArchive, label: 'Arquivo de Inquéritos', minNivel: 'membro', area: 'inqueritos' },
       { to: '/arvores',         icon: GitBranch,     label: 'Árvore de investigação', minNivel: 'membro', area: 'arvore' },
@@ -93,6 +97,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
   const avisosNaoVistos = avisosData?.naoVistos ?? 0
 
   const { canView, canEdit, admin } = usePerms()
+  const pendentes = usePendentes()
 
   const groups = GROUPS
     .map(g => ({
@@ -100,6 +105,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
       items: g.items.filter(item => {
         // Configurações é administração do sistema → só admin
         if (item.area === 'configuracoes') return admin
+        if (item.aprovador) return pendentes.podeAprovar
         // Demais áreas: conforme a permissão de "ver" do cargo
         if (item.area && !canView(item.area)) return false
         if (item.area && item.editOnly && !canEdit(item.area)) return false
@@ -178,6 +184,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
                 >
                   {({ isActive }) => {
                     const badge = item.to === '/avisos' ? avisosNaoVistos
+                      : item.aprovador ? pendentes.total
                       : item.badge
                     return (
                     <>

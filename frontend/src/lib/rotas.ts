@@ -20,6 +20,7 @@ const carregadores = {
   '/inqueritos': () => import('@/components/sections/InqueritosPage'),
   '/investigacoes': () => import('@/components/sections/RegistroInvestigacaoPage'),
   '/investigacoes/aprovacoes': () => import('@/components/sections/AprovarInvestigacoesPage'),
+  '/pendentes': () => import('@/components/sections/PendentesPage'),
   '/galeria': () => import('@/components/sections/GaleriaPage'),
   '/avisos': () => import('@/components/sections/AvisosPage'),
   '/perfil': () => import('@/components/sections/ProfilePage'),
