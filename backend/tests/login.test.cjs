@@ -1,4 +1,4 @@
-// Login por usuário e senha + pedido de acesso (igual ao Sistema Tática). Dados em memória.
+// Login SOMENTE pelo Discord (OAuth2) + saída do servidor = exoneração. API do Discord simulada.
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -7,19 +7,54 @@ process.env.DATA_PATH = path.join(pasta, 'data.json')
 process.env.DATA_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('base64url')   // só para o teste
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
-const bcrypt = require('bcrypt')
-const { makeData } = require('./ranking-fixtures.cjs')
+const { makeData, guild } = require('./ranking-fixtures.cjs')
 
 const secret = 'login-test-secret-with-enough-length-0123456789abcdef'
+const DONO = '333333333333333333'        // conta 1 (fixture)
+const OPERADOR = '444444444444444444'    // conta 2 (fixture)
+const NOVO = '555555555555555555'        // ainda sem conta
+const DONO2 = '666666666666666666'       // 2º ID de DISCORD_DONO_ID (conta própria, cargo dev)
+const ESTRANHO = '777777777777777777'    // fora do servidor, sem conta
 let server, base, data
 
+// ── Discord simulado ────────────────────────────────────────────────────────
+const noServidor = new Set([OPERADOR, NOVO])
+let discordFora = false                  // simula a API do Discord fora do ar
+const codigos = new Map()                // code → usuário
+const chamadas = []
+const fetchReal = globalThis.fetch
+globalThis.fetch = async (url, init = {}) => {
+  const u = String(url)
+  if (!u.startsWith('https://discord.com/')) return fetchReal(url, init)
+  chamadas.push({ url: u, auth: init.headers?.Authorization ?? '' })
+  const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  if (u.endsWith('/oauth2/token/revoke')) return json(200, {})
+  if (u.endsWith('/oauth2/token')) {
+    const code = new URLSearchParams(String(init.body)).get('code')
+    return codigos.has(code) ? json(200, { access_token: `at-${code}`, token_type: 'Bearer' }) : json(400, { error: 'invalid_grant' })
+  }
+  if (u.endsWith('/users/@me')) {
+    const code = String(init.headers.Authorization).replace('Bearer at-', '')
+    const id = codigos.get(code)
+    return json(200, { id, username: `user${id.slice(0, 4)}`, global_name: `Nome ${id.slice(0, 4)}`, avatar: null })
+  }
+  const m = u.match(/\/guilds\/(\d+)\/members\/(\d+)$/)
+  if (m) {
+    if (discordFora) return json(500, { message: 'erro' })
+    if (m[1] !== guild) return json(404, { code: 10004 })
+    return noServidor.has(m[2]) ? json(200, { nick: `Apelido ${m[2].slice(0, 4)}`, avatar: null, roles: [] }) : json(404, { code: 10007, message: 'Unknown Member' })
+  }
+  return json(404, {})
+}
+
 before(async () => {
-  process.env.NODE_ENV = 'test'
-  process.env.JWT_SECRET = secret
-  delete process.env.DISCORD_GUILD_ID; delete process.env.DISCORD_CLIENT_ID
+  Object.assign(process.env, {
+    NODE_ENV: 'test', JWT_SECRET: secret,
+    DISCORD_CLIENT_ID: '222222222222222222', DISCORD_CLIENT_SECRET: 'segredo-do-app-de-teste', DISCORD_BOT_TOKEN: 'token-do-bot-de-teste',
+    DISCORD_GUILD_ID: guild, DISCORD_REDIRECT_URI: 'http://127.0.0.1/api/auth/discord/callback',
+    DISCORD_DONO_ID: `${DONO}, ${DONO2}`, DISCORD_ACESSO_LIVRE: ESTRANHO,   // variável antiga: precisa ser ignorada
+  })
   data = Object.assign(makeData(), { solicitacoesAcesso: [], nextSolAcessoId: 1, nextContaId: 3 })
-  data.contas[0].password = bcrypt.hashSync('senha-do-comando', 4)
-  data.contas[1].password = bcrypt.hashSync('senha-do-operador', 4)
   data.cargosPermissao[0].admin = true
   const store = require('../dist/data')
   store.readData = () => structuredClone(data)
@@ -35,153 +70,235 @@ before(async () => {
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
   base = `http://127.0.0.1:${server.address().port}`
 })
-after(() => new Promise(resolve => server.close(resolve)).then(() => fs.rmSync(pasta, { recursive: true, force: true })))
+after(() => { globalThis.fetch = fetchReal; return new Promise(resolve => server.close(resolve)).then(() => fs.rmSync(pasta, { recursive: true, force: true })) })
 
-// Os testes passam do limite por IP de propósito em alguns pontos; zera entre etapas.
 async function zerarLimites() {
   const rl = require('../dist/middleware/rateLimiter')
   for (const ip of ['127.0.0.1', '::ffff:127.0.0.1', '::1']) {
-    await rl.loginLimiter.resetKey(ip); await rl.solicitarAcessoLimiter.resetKey(ip); await rl.criticalLimiter.resetKey(ip)
+    await rl.discordLoginLimiter.resetKey(ip); await rl.criticalLimiter.resetKey(ip); await rl.sessaoLimiter.resetKey(ip)
   }
 }
-async function post(rota, body, auth) {
-  const res = await fetch(base + rota, { method: 'POST', body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) } })
-  return { status: res.status, body: await res.json().catch(() => null), headers: res.headers }
+const cookieDe = (res, nome) => (res.headers.getSetCookie?.() ?? []).find(c => c.startsWith(`${nome}=`))
+
+/** Faz o fluxo completo: /discord → (Discord) → /callback. Devolve o destino e o token (se entrou). */
+async function entrar(discordId, { estado } = {}) {
+  const ini = await fetch(`${base}/api/auth/discord`, { redirect: 'manual' })
+  const cookie = cookieDe(ini, 'du_oauth')
+  const state = new URL(ini.headers.get('location')).searchParams.get('state')
+  const code = `code-${Math.random().toString(36).slice(2)}`
+  codigos.set(code, discordId)
+  const volta = await fetch(`${base}/api/auth/discord/callback?code=${code}&state=${estado ?? state}`,
+    { redirect: 'manual', headers: { Cookie: cookie.split(';')[0] } })
+  const destino = volta.headers.get('location')
+  const sessao = cookieDe(volta, 'du_sessao')
+  let token
+  if (sessao && !/du_sessao=;/.test(sessao)) {
+    const r = await fetch(`${base}/api/auth/sessao`, { method: 'POST', headers: { Cookie: sessao.split(';')[0], 'X-DU-Sessao': '1' } })
+    token = r.status === 200 ? (await r.json()).token : undefined
+  }
+  return { status: volta.status, destino, sessao, token }
 }
 async function req(method, rota, auth, body) {
   const res = await fetch(base + rota, { method, body: body ? JSON.stringify(body) : undefined,
     headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth ? { Authorization: `Bearer ${auth}` } : {}) } })
   return { status: res.status, body: await res.json().catch(() => null) }
 }
-const entrar = (username, password) => post('/api/auth/login', { username, password })
 
-test('login: senha errada e usuário inexistente dão a MESMA resposta; certo devolve sessão em cookie seguro', async () => {
+test('início do login: manda ao Discord com state aleatório em cookie httpOnly/Lax de caminho restrito', async () => {
   await zerarLimites()
-  const errada = await entrar('comando', 'nao-e-essa')
-  const inexistente = await entrar('ninguem', 'qualquer-coisa')
-  assert.equal(errada.status, 401); assert.equal(inexistente.status, 401)
-  assert.deepEqual(errada.body, inexistente.body)                         // não revela quem existe
-  const ok = await entrar('COMANDO', 'senha-do-comando')                 // usuário sem diferenciar maiúsculas
-  assert.equal(ok.status, 200)
-  assert.equal(require('jsonwebtoken').verify(ok.body.token, secret, { algorithms: ['HS256'] }).contaId, 1)
-  assert.ok(!JSON.stringify(ok.body).includes('$2'))                     // nada de hash na resposta
-  const cookie = ok.headers.get('set-cookie')
-  assert.match(cookie, /fast_sessao=/); assert.match(cookie, /HttpOnly/i); assert.match(cookie, /SameSite=Strict/i); assert.match(cookie, /Path=\/api\/auth\/sessao/)
-  assert.equal((await post('/api/auth/login', { username: 'comando', password: 'x', extra: 1 })).status, 400)   // Zod estrito
+  const r = await fetch(`${base}/api/auth/discord`, { redirect: 'manual' })
+  assert.equal(r.status, 303)
+  const destino = new URL(r.headers.get('location'))
+  assert.equal(destino.origin, 'https://discord.com')
+  assert.equal(destino.searchParams.get('scope'), 'identify')
+  assert.equal(destino.searchParams.get('redirect_uri'), process.env.DISCORD_REDIRECT_URI)
+  assert.match(destino.searchParams.get('state'), /^[\w-]{43}$/)
+  assert.ok(!r.headers.get('location').includes(process.env.DISCORD_CLIENT_SECRET))
+  const c = cookieDe(r, 'du_oauth')
+  assert.match(c, /HttpOnly/i); assert.match(c, /SameSite=Lax/i); assert.match(c, /Path=\/api\/auth\/discord/)
 })
 
-test('login: 5 erros bloqueiam o usuário (mesmo com a senha certa depois); exonerado e inativo não entram', async () => {
+test('volta do Discord: state errado/ausente ou cancelado não entra', async () => {
   await zerarLimites()
-  for (let i = 0; i < 5; i++) assert.equal((await entrar('operador', `errada-${i}`)).status, 401)
-  const bloqueado = await entrar('operador', 'senha-do-operador')
-  assert.equal(bloqueado.status, 429)
-  // Admins recebem alerta de segurança (sem a senha tentada)
-  const alerta = data.notificacoes.find(n => n.tipo === 'seguranca')
-  assert.ok(alerta && alerta.contaId === 1 && /operador/.test(alerta.mensagem))
-  assert.ok(!JSON.stringify(data.notificacoes).includes('errada-'))
-  // Usuário inventado não gera alerta
-  for (let i = 0; i < 5; i++) await entrar('fantasma', 'x')
-  assert.ok(!JSON.stringify(data.notificacoes).includes('fantasma'))
-  await zerarLimites()
-  require('../dist/security/bruteForce').limparFalhas('operador')
-  data.contas[1].exonerado = true; data.contas[1].ativo = false
-  const exonerado = await entrar('operador', 'senha-do-operador')
-  assert.equal(exonerado.status, 403); assert.equal(exonerado.body.reason, 'exonerado')
-  delete data.contas[1].exonerado
-  assert.equal((await entrar('operador', 'senha-do-operador')).body.reason, 'desativada')
-  data.contas[1].ativo = true
-  // Senha errada para exonerado/inativo continua genérica (não revela o estado)
-  assert.equal((await entrar('operador', 'errada')).status, 401)
+  const errado = await entrar(OPERADOR, { estado: 'x'.repeat(43) })
+  assert.equal(errado.destino, '/login?reason=erro'); assert.equal(errado.token, undefined)
+  const semCookie = await fetch(`${base}/api/auth/discord/callback?code=abc&state=${'y'.repeat(43)}`, { redirect: 'manual' })
+  assert.equal(semCookie.headers.get('location'), '/login?reason=erro')
+  const cancelado = await fetch(`${base}/api/auth/discord/callback?error=access_denied`, { redirect: 'manual' })
+  assert.equal(cancelado.headers.get('location'), '/login?reason=cancelado')
 })
 
-test('pedido de acesso: público, validado, guarda só o hash; o comando aprova e a pessoa entra', async () => {
+test('login por senha não existe mais', async () => {
   await zerarLimites()
-  assert.equal((await post('/api/auth/solicitar', { nome: 'Lia Moreau', username: 'lia', password: 'curta' })).status, 400)
-  assert.equal((await post('/api/auth/solicitar', { nome: 'Lia', username: 'li a', password: 'senha-da-lia' })).status, 400)
-  assert.equal((await post('/api/auth/solicitar', { nome: 'Lia', username: 'lia', password: 'senha-da-lia', cargoPermId: 10 })).status, 400)
-  assert.equal((await post('/api/auth/solicitar', { nome: 'Lia Moreau', username: 'lia.moreau', password: 'senha-da-lia' })).status, 201)
-  assert.equal((await post('/api/auth/solicitar', { nome: 'Outra', username: 'LIA.MOREAU', password: 'outra-senha' })).status, 409)
-  assert.equal((await post('/api/auth/solicitar', { nome: 'Outra', username: 'comando', password: 'outra-senha' })).status, 409)
-  const pedido = data.solicitacoesAcesso[0]
-  assert.match(pedido.senha, /^\$2[aby]\$/); assert.ok(!JSON.stringify(data).includes('senha-da-lia'))
+  for (const [m, rota] of [['POST', '/api/auth/login'], ['POST', '/api/auth/solicitar'], ['PUT', '/api/auth/me/senha'], ['PUT', '/api/config/contas/2/senha']]) {
+    assert.equal((await req(m, rota, undefined, { username: 'comando', password: 'x' })).status, 404, rota)
+  }
+})
 
-  // Sem conta aprovada ainda: não entra
-  assert.equal((await entrar('lia.moreau', 'senha-da-lia')).status, 401)
+test('membro do servidor entra; sessão em cookie seguro; token do usuário do Discord é revogado', async () => {
+  await zerarLimites()
+  chamadas.length = 0
+  const r = await entrar(OPERADOR)
+  assert.equal(r.destino, '/dashboard')
+  assert.match(r.sessao, /HttpOnly/i); assert.match(r.sessao, /SameSite=Strict/i); assert.match(r.sessao, /Path=\/api\/auth\/sessao/)
+  assert.equal(require('jsonwebtoken').verify(r.token, secret, { algorithms: ['HS256'] }).contaId, 2)
+  assert.equal((await req('GET', '/api/auth/me', r.token)).status, 200)
+  assert.equal(data.contas[1].nomeServidor, 'Apelido 4444')                  // apelido do servidor
+  assert.ok(chamadas.some(c => c.url.endsWith('/oauth2/token/revoke')))
+  assert.ok(chamadas.some(c => c.url.includes('/members/') && c.auth.startsWith('Bot ')))
+})
 
-  const admin = (await entrar('comando', 'senha-do-comando')).body.token
-  const operador = (await entrar('operador', 'senha-do-operador')).body.token
+test('dono (DISCORD_DONO_ID) entra na conta 1 mesmo fora do servidor e sem consultar o servidor', async () => {
+  await zerarLimites()
+  chamadas.length = 0
+  const r = await entrar(DONO)
+  assert.equal(r.destino, '/dashboard')
+  assert.equal(require('jsonwebtoken').decode(r.token).contaId, 1)
+  assert.ok(!chamadas.some(c => c.url.includes('/members/')))
+})
+
+test('API do Discord fora do ar: ninguém entra e ninguém é exonerado', async () => {
+  await zerarLimites()
+  discordFora = true
+  const r = await entrar(OPERADOR)
+  assert.equal(r.destino, '/login?reason=erro'); assert.equal(r.token, undefined)
+  await require('../dist/discord').verificarSaidasDoServidor()
+  assert.notEqual(data.contas[1].exonerado, true)
+  discordFora = false
+})
+
+test('primeiro acesso: vira pedido (sem duplicar); fora do servidor não pede (a antiga lista livre não vale mais)', async () => {
+  await zerarLimites()
+  assert.equal((await entrar(NOVO)).destino, '/login?reason=pendente')
+  assert.equal((await entrar(NOVO)).destino, '/login?reason=pendente')
+  // Login que não termina em sessão apaga a sessão anterior do navegador (computador compartilhado)
+  const pendente = await entrar(NOVO)
+  assert.match(pendente.sessao ?? '', /^du_sessao=;/); assert.equal(pendente.token, undefined)
+  assert.equal(data.solicitacoesAcesso.filter(s => s.discordId === NOVO).length, 1)
+  assert.ok(data.notificacoes.some(n => n.contaId === 1 && n.tipo === 'pendente_aprovacao'))
+  assert.equal((await entrar(ESTRANHO)).destino, '/login?reason=fora_do_servidor')
+  assert.ok(!data.solicitacoesAcesso.some(s => s.discordId === ESTRANHO))
+
+  const admin = (await entrar(DONO)).token
+  const operador = (await entrar(OPERADOR)).token
   assert.equal((await req('GET', '/api/config/solicitacoes-acesso', operador)).status, 403)
   const lista = await req('GET', '/api/config/solicitacoes-acesso', admin)
-  assert.equal(lista.status, 200)
-  assert.deepEqual(Object.keys(lista.body[0]).sort(), ['criadoEm', 'id', 'nome', 'username'])
+  assert.deepEqual(Object.keys(lista.body[0]).sort(), ['avatar', 'criadoEm', 'id', 'nome', 'setagem', 'username'])   // sem discordId
+  const pedido = data.solicitacoesAcesso.find(s => s.discordId === NOVO)
   assert.equal((await req('POST', `/api/config/solicitacoes-acesso/${pedido.id}/aprovar`, operador, {})).status, 403)
-  assert.equal((await req('POST', `/api/config/solicitacoes-acesso/${pedido.id}/aprovar`, admin, { cargoPermId: 999 })).status, 400)
   const aprovado = await req('POST', `/api/config/solicitacoes-acesso/${pedido.id}/aprovar`, admin, { cargoPermId: 20 })
-  assert.equal(aprovado.status, 201)
-  assert.equal(aprovado.body.password, undefined); assert.equal(aprovado.body.onboarded, false)
-  assert.equal(data.solicitacoesAcesso.length, 0)
-  const contas = await req('GET', '/api/config/contas', admin)
-  assert.ok(!JSON.stringify(contas.body).includes('$2'))                 // lista de contas sem hash
+  assert.equal(aprovado.status, 201); assert.equal(aprovado.body.onboarded, false)
+  assert.equal(data.contas.find(c => c.discordId === NOVO).cargoPermId, 20)
+  // Pedido simples também vira membro na hora (nome do Discord até completar o cadastro)
+  const contaNova = data.contas.find(c => c.discordId === NOVO)
+  assert.ok(data.membros.some(m => m.id === contaNova.membroId && m.status === 'Ativo'))
 
-  await zerarLimites()
-  const lia = await entrar('lia.moreau', 'senha-da-lia')
-  assert.equal(lia.status, 200)
-  assert.equal(data.contas.find(c => c.username === 'lia.moreau').cargoPermId, 20)
+  const novo = await entrar(NOVO)
+  assert.equal(novo.destino, '/dashboard')
+  assert.equal(require('jsonwebtoken').decode(novo.token).contaId, aprovado.body.id)
+  // Pedido antigo (senha, sem Discord) não pode ser aprovado
+  data.solicitacoesAcesso.push({ id: 99, username: 'antigo', nome: 'Antigo', senha: '$2b$12$x', criadoEm: new Date().toISOString() })
+  assert.equal((await req('POST', '/api/config/solicitacoes-acesso/99/aprovar', admin, {})).status, 409)
+  data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.id !== 99)
 })
 
-test('senha: troca exige a atual e encerra a sessão; admin redefine (menos a do dono)', async () => {
+test('saiu do servidor: exonerado (dados arquivados), sessão aberta cai e não volta sozinho', async () => {
   await zerarLimites()
-  const token = (await entrar('operador', 'senha-do-operador')).body.token
-  assert.equal((await req('PUT', '/api/auth/me/senha', token, { senhaAtual: 'errada', novaSenha: 'nova-senha-123' })).status, 400)
-  assert.equal((await req('PUT', '/api/auth/me/senha', token, { senhaAtual: 'senha-do-operador', novaSenha: 'curta' })).status, 400)
-  assert.equal((await req('PUT', '/api/auth/me/senha', token, { senhaAtual: 'senha-do-operador', novaSenha: 'nova-senha-123' })).status, 200)
-  assert.equal((await req('GET', '/api/auth/me', token)).status, 401)    // token antigo revogado
-  assert.equal((await entrar('operador', 'senha-do-operador')).status, 401)
-  const novo = (await entrar('operador', 'nova-senha-123')).body.token
-
-  await zerarLimites()
-  const admin = (await entrar('comando', 'senha-do-comando')).body.token
-  assert.equal((await req('PUT', '/api/config/contas/2/senha', novo, { novaSenha: 'redefinida-123' })).status, 403)
-  assert.equal((await req('PUT', '/api/config/contas/2/senha', admin, { novaSenha: 'redefinida-123' })).status, 200)
-  assert.equal((await entrar('operador', 'redefinida-123')).status, 200)
-  // Admin que não é o dono não mexe na senha do dono
-  data.cargosPermissao[1].admin = true
-  const outroAdmin = (await entrar('operador', 'redefinida-123')).body.token
-  assert.equal((await req('PUT', '/api/config/contas/1/senha', outroAdmin, { novaSenha: 'tomada-123456' })).status, 403)
-  data.cargosPermissao[1].admin = false
+  const token = (await entrar(OPERADOR)).token
+  assert.equal((await req('GET', '/api/auth/me', token)).status, 200)
+  noServidor.delete(OPERADOR)
+  // Pedido de quem saiu antes da aprovação é descartado
+  const PEDE_E_SAI = '999999999999999999'
+  noServidor.add(PEDE_E_SAI)
+  assert.equal((await entrar(PEDE_E_SAI)).destino, '/login?reason=pendente')
+  noServidor.delete(PEDE_E_SAI)
+  await require('../dist/discord').verificarSaidasDoServidor()
+  const conta = data.contas.find(c => c.id === 2)
+  assert.equal(conta.exonerado, true); assert.equal(conta.ativo, false)
+  assert.equal(conta.membroArquivado.id, 2)                                    // ficha guardada, não apagada
+  assert.ok(!data.membros.some(m => m.id === 2))
+  assert.ok(!data.solicitacoesAcesso.some(s => s.discordId === PEDE_E_SAI))
+  assert.ok(data.notificacoes.some(n => n.contaId === 1 && n.tipo === 'exoneracao'))
+  const me = await req('GET', '/api/auth/me', token)
+  assert.equal(me.status, 401); assert.deepEqual(me.body, { error: 'EXONERADO', reason: 'saiu' })
+  assert.equal((await entrar(OPERADOR)).destino, '/login?reason=saiu')
+  noServidor.add(OPERADOR)                                                       // voltou ao servidor
+  assert.equal((await entrar(OPERADOR)).destino, '/login?reason=saiu')            // só o admin readmite
 })
 
-test('sessões: trocar a senha derruba o outro aparelho; "sair de todos" derruba todos', async () => {
+test('saiu do servidor descoberto no próprio login também exonera; dono nunca é exonerado', async () => {
   await zerarLimites()
-  data.cargosPermissao[1].admin = false
-  const celular = (await entrar('comando', 'senha-do-comando')).body.token
-  const pc = (await entrar('comando', 'senha-do-comando')).body.token
-  assert.equal((await req('GET', '/api/auth/me', celular)).status, 200)
-  assert.equal((await req('PUT', '/api/auth/me/senha', pc, { senhaAtual: 'senha-do-comando', novaSenha: 'comando-nova-123' })).status, 200)
-  assert.equal((await req('GET', '/api/auth/me', celular)).status, 401)    // outro aparelho caiu
+  const novo = data.contas.find(c => c.discordId === NOVO)
+  noServidor.delete(NOVO)
+  assert.equal((await entrar(NOVO)).destino, '/login?reason=saiu')
+  assert.equal(data.contas.find(c => c.id === novo.id).exonerado, true)          // sem ficha de membro: exonera mesmo assim
+  await require('../dist/discord').verificarSaidasDoServidor()
+  assert.notEqual(data.contas[0].exonerado, true)
+  assert.equal((await entrar(DONO)).destino, '/dashboard')
+})
 
-  const a = (await entrar('comando', 'comando-nova-123')).body.token
-  const b = (await entrar('comando', 'comando-nova-123')).body.token
-  assert.equal((await post('/api/auth/sair-de-todos', {}, a)).status, 200)
+test('donos: só 2 IDs entram fora do servidor; o 2º ganha conta própria com cargo dev e nunca é exonerado', async () => {
+  await zerarLimites()
+  const { idsDosDonos } = require('../dist/discord')
+  assert.deepEqual(idsDosDonos(`${DONO}, ${DONO2},${ESTRANHO} lixo`), [DONO, DONO2])   // 3º ID é ignorado
+  chamadas.length = 0
+  const r = await entrar(DONO2)                                                   // fora do servidor
+  assert.equal(r.destino, '/dashboard')
+  assert.ok(!chamadas.some(c => c.url.includes('/members/')))
+  const conta = data.contas.find(c => c.discordId === DONO2)
+  assert.notEqual(conta.id, 1)                                                    // não é a conta dona
+  assert.equal(data.cargosPermissao.find(c => c.id === conta.cargoPermId).dev, true)
+  assert.equal(require('jsonwebtoken').decode(r.token).contaId, conta.id)
+  assert.equal((await req('GET', '/api/auth/me', r.token)).body.dev, true)
+  assert.equal(data.contas.filter(c => c.discordId === DONO2).length, 1)
+  await entrar(DONO2)
+  assert.equal(data.contas.filter(c => c.discordId === DONO2).length, 1)           // não duplica
+  await require('../dist/discord').verificarSaidasDoServidor()
+  assert.notEqual(data.contas.find(c => c.discordId === DONO2).exonerado, true)
+  // Mais de 2 IDs: o servidor não sobe
+  const { spawnSync } = require('node:child_process')
+  const boot = spawnSync(process.execPath, ['-e', "require('./dist/config/env')"], { cwd: path.join(__dirname, '..'),
+    env: { ...process.env, DISCORD_DONO_ID: `${DONO},${DONO2},${ESTRANHO}` }, encoding: 'utf8' })
+  assert.equal(boot.status, 1)
+  assert.match(boot.stderr, /no máximo 2/)
+})
+
+test('sessões: "sair de todos" derruba todos os aparelhos; lista de contas sem campos de senha', async () => {
+  await zerarLimites()
+  const a = (await entrar(DONO)).token
+  const b = (await entrar(DONO)).token
+  assert.equal((await req('POST', '/api/auth/sair-de-todos', a, {})).status, 200)
   assert.equal((await req('GET', '/api/auth/me', a)).status, 401)
   assert.equal((await req('GET', '/api/auth/me', b)).status, 401)
-  await zerarLimites()
-  assert.equal((await entrar('comando', 'comando-nova-123')).status, 200)  // entrar de novo funciona
-  // Admin redefinindo a senha de alguém também derruba as sessões dessa pessoa
-  const admin = (await entrar('comando', 'comando-nova-123')).body.token
-  const op = (await entrar('operador', 'redefinida-123')).body.token
-  assert.equal((await req('PUT', '/api/config/contas/2/senha', admin, { novaSenha: 'outra-senha-456' })).status, 200)
-  assert.equal((await req('GET', '/api/auth/me', op)).status, 401)
-})
-
-test('contas: a lista do admin não traz hash nem versão de sessão', async () => {
-  await zerarLimites()
-  const admin = (await entrar('comando', 'comando-nova-123')).body.token
+  data.contas[0].password = '$2b$12$legado'                                       // campo legado de versões antigas
+  const admin = (await entrar(DONO)).token
   const contas = await req('GET', '/api/config/contas', admin)
   assert.equal(contas.status, 200)
-  assert.equal(contas.body.find(c => c.id === 2).temSenha, true)
-  assert.ok(!/"password"|"sessaoVersao"|"senhaPadrao"|$2[aby]$/.test(JSON.stringify(contas.body)))
-  // Login aceita só usuário e senha (campo extra é recusado)
-  assert.equal((await post('/api/auth/login', { username: 'comando', password: 'comando-nova-123', codigo: '123456' })).status, 400)
+  assert.ok(!/"password"|"sessaoVersao"|"senhaPadrao"|"temSenha"|\$2[aby]\$/.test(JSON.stringify(contas.body)))
+})
+
+test('backup/restore: só dev; dev que não é o dono não altera a conta dona; senhas legadas não entram', async () => {
+  await zerarLimites()
+  // readmite o operador para os próximos passos
+  Object.assign(data.contas[1], { exonerado: undefined, ativo: true, cargoPermId: 10 })
+  delete data.contas[1].exonerado
+  let op = (await entrar(OPERADOR)).token
+  const golpe = structuredClone(data)
+  golpe.cargosPermissao.find(c => c.id === 10).dev = true
+  assert.equal((await req('GET', '/api/config/backup', op)).status, 403)
+  assert.equal((await req('POST', '/api/config/restore', op, golpe)).status, 403)
+  assert.notEqual(data.cargosPermissao.find(c => c.id === 10).dev, true)
+
+  data.cargosPermissao.push({ id: 30, nome: 'Dev', dev: true, permissoes: {} })
+  data.contas[1].cargoPermId = 30
+  op = (await entrar(OPERADOR)).token
+  const tomada = structuredClone(data)
+  tomada.contas[0].ativo = false
+  tomada.contas[0].discordId = ESTRANHO
+  tomada.contas[1].password = '$2b$12$' + 'a'.repeat(53)
+  assert.equal((await req('POST', '/api/config/restore', op, { contas: 'x', membros: [], acoes: [] })).status, 400)
+  assert.equal((await req('POST', '/api/config/restore', op, tomada)).status, 200)
+  assert.equal(data.contas.find(c => c.id === 1).ativo, true)
+  assert.equal(data.contas.find(c => c.id === 1).discordId, DONO)
+  assert.equal(data.contas.find(c => c.id === 2).password, undefined)
 })

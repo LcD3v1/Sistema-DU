@@ -1,21 +1,24 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { CalendarPlus, Shield, CalendarDays } from 'lucide-react'
-import { useForm } from 'react-hook-form'
-import { useCreateAusencia } from '@/hooks/useAusencias'
-import { useMembros } from '@/hooks/useMembros'
-import { useMe } from '@/hooks/useMe'
-import { useUIStore } from '@/store/uiStore'
-import GlowCard from '@/components/ui/GlowCard'
-import HudButton from '@/components/ui/HudButton'
-import LoadingHud from '@/components/ui/LoadingHud'
-import type { Membro } from '@/types'
+import GlowCard from '@/components/ui/GlowCard';
+import HudButton from '@/components/ui/HudButton';
+import LoadingHud from '@/components/ui/LoadingHud';
+import { useCreateAusencia } from '@/hooks/useAusencias';
+import { useMe } from '@/hooks/useMe';
+import { useMembros } from '@/hooks/useMembros';
+import { useUIStore } from '@/store/uiStore';
+import type { Membro } from '@/types';
+import { CalendarDays, CalendarPlus, Shield } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 
 interface FormData {
   dataInicio: string
   dataFim: string
   motivo: string
 }
+
+/** Regra: a pessoa aparece pelo codinome. */
+const nomeDe = (m: Membro) => m.codinome?.trim() || m.policial
 
 export default function RegistrarAusenciaPage() {
   const navigate = useNavigate()
@@ -32,10 +35,10 @@ export default function RegistrarAusenciaPage() {
   useEffect(() => {
     if (memberId !== undefined || nome || !me?.membroId || !membros) return
     const eu = membros.find(m => m.id === me.membroId)
-    if (eu) { setNome(eu.policial); setMemberId(eu.id) }
+    if (eu) { setNome(nomeDe(eu)); setMemberId(eu.id) }
   }, [me, membros, memberId, nome])
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })   // fuso da unidade (UTC virava o dia seguinte depois das 21h)
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     defaultValues: { dataInicio: today, dataFim: today, motivo: '' },
   })
@@ -43,7 +46,7 @@ export default function RegistrarAusenciaPage() {
 
   const filtered = (membros ?? []).filter((m: Membro) =>
     nome !== '' && (
-      m.policial.toLowerCase().includes(nome.toLowerCase()) ||
+      nomeDe(m).toLowerCase().includes(nome.toLowerCase()) ||
       m.badge.toLowerCase().includes(nome.toLowerCase())
     ),
   )
@@ -77,7 +80,7 @@ export default function RegistrarAusenciaPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-txt leading-tight">Registrar ausência</h2>
-              <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase">Efetivo · afastamento</p>
+              <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase">Efetivo · aDUamento</p>
             </div>
           </div>
 
@@ -100,12 +103,12 @@ export default function RegistrarAusenciaPage() {
                       <button
                         key={m.id}
                         type="button"
-                        onMouseDown={() => { setNome(m.policial); setMemberId(m.id); setShowDropdown(false) }}
+                        onMouseDown={() => { setNome(nomeDe(m)); setMemberId(m.id); setShowDropdown(false) }}
                         className="w-full text-left px-3 py-2 text-xs font-mono text-txt2 hover:bg-bdr hover:text-txt transition-colors flex items-center gap-2"
                       >
                         <Shield size={12} className="text-gold" />
-                        <span>{m.policial}</span>
-                        <span className="text-txt3 ml-auto">{m.patenteInterna || m.patenteNPD}</span>
+                        <span>{nomeDe(m)}</span>
+                        <span className="text-txt3 ml-auto">{m.patenteInterna || m.patenteDPD}</span>
                       </button>
                     ))}
                   </div>

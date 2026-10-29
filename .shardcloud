@@ -1,7 +1,7 @@
-DISPLAY_NAME=FAST Unit
-DESCRIPTION=Central operacional da unidade FAST - North Police Department
+DISPLAY_NAME=Detective Unit
+DESCRIPTION=Central operacional da Detective Unit (DU) - Detroit Police Department
 LANGUAGE=node
 MEMORY=1024
 VERSION=recommended
-SUBDOMAIN=fastunit
+SUBDOMAIN=DUunit
 CUSTOM_COMMAND=npm run start:shardcloud

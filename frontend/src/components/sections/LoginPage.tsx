@@ -1,165 +1,28 @@
-import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldX, CalendarClock, FileText, LogIn, UserPlus, User, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, IdCard } from 'lucide-react'
-import api from '@/lib/axios'
-import { useAuthStore } from '@/store/authStore'
-import type { AuthUser } from '@/types'
+import { Link, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { ShieldX, CalendarClock, FileText, Clock, UserX } from 'lucide-react'
 import logoDU from '@/assets/du-logo.webp'
 import Brand from '@/components/ui/Brand'
 import MusicPlayer from '@/components/ui/MusicPlayer'
 import PublicOverlay from '@/components/sections/PublicOverlay'
 
+// Motivos vindos de /login?reason= (lista branca: texto fixo, nada vindo da URL é exibido)
 const REASONS: Record<string, string> = {
   desativada: 'Conta desativada. Contate o administrador.',
+  fora_do_servidor: 'Você precisa estar no servidor do Discord da unidade para entrar.',
+  erro: 'Não foi possível entrar com o Discord. Tente novamente.',
+  cancelado: 'Login cancelado.',
+  indisponivel: 'O login pelo Discord está indisponível no momento. Avise o comando.',
 }
 
-const erroApi = (e: unknown, padrao: string) =>
-  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? padrao
+/** Inicia o login pelo Discord (o backend redireciona para o Discord e volta). */
+const URL_LOGIN_DISCORD = (import.meta.env.VITE_API_URL || '') + '/api/auth/discord'
 
-const campo = 'w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 pl-9 text-sm font-mono text-white placeholder-white/25 outline-none focus:border-gold transition-colors'
-const rotulo = 'block font-mono text-[10px] text-white/50 tracking-[0.2em] uppercase mb-1.5'
-
-function Campo({ icone: Icone, children }: { icone: typeof User; children: React.ReactNode }) {
+function IconeDiscord({ size = 18 }: { size?: number }) {
   return (
-    <div className="relative">
-      <Icone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35 pointer-events-none" />
-      {children}
-    </div>
-  )
-}
-
-/** Entrar com usuário e senha (igual ao Sistema Tática). */
-function FormEntrar({ onVoltar }: { onVoltar: () => void }) {
-  const navigate = useNavigate()
-  const [, setParams] = useSearchParams()
-  const setAuth = useAuthStore(s => s.setAuth)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [ver, setVer] = useState(false)
-  const [erro, setErro] = useState('')
-  const [enviando, setEnviando] = useState(false)
-
-  async function entrar(e: React.FormEvent) {
-    e.preventDefault()
-    setErro(''); setEnviando(true)
-    try {
-      const { data } = await api.post<AuthUser & { token: string }>('/auth/login', { username: username.trim(), password })
-      setAuth(data.token, { contaId: data.contaId, username: data.username, nivel: data.nivel })
-      navigate('/dashboard', { replace: true })
-    } catch (err) {
-      const corpo = (err as { response?: { data?: { reason?: string; ate?: string } } })?.response?.data
-      if (corpo?.reason) { setParams(corpo.ate ? { reason: corpo.reason, ate: corpo.ate } : { reason: corpo.reason }); onVoltar(); return }
-      setErro(erroApi(err, 'Não foi possível entrar. Tente novamente.'))
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  return (
-    <form onSubmit={entrar} className="w-full max-w-sm flex flex-col gap-4 text-left rounded-2xl border border-white/10 bg-black/45 backdrop-blur-md p-6">
-      <div>
-        <label htmlFor="login-usuario" className={rotulo}>Usuário</label>
-        <Campo icone={User}>
-          <input id="login-usuario" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" autoFocus required maxLength={32} placeholder="seu.usuario" className={campo} />
-        </Campo>
-      </div>
-      <div>
-        <label htmlFor="login-senha" className={rotulo}>Senha</label>
-        <Campo icone={Lock}>
-          <input id="login-senha" type={ver ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required maxLength={128} placeholder="••••••••" className={`${campo} pr-10`} />
-          <button type="button" onClick={() => setVer(v => !v)} aria-label={ver ? 'Ocultar senha' : 'Mostrar senha'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white">{ver ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-        </Campo>
-      </div>
-      {erro && <p role="alert" className="text-red text-xs font-mono">{erro}</p>}
-      <button type="submit" disabled={enviando}
-        className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gold hover:bg-gold2 text-white font-medium text-sm transition-colors disabled:opacity-60 shadow-[0_12px_34px_-10px_rgba(139,92,246,0.7)]">
-        <LogIn size={16} /> {enviando ? 'Entrando...' : 'Entrar'}
-      </button>
-      <button type="button" onClick={onVoltar} className="flex items-center justify-center gap-1.5 text-xs text-white/45 hover:text-white transition-colors">
-        <ArrowLeft size={13} /> Voltar
-      </button>
-    </form>
-  )
-}
-
-/** Pedido de acesso: o comando aprova em Configurações → Solicitações. */
-function FormSolicitar({ onVoltar }: { onVoltar: () => void }) {
-  const [nome, setNome] = useState('')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirma, setConfirma] = useState('')
-  const [ver, setVer] = useState(false)
-  const [erro, setErro] = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const [enviado, setEnviado] = useState(false)
-
-  async function solicitar(e: React.FormEvent) {
-    e.preventDefault()
-    setErro('')
-    if (!/^[a-zA-Z0-9._-]{3,32}$/.test(username.trim())) { setErro('Usuário: 3 a 32 caracteres, só letras, números, ponto, hífen e sublinhado.'); return }
-    if (password.length < 8) { setErro('A senha precisa de pelo menos 8 caracteres.'); return }
-    if (password !== confirma) { setErro('A confirmação não bate com a senha.'); return }
-    setEnviando(true)
-    try {
-      await api.post('/auth/solicitar', { nome: nome.trim(), username: username.trim(), password })
-      setEnviado(true)
-    } catch (err) {
-      setErro(erroApi(err, 'Não foi possível enviar o pedido. Tente novamente.'))
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  if (enviado) {
-    return (
-      <div className="w-full max-w-sm flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/45 backdrop-blur-md p-6">
-        <CheckCircle2 size={34} className="text-green" />
-        <p className="text-white font-semibold">Pedido enviado!</p>
-        <p className="text-white/55 text-sm leading-relaxed">Seu pedido foi enviado ao comando. Assim que for aprovado, entre com o usuário e a senha que você escolheu.</p>
-        <button onClick={onVoltar} className="mt-2 flex items-center gap-1.5 text-xs text-white/55 hover:text-white transition-colors"><ArrowLeft size={13} /> Voltar</button>
-      </div>
-    )
-  }
-
-  return (
-    <form onSubmit={solicitar} className="w-full max-w-sm flex flex-col gap-4 text-left rounded-2xl border border-white/10 bg-black/45 backdrop-blur-md p-6">
-      <div>
-        <label htmlFor="sol-nome" className={rotulo}>Nome (no RP)</label>
-        <Campo icone={IdCard}>
-          <input id="sol-nome" value={nome} onChange={e => setNome(e.target.value)} required minLength={2} maxLength={60} autoFocus placeholder="Ex: Peter Wolf" className={campo} />
-        </Campo>
-      </div>
-      <div>
-        <label htmlFor="sol-usuario" className={rotulo}>Usuário</label>
-        <Campo icone={User}>
-          <input id="sol-usuario" value={username} onChange={e => setUsername(e.target.value)} required maxLength={32} autoComplete="username" placeholder="peter.wolf" className={campo} />
-        </Campo>
-      </div>
-      <div>
-        <label htmlFor="sol-senha" className={rotulo}>Senha</label>
-        <Campo icone={Lock}>
-          <input id="sol-senha" type={ver ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" placeholder="mín. 8 caracteres" className={`${campo} pr-10`} />
-          <button type="button" onClick={() => setVer(v => !v)} aria-label={ver ? 'Ocultar senha' : 'Mostrar senha'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white">{ver ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-        </Campo>
-      </div>
-      <div>
-        <label htmlFor="sol-confirma" className={rotulo}>Confirme a senha</label>
-        <Campo icone={Lock}>
-          <input id="sol-confirma" type={ver ? 'text' : 'password'} value={confirma} onChange={e => setConfirma(e.target.value)} required maxLength={128} autoComplete="new-password" placeholder="••••••••" className={campo} />
-        </Campo>
-      </div>
-      {erro && <p role="alert" className="text-red text-xs font-mono">{erro}</p>}
-      <button type="submit" disabled={enviando}
-        className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gold hover:bg-gold2 text-white font-medium text-sm transition-colors disabled:opacity-60">
-        <UserPlus size={16} /> {enviando ? 'Enviando...' : 'Solicitar acesso'}
-      </button>
-      <button type="button" onClick={onVoltar} className="flex items-center justify-center gap-1.5 text-xs text-white/45 hover:text-white transition-colors">
-        <ArrowLeft size={13} /> Voltar
-      </button>
-    </form>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+    </svg>
   )
 }
 
@@ -186,7 +49,6 @@ export default function LoginPage() {
   const reason = params.get('reason')
   const ate = params.get('ate')
   const ateFmt = ate && /^\d{4}-\d{2}-\d{2}$/.test(ate) ? ate.split('-').reverse().join('/') : null
-  const [tela, setTela] = useState<'inicio' | 'entrar' | 'solicitar'>('inicio')
 
   return (
     <div className="relative altura-tela w-full overflow-hidden bg-black text-white">
@@ -214,36 +76,45 @@ export default function LoginPage() {
 
           <h1 className="mb-3">
             <img src={logoDU} alt="Detective Unit — Detroit Police Department" width={130} height={158}
-              className={`${tela === 'inicio' ? 'h-32 sm:h-40' : 'h-20 sm:h-24'} w-auto mx-auto drop-shadow-[0_14px_40px_rgba(0,0,0,0.75)] transition-all duration-300`} />
+              className="h-32 sm:h-40 w-auto mx-auto drop-shadow-[0_14px_40px_rgba(0,0,0,0.75)]" />
           </h1>
           <p className="wordmark text-lg sm:text-2xl tracking-[0.5em] text-gold3 -mt-1 mb-3 pl-[0.5em]">Detective Unit</p>
           <p className="text-white/55 text-sm max-w-md mb-8">Relatórios, boletins, inquéritos e inteligência investigativa — tudo em um só lugar.</p>
 
-          <AnimatePresence mode="wait">
-            <motion.div key={tela} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}
-              className="w-full flex flex-col items-center">
-              {tela === 'inicio' && (
-                <div className="flex flex-col items-center gap-3">
-                  <motion.button onClick={() => setTela('entrar')} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-2.5 w-fit px-8 py-3.5 rounded-xl bg-gold hover:bg-gold2 text-white font-medium text-sm transition-colors shadow-[0_12px_34px_-10px_rgba(139,92,246,0.7)]">
-                    <LogIn size={17} /> Entrar no painel
-                  </motion.button>
-                  <button onClick={() => setTela('solicitar')} className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors">
-                    <UserPlus size={14} /> Não tem acesso? <span className="text-gold3 underline underline-offset-2">Solicitar acesso</span>
-                  </button>
-                </div>
-              )}
-              {tela === 'entrar' && <FormEntrar onVoltar={() => setTela('inicio')} />}
-              {tela === 'solicitar' && <FormSolicitar onVoltar={() => setTela('inicio')} />}
-            </motion.div>
-          </AnimatePresence>
+          <div className="flex flex-col items-center gap-3">
+            <motion.a href={URL_LOGIN_DISCORD} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-2.5 w-fit px-8 py-3.5 rounded-xl bg-gold hover:bg-gold2 text-white font-medium text-sm transition-colors shadow-[0_12px_34px_-10px_rgba(139,92,246,0.7)]">
+              <IconeDiscord /> Entrar com Discord
+            </motion.a>
+            <p className="text-[11px] text-white/45 max-w-xs leading-relaxed">
+              Só para membros do servidor do Discord da unidade. No primeiro acesso, o comando aprova o seu pedido.
+            </p>
+          </div>
 
+          {reason === 'saiu' && (
+            <div role="alert" className="mt-6 max-w-md w-full text-left flex gap-3 rounded-xl border border-red/50 bg-red/15 backdrop-blur px-4 py-4">
+              <UserX size={22} className="text-red shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-white">Você não pertence mais a esta unidade.</p>
+                <p className="text-xs text-white/70 mt-1 leading-relaxed">Você saiu do servidor do Discord da Detective Unit e foi exonerado. Seu acesso ao painel foi encerrado. Para voltar, fale com o <span className="text-white font-medium">Alto Comando da unidade</span>.</p>
+              </div>
+            </div>
+          )}
           {reason === 'exonerado' && (
-            <div className="mt-6 max-w-md w-full text-left flex gap-3 rounded-xl border border-red/50 bg-red/15 backdrop-blur px-4 py-4">
+            <div role="alert" className="mt-6 max-w-md w-full text-left flex gap-3 rounded-xl border border-red/50 bg-red/15 backdrop-blur px-4 py-4">
               <ShieldX size={22} className="text-red shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-white">Você foi exonerado da unidade.</p>
                 <p className="text-xs text-white/70 mt-1 leading-relaxed">Seu acesso ao painel foi encerrado. Entre em contato com o <span className="text-white font-medium">Alto Comando da unidade</span> para entender o que aconteceu.</p>
+              </div>
+            </div>
+          )}
+          {reason === 'pendente' && (
+            <div role="status" className="mt-6 max-w-md w-full text-left flex gap-3 rounded-xl border border-gold/50 bg-gold/15 backdrop-blur px-4 py-4">
+              <Clock size={22} className="text-gold3 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-white">Pedido de acesso enviado.</p>
+                <p className="text-xs text-white/70 mt-1 leading-relaxed">O comando da unidade precisa aprovar o seu acesso. Depois da aprovação, é só entrar com o Discord de novo.</p>
               </div>
             </div>
           )}

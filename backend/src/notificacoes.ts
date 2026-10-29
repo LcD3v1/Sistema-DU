@@ -1,5 +1,5 @@
 import { AreaId } from './permAreas'
-import { FastData, Notificacao, TipoNotificacao } from './types'
+import { DuData, Notificacao, TipoNotificacao } from './types'
 import { canArea, isAdmin, PROTECTED_OWNER_ID } from './access'
 import { nivelHierarquia } from './efetivo'
 
@@ -12,7 +12,7 @@ import { nivelHierarquia } from './efetivo'
 export const VALIDADE_NOTIFICACAO_MS = 7 * 24 * 60 * 60 * 1000
 
 export function notificar(
-  data: FastData, contaId: number | undefined, tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
+  data: DuData, contaId: number | undefined, tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
 ): void {
   if (!contaId || !data.contas.some(c => c.id === contaId)) return
   data.notificacoes.push({
@@ -28,7 +28,7 @@ export function notificar(
  * editar a área e acima do membro na hierarquia (admins sempre).
  */
 export function notificarAprovadores(
-  data: FastData, area: AreaId, membroId: number | undefined, excetoContaId: number | undefined,
+  data: DuData, area: AreaId, membroId: number | undefined, excetoContaId: number | undefined,
   tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
 ): void {
   const alvo = membroId ? data.contas.find(c => c.membroId === membroId) : undefined
@@ -48,7 +48,7 @@ export function notificarAprovadores(
  * acesso ao painel (cargo ou admin). Ignora exonerados, inativos e sem cargo.
  */
 export function notificarArea(
-  data: FastData, area: AreaId | undefined, excetoContaIds: (number | undefined)[],
+  data: DuData, area: AreaId | undefined, excetoContaIds: (number | undefined)[],
   tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
 ): void {
   const excluir = new Set(excetoContaIds.filter((x): x is number => typeof x === 'number'))
@@ -64,7 +64,7 @@ export function notificarArea(
 
 /** Avisa todos os administradores ativos (aprovação de cadastro é deles). */
 export function notificarAdmins(
-  data: FastData, excetoContaId: number | undefined, tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
+  data: DuData, excetoContaId: number | undefined, tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
 ): void {
   for (const c of data.contas) {
     if (c.id === excetoContaId || !c.ativo || c.exonerado || !isAdmin(c, data)) continue
@@ -74,7 +74,7 @@ export function notificarAdmins(
 }
 
 /** Remove notificações com mais de 7 dias. Retorna true se apagou alguma. */
-export function limparNotificacoesAntigas(data: FastData): boolean {
+export function limparNotificacoesAntigas(data: DuData): boolean {
   const limite = Date.now() - VALIDADE_NOTIFICACAO_MS
   const antes = data.notificacoes.length
   data.notificacoes = data.notificacoes.filter((n: Notificacao) => new Date(n.criadaEm).getTime() >= limite)

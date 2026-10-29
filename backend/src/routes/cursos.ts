@@ -3,11 +3,11 @@ import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, livroSchema, livroUpdateSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
 import { notificarArea } from '../notificacoes'
 import { ArquivoRef, Livro } from '../types'
 import { conferirArquivos, sincronizarArquivos } from './arquivos'
-import { erroArquivos } from '../registros'
+import { erroArquivos, nomeDaConta } from '../registros'
 
 /**
  * Cursos Internos — biblioteca de livros. Cada livro é um link (PDF, Google Drive,
@@ -53,7 +53,7 @@ router.post('/livros', requireAuth, requireArea('cursos', 'editar'), validateBod
     titulo: body.titulo, autor: body.autor, descricao: body.descricao, categoria: body.categoria,
     url: body.url, capa: body.capa, cor: body.cor,
     criadoEm: new Date().toISOString(),
-    criadoPor: req.user!.username,
+    criadoPor: nomeDaConta(peekData(), req.user!.contaId),
   }
   data.livros = [...livros, novo]
   data.nextLivroId = nextId + 1
@@ -74,7 +74,7 @@ router.put('/livros/:id', requireAuth, requireArea('cursos', 'editar'), validate
   const body = req.body as Partial<Omit<Livro, 'id' | 'criadoEm' | 'criadoPor' | 'arquivos'>> & { arquivos?: string[] }
   const antes: ArquivoRef[] = livro.arquivos ?? []
   if (body.arquivos !== undefined) {
-    const novos = await conferirArquivos(body.arquivos, 'cursos')
+    const novos = await conferirArquivos(body.arquivos, 'cursos', antes.map(a => a.id))
     if (!novos) { erroArquivos(res); return }
     livro.arquivos = novos
   }

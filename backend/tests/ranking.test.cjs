@@ -265,6 +265,8 @@ test('responsável da apreensão vem da sessão, nunca do nome enviado pelo clie
   try {
     data.nextAcId = 900
     data.contas[0].nomeServidor = 'Oficial do servidor'
+    // A pessoa aparece pelo codinome (nomeDeExibicao), nunca pelo nome enviado
+    data.membros.find(m => m.id === data.contas[0].membroId).codinome = 'Oficial do servidor'
     data.qrus = ['QRU-1', 'Registradora']
     data.qrusFechados = ['QRU-1']
     const postar = body => fetch(base + '/api/acoes', {
@@ -403,7 +405,7 @@ test('saída preserva snapshot/histórico; readmissão recupera o mesmo ID', asy
   assert.equal((await get('/api/ranking/members/2')).status, 404)
   const restored = await fetch(base + '/api/membros/exonerados/2/retirar', { method: 'POST', headers: { Authorization: `Bearer ${token()}` } })
   assert.equal(restored.status, 200)
-  const onboard = await fetch(base + '/api/auth/onboarding', { method: 'POST', headers: { Authorization: `Bearer ${token(2)}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ nivel: 12, policial: 'Operador Teste', badge: '22', passaporte: '222', patenteNPD: 'Officer', patenteInterna: 'Officer' }) })
+  const onboard = await fetch(base + '/api/auth/onboarding', { method: 'POST', headers: { Authorization: `Bearer ${token(2)}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ nivel: 12, policial: 'Operador Teste', badge: '22', passaporte: '222', patenteDPD: 'Officer', patenteInterna: 'Officer' }) })
   assert.equal(onboard.status, 200, await onboard.text())
   assert.equal(data.contas.find(c => c.id === 2).membroId, 2)
   assert.equal(data.membros.filter(m => m.id === 2).length, 1)

@@ -37,22 +37,18 @@ test('dados: cria o arquivo, grava de forma atômica e sobrevive a reinício', a
   assert.equal(dados.readData().boletins.length, 0)                      // campos padrão continuam
 })
 
-test('conta dona: já vem criada como admin/admin123, marcada como senha padrão; não sobrescreve senha existente', async () => {
+test('conta dona: já vem criada (id 1, admin), SEM senha — entra só pelo Discord (DISCORD_DONO_ID)', async () => {
   const { dados } = reiniciar()
   await dados.initData()
-  delete process.env.ADMIN_INITIAL_PASSWORD
   dados.ensureDefaultAdmin()
   const dono = dados.readData().contas.find(c => c.id === 1)
   assert.equal(dono.username, 'admin')
-  assert.ok(require('bcrypt').compareSync('admin123', dono.password))
-  assert.notEqual(dono.password, 'admin123')                             // guardada só em hash
-  assert.equal(dono.senhaPadrao, true)
-  // Boot seguinte não troca a senha de quem já tem uma
-  const d = dados.readData(); d.contas[0].password = require('bcrypt').hashSync('trocada-pelo-dono', 4); delete d.contas[0].senhaPadrao
-  dados.writeData(d)
+  assert.equal(dono.ativo, true)
+  assert.equal(dono.password, undefined)
+  assert.equal(dono.senhaPadrao, undefined)
+  // Boot seguinte não duplica nem recria a conta dona
   dados.ensureDefaultAdmin()
-  assert.ok(require('bcrypt').compareSync('trocada-pelo-dono', dados.readData().contas[0].password))
-  assert.equal(dados.readData().contas[0].senhaPadrao, undefined)
+  assert.equal(dados.readData().contas.filter(c => c.id === 1).length, 1)
   await dados.closeData()
 })
 
@@ -116,4 +112,70 @@ test('backup automático: criptografado, legível só com a chave e com rotaçã
   assert.equal(restantes.length, 14)
   assert.equal(restantes.at(-1), 'du-20261120-030000.json.enc')           // ficam os mais novos
   delete process.env.DATA_ENCRYPTION_KEY
+})
+
+test('migração do sistema anterior → DPD: campo renomeado, sigla trocada só nas patentes, cópia antes e roda uma vez', async () => {
+  // Sigla e campo antigos montados por partes (não ficam escritos no código)
+  const ANTIGA = String.fromCharCode(78) + 'PD'
+  const CAMPO = `patente${ANTIGA}`
+  // Arquivo no formato antigo + uma imagem em base64 que contém a sigla antiga por acaso
+  const antigo = JSON.parse(fs.readFileSync(process.env.DATA_PATH, 'utf8'))
+  const imagem = `data:image/png;base64,AAA${ANTIGA}xwAAA=`
+  Object.assign(antigo, {
+    membros: [{ id: 1, policial: 'Raven', badge: '1', passaporte: '10', [CAMPO]: `Officer ${ANTIGA}`, patenteInterna: `Sargento ${ANTIGA}`, status: 'Ativo',
+      entrada: '2026-01-01', promocao: '2026-01-01', adv1: false, adv2: false, adv3: false }],
+    solicitacoesPerfil: [{ id: 1, membroId: 1, contaId: 1, status: 'pendente', criadoEm: '2026-01-01', alteracoes: [{ campo: CAMPO, de: `${ANTIGA} Cabo`, para: `${ANTIGA} Sargento` }] }],
+    patentes: [`Cadete ${ANTIGA}`, 'Recruta'], logo: imagem, migracaoDpd: undefined,
+  })
+  fs.writeFileSync(process.env.DATA_PATH, JSON.stringify(antigo))
+  const { dados } = reiniciar()
+  assert.equal(dados.SIGLA_ANTIGA, ANTIGA)
+  await dados.initData()
+  let copia = ''
+  assert.equal(dados.migrarPatentesParaDpd(c => { copia = c }), true)
+  assert.ok(copia.includes(`"${CAMPO}":"Officer ${ANTIGA}"`))                 // cópia ANTES de converter
+  const d = dados.readData()
+  assert.equal(d.membros[0].patenteDPD, 'Officer DPD'); assert.equal(d.membros[0][CAMPO], undefined)
+  assert.equal(d.membros[0].patenteInterna, 'Sargento DPD')
+  assert.deepEqual(d.solicitacoesPerfil[0].alteracoes[0], { campo: 'patenteDPD', de: 'DPD Cabo', para: 'DPD Sargento' })
+  assert.deepEqual(d.patentes, ['Cadete DPD', 'Recruta'])
+  assert.equal(d.logo, imagem)                                             // imagem/texto livre não muda
+  assert.equal(dados.migrarPatentesParaDpd(() => { throw new Error('não devia copiar de novo') }), false)   // só uma vez
+  await dados.closeData()
+})
+
+test('cargos de permissão = patentes da DU: renomeia os antigos (mesmo ID, contas e permissões), cria o que falta e liga as patentes', async () => {
+  const antigo = JSON.parse(fs.readFileSync(process.env.DATA_PATH, 'utf8'))
+  Object.assign(antigo, {
+    cargosPermissao: [
+      { id: 1, nome: '(DU) Commander', admin: true, permissoes: {} },
+      { id: 6, nome: '(DU) Officer', permissoes: { relatorios: { ver: true, editar: true } } },
+      { id: 7, nome: '(DU) Probationary', padrao: true, permissoes: {} },
+    ],
+    nextCargoPermId: 8,
+    contas: [{ id: 1, username: 'dono', nivel: 'admin', ativo: true, cargoPermId: 1, membroId: 1 }, { id: 2, username: 'novo', nivel: 'membro', ativo: true, cargoPermId: 7 }],
+    membros: [{ id: 1, policial: 'Raven', badge: '', passaporte: '1', patenteDPD: '', patenteInterna: '(DU) Commander', status: 'Ativo', entrada: '2026-01-01', promocao: '2026-01-01', adv1: false, adv2: false, adv3: false }],
+    setagem: { titulo: 'x', modeloApelido: '', versao: 1, nextPatenteId: 3, patentes: [{ id: 1, nome: 'Detective Senior', prefixo: 'SD', roleIds: [] }, { id: 2, nome: 'Investigator Trainee', prefixo: 'IT', roleIds: [], cargoPermId: 7 }] },
+  })
+  fs.writeFileSync(process.env.DATA_PATH, JSON.stringify(antigo))
+  const { dados } = reiniciar()
+  await dados.initData()
+  dados.ensureDuPermissionRoles()
+  const d = dados.readData()
+  assert.deepEqual(d.cargosPermissao.map(c => c.nome), ['Supervisor of Detectives', 'Chief of Detectives', 'Deputy Chief of Detectives',
+    'Investigative Coordinator', 'Investigative Inspector', 'Senior Detective', 'Detective', 'Investigator Trainee'])
+  const porNome = n => d.cargosPermissao.find(c => c.nome === n)
+  assert.equal(porNome('Supervisor of Detectives').id, 1); assert.equal(porNome('Supervisor of Detectives').admin, true)   // mesmo cargo, acesso total
+  assert.equal(porNome('Senior Detective').id, 6); assert.equal(porNome('Senior Detective').permissoes.relatorios.editar, true)  // permissões mantidas
+  assert.equal(porNome('Investigator Trainee').id, 7); assert.equal(porNome('Investigator Trainee').padrao, true)
+  assert.equal(d.contas[1].cargoPermId, 7)                                         // contas continuam no mesmo cargo
+  assert.equal(d.membros[0].patenteInterna, 'Supervisor of Detectives')            // ficha acompanha o nome novo
+  // "Detective Senior" = "Senior Detective", MAS esse cargo dá "editar": a ligação automática não acontece
+  // (só um admin liga patente a cargo com poderes, conferido ao salvar a setagem)
+  assert.equal(d.setagem.patentes[0].cargoPermId, undefined)
+  assert.equal(d.setagem.patentes[1].cargoPermId, 7)                               // já ligada: não muda
+  const antes = JSON.stringify(d)
+  dados.ensureDuPermissionRoles()
+  assert.equal(JSON.stringify(dados.readData()), antes)                            // roda de novo sem mudar nada
+  await dados.closeData()
 })

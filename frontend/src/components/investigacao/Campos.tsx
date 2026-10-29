@@ -33,7 +33,7 @@ export function CabecalhoPagina({ sobretitulo, titulo, icone: Icone, descricao, 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-bdr bg-card mb-6">
       <div aria-hidden className="absolute inset-0 bg-cover bg-center opacity-35" style={{ backgroundImage: 'url(/media/du/banner-investigacao.webp)' }} />
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-bg via-bg/85 to-gold/10" />
+      <div aria-hidden className="absolute inset-0 bg-linear-to-r from-bg via-bg/85 to-gold/10" />
       <div className="relative flex items-end justify-between flex-wrap gap-4 px-5 sm:px-7 py-6 sm:py-7">
         <div className="min-w-0">
           <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">{sobretitulo}</p>
@@ -324,7 +324,7 @@ export function SeletorInvestigadores({ valor, onChange }: { valor: number[]; on
                   className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-txt2 hover:bg-gold/10 hover:text-txt">
                   <UserRound size={13} className="text-txt3" />
                   <span className="flex-1 truncate">{m.policial}{m.codinome && <span className="text-gold3"> “{m.codinome}”</span>}</span>
-                  <span className="text-[11px] font-mono text-txt3">{m.patenteInterna || m.patenteNPD}</span>
+                  <span className="text-[11px] font-mono text-txt3">{m.patenteInterna || m.patenteDPD}</span>
                 </button>
               </li>
             ))}

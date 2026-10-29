@@ -8,21 +8,21 @@ Enquanto o `playlist.json` estiver vazio (`[]`), o player **não aparece**.
 ## Como adicionar músicas
 
 1. Copie o(s) arquivo(s) `.mp3` (ou `.ogg`/`.m4a`) para **esta pasta**
-   (`frontend/public/media/music/`). Ex.: `hino-fast.mp3`.
+   (`frontend/public/media/music/`). Ex.: `hino-du.mp3`.
 2. (Opcional) Coloque também uma imagem de capa, ex.: `capa.jpg`.
 3. Edite o `playlist.json` com as faixas. Exemplo:
 
 ```json
 [
   {
-    "title": "Hino da FAST",
-    "artist": "North Police Department",
-    "src": "/media/music/hino-fast.mp3",
+    "title": "Hino da DU",
+    "artist": "Detective Unit",
+    "src": "/media/music/hino-du.mp3",
     "cover": "/media/music/capa.jpg"
   },
   {
     "title": "Patrulha Noturna",
-    "artist": "FAST",
+    "artist": "DU",
     "src": "/media/music/patrulha.mp3"
   }
 ]

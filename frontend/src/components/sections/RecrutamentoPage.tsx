@@ -24,7 +24,7 @@ export default function RecrutamentoPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [nome, setNome] = useState('')
-  const [data, setData] = useState(new Date().toISOString().slice(0, 10))
+  const [data, setData] = useState(new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }))
   const [observacoes, setObservacoes] = useState('')
 
   const canEdit = can('recrutamento')
@@ -37,7 +37,7 @@ export default function RecrutamentoPage() {
       setShowModal(false)
       setNome('')
       setObservacoes('')
-      setData(new Date().toISOString().slice(0, 10))
+      setData(new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }))
     } catch {
       addToast('error', 'Erro ao registrar candidato.')
     }

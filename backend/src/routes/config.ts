@@ -1,8 +1,7 @@
 import { Router, Request, Response } from 'express'
-import bcrypt from 'bcrypt'
 import { requireAuth } from '../middleware/auth'
-import { requireArea, adminOnly, requireAprovado, requireAlgumaArea } from '../middleware/roles'
-import { criticalLimiter } from '../middleware/rateLimiter'
+import { requireArea, adminOnly, requireAprovado, requireAlgumaArea, requireDev } from '../middleware/roles'
+import { criticalLimiter, hierarquiaLimiter } from '../middleware/rateLimiter'
 import {
   validateBody,
   qruSchema, tipoQruSchema, removerQruSchema, patenteSchema, cargoSchema,
@@ -11,26 +10,37 @@ import {
   reorderPatenteSchema, reorderQruSchema,
   situacaoAnuncioSchema, situacaoAnuncioUpdateSchema,
   cargoPermCreateSchema, cargoPermUpdateSchema, reorderCargosSchema,
-  aprovarAcessoSchema, redefinirSenhaSchema,
+  aprovarAcessoSchema, reprovarAcessoSchema, corrigirAcessoSchema, restoreSchema,
 } from '../middleware/validate'
 import { audit, readAuditLog } from '../security/audit'
 import { alertar } from '../security/alertas'
-import { readData, writeData } from '../data'
-import { Conta, FastData, CargoPermissao, TipoQru } from '../types'
+import { readData, writeData, converterPatentesParaDpd, peekData } from '../data'
+import { Conta, DuData, CargoPermissao, TipoQru } from '../types'
 import { tipoDoQru, definirTipoQru } from '../qrus'
 import { normalizePermMap } from '../permAreas'
-import { isDev, podeAtribuirCargo } from '../access'
+import { isDev, podeAtribuirCargo, PROTECTED_OWNER_ID } from '../access'
 import { notificar } from '../notificacoes'
+import { criarContaDeSolicitacao, aprovarPedido, reprovarPedido, solicitarCorrecao, setagemAtual } from '../setagem'
+import { imagemEnviada } from '../hierarquia'
 
+import { nomeDaConta } from '../registros'
 const router = Router()
 
-/** Conta para a tela de Configurações: nunca leva o hash da senha. */
-function contaPublica({ password: _p, senhaPadrao: _sp, sessaoVersao: _sv, ...resto }: Conta) {
-  return { ...resto, temSenha: Boolean(_p) }
+/**
+ * Conta para a tela de Configurações — LISTA BRANCA (só o que a tela usa). Nunca sai: guildId/botId,
+ * cargos do Discord, ficha arquivada (com tópico/canal do Discord), dados da setagem, senha legada nem
+ * versão de sessão.
+ */
+function contaPublica(c: Conta) {
+  return {
+    id: c.id, username: c.username, nivel: c.nivel, ativo: c.ativo, cargoPermId: c.cargoPermId ?? null,
+    discordId: c.discordId, discordUsername: c.discordUsername, nomeServidor: c.nomeServidor, onboarded: c.onboarded,
+    exonerado: c.exonerado, exoneradoEm: c.exoneradoEm, exoneradoMotivo: c.exoneradoMotivo,
+  }
 }
 
 /** O autor da requisição é dev? (poder total, acima do admin) */
-function souDev(req: Request, data: FastData): boolean {
+function souDev(req: Request, data: DuData): boolean {
   const autor = data.contas.find(c => c.id === req.user?.contaId)
   return Boolean(autor && isDev(autor, data))
 }
@@ -196,7 +206,8 @@ router.delete('/anuncio-situacoes/:id', requireAuth, requireArea('configuracoes'
 
 router.get('/contas', requireAuth, adminOnly, (_req, res) => {
   const data = readData()
-  res.json(data.contas.map(contaPublica))
+  // nome = codinome (regra); nomeServidor continua sendo o apelido do Discord
+  res.json(data.contas.map(c => ({ ...contaPublica(c), nome: nomeDaConta(data, c.id) })))
 })
 
 router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema), async (req: Request, res: Response): Promise<void> => {
@@ -272,66 +283,89 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
   res.json(contaPublica(conta))
 })
 
-// PUT /api/config/contas/:id/senha — admin redefine a senha (ex.: membro esqueceu)
-router.put('/contas/:id/senha', requireAuth, adminOnly, criticalLimiter, validateBody(redefinirSenhaSchema), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10)
-  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
-  const { novaSenha } = req.body as { novaSenha: string }
-  const hash = await bcrypt.hash(novaSenha, 12)
-  const data = readData()
-  const conta = data.contas.find(c => c.id === id)
-  if (!conta) { res.status(404).json({ error: 'Conta não encontrada' }); return }
-  // Só dev mexe na senha de um dev (e ninguém além do próprio dono mexe na conta dona)
-  if (id === 1 && req.user!.contaId !== 1) { res.status(403).json({ error: 'Só o próprio dono altera esta senha.' }); return }
-  if (!souDev(req, data) && isDev(conta, data)) { res.status(403).json({ error: 'Acesso negado' }); return }
-  conta.password = hash
-  delete conta.senhaPadrao
-  conta.sessaoVersao = (conta.sessaoVersao ?? 0) + 1   // quem estava logado com a senha antiga cai
-  writeData(data)
-  audit('PASSWORD_CHANGED', req, `Senha redefinida pelo admin — conta #${id}`)
-  alertar('senha_admin_redefinida', 'Senha redefinida por um admin', `${req.user!.username} redefiniu a senha da conta "${conta.username}".`, String(id))
-  res.json({ ok: true })
-})
-
-// ── Pedidos de acesso (tela de login) ─────────────────────────────────────────
+// ── Pedidos de acesso (primeiro login pelo Discord ou pedido de set no Discord) ──
 
 router.get('/solicitacoes-acesso', requireAuth, adminOnly, (_req, res) => {
-  res.json(readData().solicitacoesAcesso.map(({ id, username, nome, criadoEm }) => ({ id, username, nome, criadoEm })))
+  const data = readData()
+  const { patentes, setores = [] } = setagemAtual(data)
+  // Lista branca: sem o ID do Discord (só o usuário/nome que a pessoa mostra no Discord)
+  res.json(data.solicitacoesAcesso.map(({ id, username, nome, avatar, criadoEm, setagem }) => {
+    const patente = setagem ? patentes.find(p => p.id === setagem.patenteId) : undefined
+    return {
+      id, username, nome, avatar: avatar ?? null, criadoEm,
+      // Pedido de set (Discord): dados do modal para quem aprova conferir
+      setagem: setagem ? {
+        codinome: setagem.codinome, passaporte: setagem.passaporte, apelido: setagem.apelido,
+        patente: patente ? { nome: patente.nome, cargoPermId: patente.cargoPermId ?? null } : null,
+        setor: setagem.setorId ? setores.find(x => x.id === setagem.setorId)?.nome ?? null : null,
+        status: setagem.status ?? 'pendente', motivoCorrecao: setagem.motivoCorrecao ?? null,
+      } : null,
+    }
+  }))
 })
 
-// Aprova: cria a conta com a senha que a pessoa escolheu. Cargo opcional (senão o cargo padrão).
-router.post('/solicitacoes-acesso/:id/aprovar', requireAuth, adminOnly, validateBody(aprovarAcessoSchema), (req: Request, res: Response): void => {
+// Aprova: cria a conta ligada ao Discord da pessoa. Cargo opcional (senão o da patente ou o padrão).
+// Pedido de set: dá os cargos da patente no Discord, avisa no privado e apaga o canal temporário.
+router.post('/solicitacoes-acesso/:id/aprovar', requireAuth, adminOnly, hierarquiaLimiter, validateBody(aprovarAcessoSchema), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()
-  const idx = data.solicitacoesAcesso.findIndex(s => s.id === id)
-  if (idx === -1) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
-  const sol = data.solicitacoesAcesso[idx]
-  if (data.contas.some(c => c.username.toLowerCase() === sol.username.toLowerCase())) {
-    res.status(409).json({ error: 'Já existe uma conta com esse usuário.' }); return
+  const sol = data.solicitacoesAcesso.find(s => s.id === id)
+  if (!sol) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
+  if (!sol.discordId) { res.status(409).json({ error: 'Pedido antigo (login por senha): recuse e peça para a pessoa entrar pelo Discord.' }); return }
+  if (data.contas.some(c => c.discordId === sol.discordId)) {
+    res.status(409).json({ error: 'Este Discord já tem uma conta.' }); return
   }
   const { cargoPermId } = req.body as { cargoPermId?: number | null }
-  const autor = data.contas.find(c => c.id === req.user!.contaId)!
-  let cargo = cargoPermId ? data.cargosPermissao.find(c => c.id === cargoPermId) : data.cargosPermissao.find(c => c.padrao && !c.admin)
+  const autorId = req.user!.contaId
+  // Cargo do site limitado ao que quem aprova pode atribuir
+  const podeAtribuir = (cargo: CargoPermissao) => { const d = readData(); const a = d.contas.find(c => c.id === autorId); return Boolean(a && podeAtribuirCargo(a, cargo, d)) }
+
+  if (sol.setagem) {
+    const r = await aprovarPedido(id, { por: nomeDaConta(peekData(), req.user!.contaId), cargoPermId, podeAtribuir })
+    if ('erro' in r) { res.status(r.status).json({ error: r.erro }); return }
+    audit('SIGNUP_APPROVED', req, `Pedido de set #${id} → conta #${r.contaId} | cargos no Discord: ${r.cargoDiscord}`)
+    const conta = readData().contas.find(c => c.id === r.contaId)!
+    res.status(201).json({ ...contaPublica(conta), cargoDiscord: r.cargoDiscord, cargosManuais: r.cargosManuais }); return
+  }
+
+  const cargo = cargoPermId ? data.cargosPermissao.find(c => c.id === cargoPermId) : data.cargosPermissao.find(c => c.padrao && !c.admin)
   if (cargoPermId && !cargo) { res.status(400).json({ error: 'Cargo de permissão não encontrado' }); return }
-  if (cargo && !podeAtribuirCargo(autor, cargo, data)) { res.status(403).json({ error: 'Você não pode atribuir este cargo.' }); return }
-  const nova: Conta = { id: data.nextContaId++, username: sol.username, password: sol.senha, nivel: 'membro', ativo: true,
-    onboarded: false, nomeServidor: sol.nome, ...(cargo ? { cargoPermId: cargo.id } : {}) }
-  data.contas.push(nova)
-  data.solicitacoesAcesso.splice(idx, 1)
+  if (cargo && !podeAtribuir(cargo)) { res.status(403).json({ error: 'Você não pode atribuir este cargo.' }); return }
+  const nova = criarContaDeSolicitacao(data, sol, cargo)
   writeData(data)
   audit('SIGNUP_APPROVED', req, `Usuário: ${nova.username} | Cargo: #${nova.cargoPermId ?? '—'}`)
   res.status(201).json(contaPublica(nova))
 })
 
-router.delete('/solicitacoes-acesso/:id', requireAuth, adminOnly, (req: Request, res: Response): void => {
+// POST /api/config/solicitacoes-acesso/:id/corrigir — pede para a pessoa refazer o pedido de set (motivo vai no privado)
+router.post('/solicitacoes-acesso/:id/corrigir', requireAuth, adminOnly, hierarquiaLimiter, validateBody(corrigirAcessoSchema), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
+  if (!readData().solicitacoesAcesso.some(s => s.id === id && s.setagem)) { res.status(404).json({ error: 'Pedido de set não encontrado' }); return }
+  const motivo = (req.body as { motivo: string }).motivo.replace(/[@`]/g, '').trim()
+  const r = await solicitarCorrecao(id, nomeDaConta(peekData(), req.user!.contaId), motivo)
+  if ('erro' in r) { res.status(r.status).json({ error: r.erro }); return }
+  audit('CONFIG_UPDATED', req, `Pedido de set #${id}: correção pedida pelo site`)
+  res.json({ ok: true, privado: r.privado })
+})
+
+router.delete('/solicitacoes-acesso/:id', requireAuth, adminOnly, validateBody(reprovarAcessoSchema), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params.id), 10)
   if (isNaN(id)) { res.status(400).json({ error: 'ID inválido' }); return }
   const data = readData()
-  const antes = data.solicitacoesAcesso.length
-  data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.id !== id)
-  if (data.solicitacoesAcesso.length === antes) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
-  writeData(data)
+  const sol = data.solicitacoesAcesso.find(s => s.id === id)
+  if (!sol) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
+  if (sol.setagem) {
+    // Pedido de set: aviso no privado e canal temporário apagado
+    // Motivo vai no privado da pessoa: texto puro (sem menções/blocos de código)
+    const motivo = ((req.body as { motivo?: string }).motivo ?? '').replace(/[@`]/g, '').trim()
+    const r = await reprovarPedido(id, nomeDaConta(peekData(), req.user!.contaId), motivo)
+    if ('erro' in r) { res.status(r.status).json({ error: r.erro }); return }
+  } else {
+    data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.id !== id)
+    writeData(data)
+  }
   audit('SIGNUP_REJECTED', req, `Pedido #${id}`)
   res.json({ ok: true })
 })
@@ -464,6 +498,8 @@ router.get('/logo', (_req, res) => res.json({ logo: readData().logo }))
 
 router.put('/logo', requireAuth, requireArea('configuracoes', 'editar'), validateBody(logoSchema), (req: Request, res: Response): void => {
   const { logo } = req.body as { logo: string }
+  // Confere os bytes de verdade (assinatura PNG/JPEG/WEBP, até 2 MB)
+  if (!imagemEnviada(logo, 2 * 1024 * 1024)) { res.status(400).json({ error: 'Imagem inválida' }); return }
   const data = readData()
   data.logo = logo
   writeData(data)
@@ -495,32 +531,33 @@ router.put('/recrutamento', requireAuth, requireArea('configuracoes', 'editar'),
 
 // ── Backup / Restore ──────────────────────────────────────────────────────────
 
-router.get('/backup', requireAuth, adminOnly, (req: Request, res: Response): void => {
+// Só dev: o arquivo leva todas as contas (inclusive dos devs e da conta dona)
+router.get('/backup', requireAuth, requireDev, (req: Request, res: Response): void => {
   const data = readData()
   audit('BACKUP_DOWNLOADED', req)
   res.setHeader('Content-Type', 'application/json')
-  res.setHeader('Content-Disposition', `attachment; filename="fast-backup-${new Date().toISOString().slice(0, 10)}.json"`)
+  res.setHeader('Content-Disposition', `attachment; filename="du-backup-${new Date().toISOString().slice(0, 10)}.json"`)
   res.send(JSON.stringify(data, null, 2))
 })
 
-router.post('/restore', requireAuth, adminOnly, criticalLimiter, (req: Request, res: Response): void => {
-  const body = req.body as Partial<FastData>
+// Só dev: restaurar substitui contas e cargos (um admin poderia se promover a dev pelo arquivo)
+router.post('/restore', requireAuth, requireDev, criticalLimiter, validateBody(restoreSchema), (req: Request, res: Response): void => {
+  const body = req.body as Partial<DuData> & { contas: Conta[] }
 
-  const required: (keyof FastData)[] = ['membros', 'acoes', 'contas']
-  if (!required.every(k => Array.isArray(body[k]))) {
-    res.status(400).json({ error: 'Backup inválido — campos obrigatórios ausentes' }); return
-  }
-
-  // Senhas: só hashes bcrypt válidos entram. A conta dona mantém a senha atual se o backup não tiver.
+  // Login é só pelo Discord: campos legados de senha de backups antigos não entram.
   const atual = readData()
-  for (const c of body.contas as Conta[]) {
-    if (typeof c.password !== 'string' || !/^$2[aby]$d{2}$[./A-Za-z0-9]{53}$/.test(c.password)) delete c.password
-    if (c.id === 1 && !c.password) c.password = atual.contas.find(x => x.id === 1)?.password
+  const donoAtual = atual.contas.find(x => x.id === PROTECTED_OWNER_ID)
+  for (const c of body.contas) { delete c.password; delete c.senhaPadrao }
+  // A conta dona só é alterada pelo próprio dono:
+  // para qualquer outro dev ela fica exatamente como está hoje.
+  if (req.user!.contaId !== PROTECTED_OWNER_ID && donoAtual) {
+    body.contas = [donoAtual, ...body.contas.filter(c => c.id !== PROTECTED_OWNER_ID)]
   }
   if (!Array.isArray(body.solicitacoesAcesso)) { body.solicitacoesAcesso = []; body.nextSolAcessoId = 1 }
 
-  writeData(body as FastData)
-  alertar('restauracao', 'Backup restaurado no painel', `${req.user!.username} restaurou um backup: todos os dados foram substituídos.`)
+  converterPatentesParaDpd(body as DuData)   // backup antigo já entra no formato DPD
+  writeData(body as DuData)
+  alertar('restauracao', 'Backup restaurado no painel', `${nomeDaConta(peekData(), req.user!.contaId)} restaurou um backup: todos os dados foram substituídos.`)
   audit('RESTORE_EXECUTED', req, `Membros: ${body.membros?.length} | Ações: ${body.acoes?.length}`)
   res.json({ ok: true })
 })
@@ -528,7 +565,8 @@ router.post('/restore', requireAuth, adminOnly, criticalLimiter, (req: Request, 
 // ── Audit Log (admin only) ────────────────────────────────────────────────────
 
 router.get('/audit-log', requireAuth, adminOnly, (req: Request, res: Response): void => {
-  const limit = Math.min(500, Math.max(10, parseInt(String(req.query.limit || '100'), 10)))
+  const pedido = parseInt(String(req.query.limit ?? '100'), 10)
+  const limit = Math.min(500, Math.max(10, Number.isSafeInteger(pedido) ? pedido : 100))
   res.json(readAuditLog(limit))
 })
 

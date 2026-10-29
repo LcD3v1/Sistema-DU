@@ -33,7 +33,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       transition={{ type: 'spring', stiffness: 200, damping: 20 }}
       className={`
         flex items-center gap-3 px-4 py-3 border rounded-lg bg-card
-        shadow-lg min-w-[280px] max-w-sm
+        shadow-lg min-w-70 max-w-sm
         ${COLORS[toast.type]}
       `}
     >

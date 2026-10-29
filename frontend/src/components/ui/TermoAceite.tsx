@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMutation } from '@tanstack/react-query'
@@ -11,7 +11,7 @@ import { useMe } from '@/hooks/useMe'
 import { DOCUMENTOS, EMPRESAS, TERMOS } from '@/content/termos'
 
 // Visitante: só conveniência de UI (nenhum dado sensível). Logado: o aceite vale é o da conta.
-const KEY = 'fast_termos_aceite'
+const KEY = 'du_termos_aceite'
 const EASE = [0.16, 1, 0.3, 1] as const
 // Telas onde o aceite não deve cobrir: a própria leitura dos termos e o retorno do OAuth
 const SEM_POPUP = ['/termos']
@@ -48,7 +48,9 @@ export default function TermoAceite() {
   const pendenteVisitante = !token && !restaurando && !localOk
   const aberto = !SEM_POPUP.some(p => pathname.startsWith(p)) && (pendenteConta || pendenteVisitante)
 
-  useEffect(() => { if (!aberto) { setConcordo(false); setRecusado(false) } }, [aberto])
+  // Fechou: desmarca "concordo" e o aviso de recusa (ajuste durante a renderização, sem efeito)
+  const [abertoAntes, setAbertoAntes] = useState(aberto)
+  if (aberto !== abertoAntes) { setAbertoAntes(aberto); if (!aberto) { setConcordo(false); setRecusado(false) } }
 
   function confirmar() {
     if (!concordo || aceitar.isPending) return

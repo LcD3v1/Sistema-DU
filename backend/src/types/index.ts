@@ -12,7 +12,7 @@ export interface Membro {
   badge: string
   passaporte: string
   policial: string
-  patenteNPD: string
+  patenteDPD: string
   patenteInterna: string
   status: StatusMembro
   entrada: string
@@ -27,6 +27,7 @@ export interface Membro {
   historicoCargos?: MudancaCargo[]
   nivel?: number                      // nível informado pelo próprio membro (fonte única)
   codinome?: string                   // codinome do investigador (destaque no perfil e na carteirinha)
+  setor?: string                      // setor/subunidade (ex.: COD, DNARC) — nome do setor da setagem
 }
 
 export interface MudancaCargo {
@@ -104,18 +105,22 @@ export interface Conta {
   exoneradoEm?: string
   exoneradoMotivo?: string
   termosAceitos?: { versao: string; em: string }  // última versão dos termos aceita (ISO)
-  password?: string   // hash bcrypt (nunca sai da API)
-  senhaPadrao?: boolean   // conta dona ainda com a senha padrão (aviso no painel)
-  sessaoVersao?: number   // sobe ao trocar/redefinir senha ou sair de todos: invalida tokens antigos
+  password?: string   // LEGADO (login por senha removido): nunca lido nem sai da API
+  senhaPadrao?: boolean   // LEGADO
+  sessaoVersao?: number   // sobe ao "sair de todos": invalida tokens antigos
+  cadastroSetagem?: { codinome: string; passaporte: string; patente: string; setor?: string }  // dados da setagem (pré-preenchem o cadastro)
 }
 
-/** Pedido de acesso feito na tela de login; o comando aprova e vira conta. */
+/** Pedido de acesso criado no primeiro login pelo Discord; o comando aprova e vira conta. */
 export interface SolicitacaoAcesso {
   id: number
-  username: string
-  senha: string       // já com hash bcrypt
-  nome: string
+  discordId?: string  // ausente só em pedidos antigos (login por senha), que não podem mais ser aprovados
+  username: string    // usuário do Discord
+  nome: string        // nome de exibição do Discord
+  avatar?: string     // foto do Discord (URL do CDN)
+  senha?: string      // LEGADO
   criadoEm: string
+  setagem?: DadosSetagem   // pedido feito pelo botão "Solicitar set" no Discord
 }
 
 export interface LinkPerfil {
@@ -125,6 +130,45 @@ export interface LinkPerfil {
 }
 
 /** Arquivo enviado do computador (PDF, documento, imagem…). Bytes ficam na coleção avulsa `arquivos`. */
+// ── Árvore de investigação (quadro de vínculos) ─────────────────────────────
+/** Foto de um card: arquivo enviado (área "arvore") OU link http/https. */
+export type FotoArvore = { arquivo: ArquivoRef } | { url: string }
+export type LadoArvore = 'cima' | 'direita' | 'baixo' | 'esquerda'
+export interface NoArvore {
+  id: number
+  x: number; y: number               // posição no quadro
+  nome: string; apelido: string; telefone: string; funcao: string; faccao: string
+  endereco: string; veiculo: string; observacoes: string; status: string
+  foto: FotoArvore | null
+  fotos: FotoArvore[]                // fotos extras
+  criadoPor: string; atualizadoEm: string
+}
+/** Cada ponta da linha liga num CARD (de + lado) ou num PONTO de outra linha (deLig + deT, 0–1 ao longo dela). */
+export interface LigacaoArvore {
+  id: number
+  de: number | null; deLado: LadoArvore | null; deLig?: number | null; deT?: number | null
+  para: number | null; paraLado: LadoArvore | null; paraLig?: number | null; paraT?: number | null
+  cor: string                        // #rrggbb (padrão branco)
+  rotulo: string
+  curva: { dx: number; dy: number } | null   // deslocamento do meio da linha (arrastável)
+}
+/** Anexo do chat: foto/vídeo enviado (arquivo), imagem por link ou link de vídeo (aberto por quem recebe). */
+export type AnexoArvore = FotoArvore | { video: string }
+export interface MensagemArvore { id: number; contaId: number; autor: string; texto: string; em: string; anexo?: AnexoArvore }
+export interface Arvore {
+  id: number
+  nome: string
+  descricao: string
+  inqueritoId: number | null
+  nos: NoArvore[]; nextNoId: number
+  ligacoes: LigacaoArvore[]; nextLigacaoId: number
+  mensagens: MensagemArvore[]; nextMensagemId: number
+  versao: number                      // sobe a cada mudança (o quadro dos outros atualiza)
+  participantes?: number[]            // contas que veem a árvore (sem o campo = árvore antiga, aberta); admins veem todas
+  criadoPorId?: number
+  criadoPor: string; criadoEm: string; atualizadoPor: string; atualizadoEm: string
+}
+
 export interface ArquivoRef {
   id: string         // aleatório (144 bits) — só sai da API para quem vê o registro
   nome: string
@@ -330,7 +374,7 @@ export interface Notificacao {
   criadaEm: string
 }
 
-export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteNPD' | 'patenteInterna' | 'nivel' | 'codinome'
+export type CampoPerfil = 'policial' | 'badge' | 'passaporte' | 'patenteDPD' | 'patenteInterna' | 'nivel' | 'codinome' | 'setor'
 
 export interface SolicitacaoPerfil {
   id: number
@@ -374,7 +418,7 @@ export interface RankingArquivado {
   linhas: { nome: string; total: number }[]
 }
 
-export interface FastData {
+export interface DuData {
   membros: Membro[]
   acoes: Acao[]
   qrus: string[]
@@ -399,6 +443,9 @@ export interface FastData {
   nextFardId: number
   nextCargoPermId: number
   nivelMigrado?: boolean   // flag: migração nível→cargos já executada
+  migracaoDpd?: boolean    // flag: patentes já convertidas para o formato DPD
+  migracaoSetores?: boolean  // flag: patentes da DU e setores (COD, DNARC, COD/DNARC) já cadastrados
+  patentesDuVersao?: number  // versão da lista de patentes da DU já aplicada (2 = com Supervisor of Detectives)
   logo: string
   membrosOrder: number[]
   canais: CanaisDiscord
@@ -413,6 +460,8 @@ export interface FastData {
   relatorios: Relatorio[]
   boletins: Boletim[]
   inqueritos: Inquerito[]
+  arvores?: Arvore[]               // árvores de investigação (quadro de vínculos)
+  nextArvoreId?: number
   galeria: FotoGaleria[]
   nextRelatorioId: number
   nextBoletimId: number
@@ -421,6 +470,24 @@ export interface FastData {
   painelApreensoes?: PainelApreensoes
   historicoRankings?: RankingArquivado[]
   cargosAdv?: CargosAdv
+  protocolo?: Protocolo                  // livro (flipbook) do módulo Protocolo
+  hierarquia?: Hierarquia                // painel principal (id 0)
+  hierarquiasExtras?: Hierarquia[]       // painéis a mais, cada um com id ≥ 1
+  nextHierarquiaId?: number
+  setagem?: Setagem
+}
+
+/** Livro do módulo Protocolo: flipbook do Heyzine (único embed permitido pela CSP) + capítulos mostrados acima. */
+export interface Protocolo {
+  flipbook: string
+  secoes: string[]
+  // Painel no Discord (mensagem do bot com os capítulos e o botão que abre o livro)
+  canalId?: string
+  mensagemId?: string
+  descricao?: string
+  imagens?: ImagemPainel[]
+  atualizadoPor?: string
+  atualizadoEm?: string
 }
 
 /** Cargos do Discord que espelham cada quadradinho de advertência (ID do cargo por nível). */
@@ -432,4 +499,98 @@ export interface AuthPayload {
   contaId: number
   username: string
   nivel: Nivel
+}
+
+/** Um cargo do servidor do Discord exibido no painel de hierarquia (a ordem da lista é a posição). */
+export interface CargoHierarquia {
+  roleId: string     // cargo do Discord
+  nome: string       // nome exibido no painel
+  emoji?: string     // "logo" do cargo no painel (emoji)
+}
+
+/**
+ * Painel de hierarquia: mensagem do bot num canal do Discord, editada sozinha
+ * (a cada minuto) conforme os cargos do servidor. `versao` controla edições simultâneas.
+ */
+/**
+ * Imagem solta num painel V2, na posição escolhida: "topo", "titulo" (depois do título),
+ * "cargo:<roleId>" (depois de um cargo da hierarquia), "passos"/"texto"/"botao" (setagem: depois do passo a passo, antes e depois do botão) ou "fim" (antes do rodapé).
+ * `url`: upload (data URL, conferido pelos bytes) ou link http/https.
+ */
+export interface ImagemPainel {
+  posicao: string
+  url: string
+  lado?: 'esquerda' | 'direita'   // ausente = largura toda; esquerda/direita = metade do painel
+}
+
+export interface Hierarquia {
+  id?: number                // painéis extras (o principal não guarda id: é o 0)
+  imagens?: ImagemPainel[]
+  titulo: string             // nome da unidade (título do painel)
+  logo?: string              // logo (miniatura do painel): imagem enviada (data URL) ou link http/https
+  rodapeTexto?: string       // texto do rodapé (padrão: nome do servidor)
+  rodapeIcone?: string       // foto do rodapé: imagem enviada ou link (padrão: foto do bot)
+  canalId?: string           // canal onde o painel é publicado
+  mensagemId?: string        // mensagem do painel (editada a cada mudança)
+  cargos: CargoHierarquia[]
+  versao: number
+  atualizadoPor?: string
+  atualizadoEm?: string
+}
+
+/** Patente da setagem: prefixo do apelido + cargo do Discord dado na aprovação (+ cargo do site opcional). */
+export interface PatenteSetagem {
+  id: number
+  nome: string
+  prefixo: string
+  roleIds: string[]   // 1 ou 2 cargos do Discord dados na aprovação
+  roleId?: string     // LEGADO (antes era um cargo só): lido como roleIds
+  cargoPermId?: number
+}
+
+/** Setor / subunidade (ex.: COD, DNARC ou o combinado COD/DNARC): 1 ou 2 cargos do Discord dados na aprovação. */
+export interface SetorSetagem {
+  id: number
+  nome: string
+  roleIds: string[]
+}
+
+/** Dados enviados pela pessoa no modal "Solicitar set" do Discord. */
+export interface DadosSetagem {
+  codinome: string
+  passaporte: string
+  patenteId: number
+  setorId?: number    // setor escolhido no modal (quando há setores configurados)
+  apelido: string     // apelido aplicado no servidor (modelo com prefixo/codinome/ID)
+  em: string
+  status?: 'pendente' | 'correcao'   // correcao = quem aprova pediu para refazer o preenchimento
+  motivoCorrecao?: string
+  correcaoPor?: string
+  canalTemp?: string     // canal temporário do pedido (apagado ao aprovar/reprovar)
+  mensagemTemp?: string  // painel do pedido nesse canal
+}
+
+/**
+ * Setagem: painel com botão no Discord (canal escolhido) → modal com codinome, passaporte e patente.
+ * O apelido muda na hora; o cargo do Discord e o acesso ao site só depois da aprovação no site.
+ */
+export interface Setagem {
+  titulo: string
+  descricao?: string
+  categoriaId?: string           // categoria onde os canais temporários dos pedidos são criados
+  canalId?: string               // canal do painel "Solicitar set"
+  mensagemId?: string
+  aprovadores?: string[]         // cargos do Discord que aprovam/reprovam/pedem correção
+  imagem?: string                // imagem do rodapé (à direita): upload ou link; vazio = foto do bot
+  rodapeTexto?: string           // texto do rodapé; vazio = nome do servidor
+  imagens?: ImagemPainel[]       // imagens soltas no painel, cada uma na posição escolhida
+  modeloApelido: string          // ex.: "{prefixo} {codinome} | {id}"
+  patentes: PatenteSetagem[]
+  nextPatenteId: number
+  setores?: SetorSetagem[]       // setores/subunidades (select do modal e da dashboard)
+  nextSetorId?: number
+  advertencias?: string[]        // cargos do Discord de ADV 1, 2 e 3 (criados automaticamente se faltarem)
+  versao: number
+  atualizadoPor?: string
+  atualizadoEm?: string
 }

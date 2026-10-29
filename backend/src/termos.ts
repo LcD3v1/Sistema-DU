@@ -4,4 +4,4 @@
  * em frontend/src/content/termos.ts mudar: toda conta verá o aceite de novo.
  * Deve ser igual a TERMOS.versao no frontend. Duas mudanças no mesmo dia: '-2', '-3'…
  */
-export const TERMOS_VERSAO = '2026-10-27'
+export const TERMOS_VERSAO = '2026-10-28-6'

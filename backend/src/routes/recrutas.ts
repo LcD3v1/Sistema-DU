@@ -3,8 +3,10 @@ import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, recrutaCreateSchema, avaliacaoRecrutaSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
+import { nomeDaConta } from '../registros'
 import { notificarArea } from '../notificacoes'
+import { hoje } from '../efetivo'
 import { AvaliacaoIndividual, Recruta } from '../types'
 
 const router = Router()
@@ -33,7 +35,7 @@ router.post('/', requireAuth, requireArea('recrutamento', 'editar'), validateBod
   const novo: Recruta = {
     id:          data.nextRecId,
     nome:        body.nome,
-    data:        body.data ?? new Date().toISOString().slice(0, 10),
+    data:        body.data ?? hoje(),
     avaliacoes:  [],
     status:      'aberto',
     observacoes: body.observacoes || undefined,
@@ -42,7 +44,7 @@ router.post('/', requireAuth, requireArea('recrutamento', 'editar'), validateBod
   data.recrutas.push(novo as any)
   data.nextRecId++
   notificarArea(data, 'recrutamento', [req.user!.contaId], 'recrutamento', 'Novo candidato',
-    `${novo.nome} foi adicionado ao recrutamento por ${req.user!.username}.`, `/recrutamento/${novo.id}`)
+    `${novo.nome} foi adicionado ao recrutamento por ${nomeDaConta(peekData(), req.user!.contaId)}.`, `/recrutamento/${novo.id}`)
   writeData(data)
   audit('RECRUTA_CREATED', req, `Nome: ${novo.nome}`)
   res.status(201).json(novo)
@@ -79,7 +81,7 @@ router.post('/:id/avaliar', requireAuth, requireArea('recrutamento', 'editar'), 
     scores:      req.body.scores,
     total:       req.body.total,
     observacoes: req.body.observacoes || undefined,
-    data:        new Date().toISOString().slice(0, 10),
+    data:        hoje(),
   }
 
   if (!r.avaliacoes) r.avaliacoes = []
@@ -104,7 +106,7 @@ router.put('/:id/fechar', requireAuth, requireArea('recrutamento', 'editar'), (r
   }
   r.status = 'fechado'
   notificarArea(data, 'recrutamento', [], 'recrutamento', `Recrutamento encerrado: ${r.nome}`,
-    `Resultado: ${r.resultado ?? 'sem avaliações'}. Encerrado por ${req.user!.username}.`, `/recrutamento/${id}`)
+    `Resultado: ${r.resultado ?? 'sem avaliações'}. Encerrado por ${nomeDaConta(peekData(), req.user!.contaId)}.`, `/recrutamento/${id}`)
   writeData(data)
   audit('RECRUTA_FECHADO', req, `ID: ${id}`)
   res.json(normalize(r))

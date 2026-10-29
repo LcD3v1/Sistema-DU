@@ -1,12 +1,16 @@
 import 'dotenv/config'
+import dotenv from 'dotenv'
+import path from 'path'
 import { protectConsole } from '../security/redact'
+// .env da raiz do projeto (variáveis do Discord). Não sobrescreve backend/.env nem o painel da hospedagem.
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env'), quiet: true })
 protectConsole()
 
 // Nunca permitir que uma variável herdada desabilite a validação TLS.
 delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
 
 /**
- * Validação fail-fast das variáveis de ambiente.
+ * Validação com parada imediata das variáveis de ambiente.
  * Importado no topo de index.ts — o processo NÃO sobe se um segredo crítico
  * estiver ausente, fraco ou igual ao placeholder de exemplo.
  *
@@ -26,9 +30,13 @@ const PROD = process.env.NODE_ENV === 'production'
 function fail(msg: string): never {
   console.error('\n[DU][SEGURANÇA] Falha de configuração — o servidor não vai iniciar.')
   console.error('  → ' + msg)
-  console.error('  Gere um segredo forte com:')
-  console.error('    node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"')
-  console.error('  e defina JWT_SECRET no arquivo backend/.env (nunca versione esse arquivo).\n')
+  if (/JWT_SECRET|DATA_ENCRYPTION_KEY/.test(msg)) {
+    console.error('  Gere um segredo forte com:')
+    console.error('    node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"')
+    console.error('  e defina no arquivo backend/.env (nunca versione esse arquivo).')
+  }
+  if (PROD) console.error('  (Modo PRODUÇÃO. Para rodar no seu computador use, na pasta raiz: npm start)')
+  console.error('')
   process.exit(1)
 }
 
@@ -81,6 +89,54 @@ if (PROD && !process.env.ALLOWED_ORIGIN) {
     if (!decodificarChave(bruta)) fail('DATA_ENCRYPTION_KEY inválida — use 32 bytes em base64url (43 chars) ou hex (64 chars).')
     if (bruta.trim() === process.env.JWT_SECRET?.trim()) fail('DATA_ENCRYPTION_KEY não pode ser igual ao JWT_SECRET.')
   }
+}
+
+// Banco de dados (opcional — MongoDB da Discloud ou Atlas). O site fica em outra hospedagem e fala com o
+// banco pela internet: em produção exige TLS e usuário/senha, e nunca aceita certificado inválido.
+// O valor da URI nunca é impresso.
+{
+  const uri = process.env.MONGODB_URI?.trim()
+  if (uri) {
+    // Formato do MongoDB (aceita vários servidores "h1:27017,h2:27017", que o new URL() recusa)
+    const m = /^(mongodb(?:\+srv)?):\/\/(?:([^:@/?]+)(?::([^@/?]*))?@)?([^/?]+)(?:\/[^?]*)?(?:\?(.*))?$/.exec(uri)
+    if (!m) fail('MONGODB_URI inválida — use mongodb:// ou mongodb+srv:// (copie da Discloud/Atlas).')
+    const [, protocolo, usuario, senha, servidores, consulta] = m!
+    const q = new URLSearchParams(consulta ?? '')
+    const local = servidores.split(',').every(h => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(h))
+    const tls = protocolo === 'mongodb+srv' || /^true$/i.test(q.get('tls') ?? q.get('ssl') ?? '')
+    if (PROD && !local) {
+      if (!usuario || !senha) fail('MONGODB_URI sem usuário e senha — o banco não pode ficar aberto.')
+      if (!tls) fail('MONGODB_URI sem TLS — acrescente ?tls=true (o banco é acessado pela internet).')
+    }
+    if (/^true$/i.test(q.get('tlsAllowInvalidCertificates') ?? '') || /^true$/i.test(q.get('tlsInsecure') ?? '') || /^true$/i.test(q.get('tlsAllowInvalidHostnames') ?? '')) {
+      fail('MONGODB_URI desliga a verificação do certificado TLS — remova tlsInsecure/tlsAllowInvalid*.')
+    }
+    if (PROD && !process.env.DATA_ENCRYPTION_KEY?.trim()) fail('Com MONGODB_URI, DATA_ENCRYPTION_KEY é obrigatória (os dados vão cifrados para o banco).')
+  }
+}
+
+// Login pelo Discord: é a única forma de entrar. Em produção, sem a configuração completa
+// (ou com redirect sem HTTPS) o servidor não sobe. IDs são snowflakes; segredos nunca são impressos.
+{
+  const e = process.env
+  const id = (v: string | undefined) => /^\d{17,20}$/.test(v?.trim() ?? '')
+  // DISCORD_DONO_ID: 1 ou 2 IDs — as ÚNICAS pessoas que entram sem estar no servidor
+  const donos = (e.DISCORD_DONO_ID ?? '').split(/[\s,;]+/).map(v => v.trim()).filter(Boolean)
+  if (donos.some(v => !id(v))) fail('DISCORD_DONO_ID tem um ID inválido (só números, separados por vírgula).')
+  if (new Set(donos).size > 2) fail('DISCORD_DONO_ID aceita no máximo 2 IDs (só duas pessoas entram sem estar no servidor).')
+  if (e.DISCORD_ACESSO_LIVRE?.trim()) console.warn('[DU][ATENÇÃO] DISCORD_ACESSO_LIVRE não existe mais e é ignorada — use DISCORD_DONO_ID (máx. 2).')
+  const redirect = e.DISCORD_REDIRECT_URI?.trim() || (e.PUBLIC_URL?.trim() ? `${e.PUBLIC_URL.trim().replace(/\/+$/, '')}/api/auth/discord/callback` : '')
+  const faltando = [
+    !id(e.DISCORD_CLIENT_ID) && 'DISCORD_CLIENT_ID',
+    !e.DISCORD_CLIENT_SECRET?.trim() && 'DISCORD_CLIENT_SECRET',
+    !id(e.DISCORD_GUILD_ID) && 'DISCORD_GUILD_ID',
+    !e.DISCORD_BOT_TOKEN?.trim() && 'DISCORD_BOT_TOKEN',
+    !id(donos[0]) && 'DISCORD_DONO_ID',
+    !redirect && 'DISCORD_REDIRECT_URI (ou PUBLIC_URL)',
+  ].filter(Boolean)
+  if (PROD && faltando.length) fail(`Login pelo Discord sem configuração: ${faltando.join(', ')}.`)
+  if (PROD && redirect && !redirect.startsWith('https://')) fail('DISCORD_REDIRECT_URI precisa ser https:// em produção.')
+  if (e.DISCORD_CLIENT_SECRET?.trim() && e.DISCORD_CLIENT_SECRET.trim() === e.JWT_SECRET?.trim()) fail('DISCORD_CLIENT_SECRET não pode ser igual ao JWT_SECRET.')
 }
 
 // Proteções que NÃO devem ser desligadas em produção

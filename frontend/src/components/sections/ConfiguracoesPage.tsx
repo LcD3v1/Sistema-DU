@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { motion } from 'framer-motion'
+import { useMemo, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragEndEvent,
@@ -11,7 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Image, List, Briefcase, Radio, UserPlus, Users,
-  Plus, Trash2, Megaphone, Inbox, Clock, ShieldCheck, MessagesSquare, Scale,
+  Plus, Trash2, Megaphone, Inbox, Clock, ShieldCheck, Scale, Layers,
 } from 'lucide-react'
 import {
   useQrus, useQrusTipos, useTipoQru, useAddQru, useDeleteQru, useReorderQrus,
@@ -24,14 +24,13 @@ import {
 import type { SituacaoAnuncio } from '@/hooks/useConfig'
 import { useContas, useUpdateConta, useDeleteConta } from '@/hooks/useContas'
 import PedidosAcesso from '@/components/sections/PedidosAcesso'
-import { RedefinirSenhaBotao } from '@/components/sections/SenhaConta'
+import SetoresConfig from '@/components/sections/SetoresConfig'
 import { useCargosPermissao } from '@/hooks/useCargosPermissao'
 import PermissoesEditor from '@/components/sections/PermissoesEditor'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import GlowCard from '@/components/ui/GlowCard'
 import HudButton from '@/components/ui/HudButton'
-import LoadingHud from '@/components/ui/LoadingHud'
 import LogoUploader from '@/components/ui/LogoUploader'
 import DragHandle from '@/components/ui/DragHandle'
 import { usePerms } from '@/hooks/usePerms'
@@ -45,6 +44,7 @@ const TABS = [
   { id: 'qrus',       label: 'QRUs',           icon: Radio,    minNivel: 'moderador' },
   { id: 'anuncios',   label: 'Anúncios',       icon: Megaphone, minNivel: 'moderador' },
   { id: 'recrutamento', label: 'Recrutamento', icon: UserPlus, minNivel: 'moderador' },
+  { id: 'setores',    label: 'Setores',        icon: Layers,   minNivel: 'admin' },
   { id: 'solicitacoes', label: 'Solicitações', icon: Inbox,    minNivel: 'admin' },
   { id: 'permissoes', label: 'Permissões',     icon: ShieldCheck, minNivel: 'admin' },
   { id: 'contas',     label: 'Contas',         icon: Users,    minNivel: 'admin' },
@@ -107,9 +107,9 @@ function ListEditor({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  useEffect(() => {
-    setLocalItems(items)
-  }, [items])
+  // Lista nova vinda do servidor → substitui a cópia local (ajuste durante a renderização, sem efeito)
+  const [itensAnteriores, setItensAnteriores] = useState(items)
+  if (items !== itensAnteriores) { setItensAnteriores(items); setLocalItems(items) }
 
   // ID por ocorrência (nome + nº da repetição): itens com o mesmo nome continuam distintos
   const ids = useMemo(() => {
@@ -367,7 +367,8 @@ export default function ConfiguracoesPage() {
   const { user } = useAuthStore()
   const { admin: isAdmin, dev: souDev } = usePerms()
   const { addToast } = useUIStore()
-  const [activeTab, setActiveTab] = useState('logo')
+  const [params] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => TABS.some(t => t.id === params.get('aba')) ? params.get('aba')! : 'logo')
 
   // A página inteira é admin-only (protegida na rota) — todas as abas ficam visíveis.
   const visibleTabs = TABS
@@ -424,7 +425,7 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-4">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8 space-y-4">
       {/* Tabs */}
       <GlowCard>
         <div className="p-3 flex gap-1 flex-wrap">
@@ -443,7 +444,7 @@ export default function ConfiguracoesPage() {
                 <Icon size={13} />
                 {tab.label}
                 {tab.id === 'solicitacoes' && solicitacoes.length > 0 && (
-                  <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-gold text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="ml-0.5 min-w-4 h-4 px-1 rounded-full bg-gold text-white text-[10px] font-bold flex items-center justify-center">
                     {solicitacoes.length}
                   </span>
                 )}
@@ -556,6 +557,9 @@ export default function ConfiguracoesPage() {
             </div>
           )}
 
+          {/* Setores / subunidades (COD, DNARC…) com os cargos do Discord */}
+          {activeTab === 'setores' && <SetoresConfig />}
+
           {/* Solicitações de cadastro (admin only) */}
           {activeTab === 'solicitacoes' && (
             <div className="space-y-4">
@@ -576,7 +580,7 @@ export default function ConfiguracoesPage() {
                     const cargoSel = cargoPorSol[sol.id] ?? cargoPadraoId ?? ''
                     return (
                       <div key={sol.id} className="flex flex-wrap items-center gap-3 px-4 py-3 bg-card2 border border-bdr rounded-lg">
-                        <div className="flex-1 min-w-[180px]">
+                        <div className="flex-1 min-w-45">
                           <p className="text-sm text-txt font-medium">{sol.nomeServidor ?? sol.username}</p>
                           <p className="font-mono text-[11px] text-txt3 flex items-center gap-2">
                             <span className="text-gold3">@{sol.username}</span>
@@ -641,10 +645,10 @@ export default function ConfiguracoesPage() {
             <div className="space-y-4">
               <div>
                 <h3 className="font-orbitron text-xs text-gold tracking-wider mb-1">CONTAS DE ACESSO</h3>
-                <p className="text-[11px] text-txt3">Contas são criadas ao aprovar um pedido de acesso. Use a chave para redefinir a senha de quem esqueceu.</p>
+                <p className="text-[11px] text-txt3">Contas são criadas ao aprovar um pedido de acesso e entram só pelo Discord. Quem sai do servidor do Discord é exonerado automaticamente.</p>
               </div>
               <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-160">
                 <thead>
                   <tr className="border-b border-bdr">
                     {['Usuário', 'Nome', 'Cargo de permissão', 'Status', 'Ações'].map(h => (
@@ -661,7 +665,7 @@ export default function ConfiguracoesPage() {
                         {conta.exonerado && <span title={conta.exoneradoMotivo} className="ml-2 px-1.5 py-0.5 rounded bg-red/15 border border-red/40 text-red text-[9px] font-mono">EXONERADO</span>}
                       </td>
                       <td className="px-3 py-2.5 font-mono text-xs text-txt2">
-                        {conta.nomeServidor ?? conta.discordUsername ?? <span className="text-txt3">—</span>}
+                        {conta.nome ?? conta.nomeServidor ?? conta.discordUsername ?? <span className="text-txt3">—</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         <select
@@ -681,7 +685,7 @@ export default function ConfiguracoesPage() {
                           onClick={async () => {
                             if (conta.exonerado && !(await confirmar({
                               titulo: 'Readmitir membro',
-                              mensagem: `Readmitir ${conta.nomeServidor ?? conta.username}? A exoneração é retirada e a pessoa refaz o cadastro.`,
+                              mensagem: `Readmitir ${conta.nome ?? conta.nomeServidor ?? conta.username}? A exoneração é retirada e a pessoa refaz o cadastro.`,
                               detalhes: conta.exoneradoMotivo ? [{ label: 'Exonerado por', valor: conta.exoneradoMotivo }] : undefined,
                               tom: 'sucesso',
                               textoConfirmar: 'Readmitir',
@@ -699,13 +703,10 @@ export default function ConfiguracoesPage() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-3">
-                        {(conta.id !== 1 || user?.contaId === 1) && conta.id !== user?.contaId && (
-                          <RedefinirSenhaBotao contaId={conta.id} nome={conta.nomeServidor ?? conta.username} />
-                        )}
                         {conta.id !== user?.contaId && (
                           <button
                             onClick={async () => {
-                              if (!(await confirmar({ titulo: 'Excluir conta', mensagem: `Excluir a conta ${conta.nomeServidor ?? conta.username}? Esta ação não pode ser desfeita.`, tom: 'perigo', textoConfirmar: 'Excluir' }))) return
+                              if (!(await confirmar({ titulo: 'Excluir conta', mensagem: `Excluir a conta ${conta.nome ?? conta.nomeServidor ?? conta.username}? Esta ação não pode ser desfeita.`, tom: 'perigo', textoConfirmar: 'Excluir' }))) return
                               deleteConta.mutate(conta.id)
                             }}
                             className="text-txt3 hover:text-red transition-colors"

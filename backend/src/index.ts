@@ -8,16 +8,19 @@ import cors from 'cors'
 import hpp from 'hpp'
 import { securityHeaders, permissionsPolicy, apiHeaders, forcarHttps } from './middleware/securityHeaders'
 import {
-  globalLimiter, apiLimiter, mutationLimiter, uploadLimiter, arquivoLimiter, publicLimiter, rankingLimiter, backupLimiter, revisaoLimiter,
+  globalLimiter, apiLimiter, mutationLimiter, uploadLimiter, arquivoLimiter, publicLimiter, rankingLimiter, backupLimiter, revisaoLimiter, fotoLimiter,
 } from './middleware/rateLimiter'
 import { sanitizeBody } from './middleware/sanitize'
 import { audit } from './security/audit'
 import { firewall, registrarInfracao, PONTOS } from './security/firewall'
 import { iniciarPersistenciaRevogacoes, encerrarPersistenciaRevogacoes } from './security/tokenBlacklist'
-import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureFastPermissionRoles } from './data'
+import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureDuPermissionRoles, migrarPatentesParaDpd } from './data'
+import { criptografiaDisponivel } from './security/crypto'
+import { gravarAtomico, PASTA_DADOS } from './armazenamento'
 import { verificarAusencias } from './efetivo'
 import { iniciarBackupAutomatico } from './backupAutomatico'
 import { limparNotificacoesAntigas } from './notificacoes'
+import { discordConfig, verificarSaidasDoServidor } from './discord'
 import { readData as lerDados, writeData as gravarDados } from './data'
 import authRoutes from './routes/auth'
 import publicRoutes from './routes/public'
@@ -35,7 +38,18 @@ import arquivosRoutes from './routes/arquivos'
 import relatoriosRoutes from './routes/relatorios'
 import boletinsRoutes from './routes/boletins'
 import inqueritosRoutes from './routes/inqueritos'
+import arvoresRoutes from './routes/arvores'
 import galeriaRoutes from './routes/galeria'
+import hierarquiaRoutes from './routes/hierarquia'
+import servidorRoutes from './routes/servidor'
+import setagemRoutes from './routes/setagem'
+import carteiraRoutes from './routes/carteira'
+import logsRoutes from './routes/logs'
+import protocoloRoutes from './routes/protocolo'
+import { iniciarLogs } from './logs'
+import { publicarSetagem, tratarInteracao, vincularContasAoEfetivo, cadastrarPatentesESetores, atualizarPatentesDu } from './setagem'
+import { iniciarGateway } from './discord'
+import { iniciarPainelHierarquia } from './hierarquia'
 import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPublica } from './routes/anuncioImagem'
 
 const app = express()
@@ -71,7 +85,7 @@ if (!PROD) {
 // Corpo grande só nas rotas de upload; o resto fica limitado (evita abuso de memória/CPU)
 const jsonGrande = express.json({ limit: '5mb' })
 const jsonPadrao = express.json({ limit: '200kb' })
-const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|anuncio\/imagem)(\/|$)/
+const ROTAS_UPLOAD = /^\/api\/(auth\/me\/(avatar|banner)|config\/(logo|restore)|fardamentos|anuncio\/imagem|hierarquia|setagem|carteira|protocolo)(\/|$)/
 app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? jsonGrande : jsonPadrao)(req, res, next))
 app.use(hpp())
 
@@ -84,11 +98,13 @@ app.use('/api', apiHeaders)
 // para não banir quem abre várias abas ou divide IP (CGNAT)
 // originalUrl: dentro de app.use('/api') o req.path é relativo ao ponto de montagem
 const ehRevisao = (req: Request) => req.method === 'GET' && req.originalUrl.split('?')[0] === '/api/public/revisao'
-app.use((req, res, next) => (ehRevisao(req) ? revisaoLimiter(req, res, next) : next()))
-app.use('/api', (req, res, next) => (ehRevisao(req) ? next() : apiLimiter(req, res, next)))
+// Fotos dos membros (link opaco): limite próprio, fora dos limites geral/público (listas com muitas fotos)
+const ehFoto = (req: Request) => req.method === 'GET' && /^\/api\/public\/foto\/[A-Za-z0-9_-]{22}$/.test(req.originalUrl.split('?')[0])
+app.use((req, res, next) => (ehRevisao(req) ? revisaoLimiter(req, res, next) : ehFoto(req) ? fotoLimiter(req, res, next) : next()))
+app.use('/api', (req, res, next) => (ehRevisao(req) || ehFoto(req) ? next() : apiLimiter(req, res, next)))
 app.use('/api', mutationLimiter) // só POST/PUT/PATCH/DELETE
 app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? uploadLimiter(req, res, next) : next()))
-app.use('/api/public', (req, res, next) => (ehRevisao(req) ? next() : publicLimiter(req, res, next))) // inclui /api/public/directory
+app.use('/api/public', (req, res, next) => (ehRevisao(req) || ehFoto(req) ? next() : publicLimiter(req, res, next))) // inclui /api/public/directory
 app.use('/api/ranking', rankingLimiter)
 app.use('/api/config/backup', backupLimiter)
 // Envio de arquivos (corpo cru de até 10 MB, parser só na própria rota)
@@ -111,7 +127,14 @@ app.use('/api/arquivos', arquivosRoutes)
 app.use('/api/relatorios', relatoriosRoutes)
 app.use('/api/boletins', boletinsRoutes)
 app.use('/api/inqueritos', inqueritosRoutes)
+app.use('/api/arvores', arvoresRoutes)
 app.use('/api/galeria', galeriaRoutes)
+app.use('/api/hierarquia', hierarquiaRoutes)
+app.use('/api/servidor', servidorRoutes)
+app.use('/api/setagem', setagemRoutes)
+app.use('/api/carteira', carteiraRoutes)
+app.use('/api/logs', logsRoutes)
+app.use('/api/protocolo', protocoloRoutes)
 
 // Link público das fotos do Gerar anúncio (o jogo abre sem login; limite: globalLimiter)
 app.use('/img', anuncioImagemPublica)
@@ -205,9 +228,21 @@ async function iniciar(): Promise<void> {
   ensureDefaultAdmin()
   ensureNivelMigration()
   iniciarBackupAutomatico()   // backup criptografado agora e a cada 24 h
-  ensureFastPermissionRoles()
+  // Patentes no formato DPD (uma vez, depois do backup acima; sem chave de backup, guarda uma cópia simples antes)
+  if (migrarPatentesParaDpd(conteudo => { if (!criptografiaDisponivel()) gravarAtomico(path.join(PASTA_DADOS, `antes-dpd-${Date.now()}.json`), conteudo) })) {
+    console.log('[DU][DADOS] Patentes convertidas para DPD (backup feito antes).')
+  }
+  ensureDuPermissionRoles()
+  iniciarLogs()   // logs do painel: eventos do site na hora; registro de auditoria do Discord a cada 1 min
+  // Vínculo conta ↔ efetivo: conta aprovada sem ficha em Membros ganha a sua (depois do backup acima)
+  // Patentes da DU e setores iniciais (uma vez, depois do backup acima)
+  { const d = lerDados(); if (atualizarPatentesDu(d)) { gravarDados(d); console.log('[DU][DADOS] Patentes da DU atualizadas (Supervisor of Detectives).') } }
+  { const d = lerDados(); if (cadastrarPatentesESetores(d)) { gravarDados(d); console.log('[DU][DADOS] Patentes da DU e setores (COD, DNARC, COD/DNARC) cadastrados.') } }
+  { const d = lerDados(); const n = vincularContasAoEfetivo(d); if (n) { gravarDados(d); console.log(`[DU][DADOS] ${n} conta(s) aprovada(s) vinculada(s) ao efetivo.`) } }
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[DU] Sistema rodando em http://0.0.0.0:${PORT} (porta ${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
+    console.log(`[DU] Sistema rodando na porta ${PORT} (${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
+    const publica = process.env.PUBLIC_URL?.trim().replace(/\/+$/, '')
+    console.log(`[DU] ➜  Abra no navegador: ${PROD && publica ? publica : `http://localhost:${PORT}`}`)
     console.log(`[DU] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
 
@@ -219,12 +254,42 @@ async function iniciar(): Promise<void> {
   }
   rotina()
   setInterval(rotina, 60_000)
+
+  // Saída do servidor do Discord → exoneração automática (consulta pelo bot, a cada N minutos)
+  if (discordConfig()) {
+    const minutos = Math.min(Math.max(parseInt(process.env.DISCORD_VERIFICAR_MINUTOS ?? '', 10) || 3, 1), 60)
+    const verificar = () => { verificarSaidasDoServidor().catch(() => console.error('[DU] verificação do servidor do Discord falhou')) }
+    setTimeout(verificar, 15_000).unref()
+    setInterval(verificar, minutos * 60_000).unref()
+    iniciarPainelHierarquia()   // painel de hierarquia no Discord (a cada 1 min)
+    // Setagem: painel com botão (republica a cada 10 min se alguém apagar) + cliques pelo Gateway.
+    // DISCORD_INTERACOES=off desliga os botões nesta instância (só UMA instância deve responder por bot).
+    setTimeout(() => { void publicarSetagem(true) }, 25_000).unref()
+    setInterval(() => { void publicarSetagem(true) }, 10 * 60_000).unref()
+    if (!/^(off|false|0)$/i.test(process.env.DISCORD_INTERACOES?.trim() ?? '')) {
+      const cfgDiscord = discordConfig()!
+      iniciarGateway(cfgDiscord, i => { tratarInteracao(i).catch(() => console.error('[DU] falha ao tratar interação da setagem')) })
+      console.log('[DU] Conectando o bot ao Discord (botões da setagem)…')
+    }
+  } else {
+    console.warn('[DU][ATENÇÃO] Login pelo Discord não configurado (variáveis DISCORD_* do .env.example) — ninguém consegue entrar.')
+  }
 }
 
 // Desligamento limpo: grava o que estiver pendente no arquivo de dados.
 for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(sinal, () => { Promise.allSettled([closeData(), encerrarPersistenciaRevogacoes()]).finally(() => process.exit(0)) })
 }
+
+// Rede de segurança: uma promessa esquecida numa rotina (Discord fora, etc.) não derruba o site de todo mundo.
+// Só a mensagem vai para o log (o console já passa por redact()).
+const mensagemDoErro = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300)
+process.on('unhandledRejection', motivo => { console.error('[DU] Promessa rejeitada sem tratamento:', mensagemDoErro(motivo)) })
+// Erro fatal de verdade: grava os dados pendentes antes de sair (a hospedagem reinicia o processo)
+process.once('uncaughtException', err => {
+  console.error('[DU] Erro fatal:', mensagemDoErro(err))
+  Promise.allSettled([closeData(), encerrarPersistenciaRevogacoes()]).finally(() => process.exit(1))
+})
 
 iniciar().catch(err => {
   console.error('[DU] Erro ao inicializar:', err instanceof Error ? err.message : err)

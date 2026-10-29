@@ -4,11 +4,12 @@ import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, acaoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
 import { Acao, ParticipanteAcao } from '../types'
 import { notificar, notificarAprovadores } from '../notificacoes'
 import { contaDoMembro } from '../efetivo'
 import { tipoDoQru } from '../qrus'
+import { nomeDaConta, nomeDoMembro } from '../registros'
 
 /** Saída da API: sem IDs de servidor/bot/tópico e sem discordId dos participantes. */
 function acaoPublica(acao: Acao) {
@@ -29,7 +30,7 @@ router.get('/export/csv', requireAuth, requireArea('historico', 'ver'), (_req: R
     const membersStr = acao.participants
       .map(p => {
         const m = membroMap.get(p.memberId)
-        return m ? `${p.patenteUnidade} ${m.policial}` : `ID:${p.memberId}`
+        return m ? `${p.patenteUnidade} ${nomeDoMembro(data, m)}` : `ID:${p.memberId}`
       })
       .join(' | ')
 
@@ -96,7 +97,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
 
   const participants: ParticipanteAcao[] = [...body.participants]
   const autor = data.contas.find(c => c.id === req.user!.contaId)!
-  const responsavel = autor.nomeServidor || autor.discordUsername || autor.username
+  const responsavel = nomeDaConta(data, autor.id)
   const novaAcao: Acao = {
     id: data.nextAcId,
     data: body.data,
@@ -117,7 +118,7 @@ router.post('/', requireAuth, requireArea('registrar_acao', 'editar'), validateB
   notificar(data, req.user!.contaId, 'solicitacao', 'Apreensão enviada',
     `Sua apreensão (${novaAcao.qru}) foi enviada. Você está aguardando a aprovação.`, '/acoes/historico')
   notificarAprovadores(data, 'pendentes', undefined, req.user!.contaId, 'pendente_aprovacao', 'Apreensão aguardando aprovação',
-    `${req.user!.username} registrou uma apreensão (${novaAcao.qru}).`, '/acoes/pendentes')
+    `${nomeDaConta(peekData(), req.user!.contaId)} registrou uma apreensão (${novaAcao.qru}).`, '/acoes/pendentes')
   writeData(data)
 
   audit('ACAO_CREATED', req, `ID: ${novaAcao.id} | QRU: ${novaAcao.qru} | ${novaAcao.resultado ?? 'convencional'} | PENDENTE`)
@@ -141,14 +142,14 @@ router.put('/:id/aprovar', requireAuth, requireArea('pendentes', 'editar'), (req
   if (!jaAprovada) acao.aprovadaEm = new Date().toISOString()
   if (!jaAprovada) {
     notificar(data, acao.criadoPorContaId, 'aprovada', 'Apreensão aprovada',
-      `Sua apreensão (${acao.qru}) foi aprovada por ${req.user!.username} e enviada ao canal de apreensões.`, '/acoes/historico')
+      `Sua apreensão (${acao.qru}) foi aprovada por ${nomeDaConta(peekData(), req.user!.contaId)} e enviada ao canal de apreensões.`, '/acoes/historico')
     const avisados = new Set<number | undefined>([acao.criadoPorContaId])
     for (const p of acao.participants) {
       const contaId = contaDoMembro(data, p.memberId)?.id
       if (!contaId || avisados.has(contaId)) continue
       avisados.add(contaId)
       notificar(data, contaId, 'apreensao', `Apreensão registrada · BO Nº ${acao.id}`,
-        `Você participou da apreensão ${acao.qru}${acao.resultado ? ` (${acao.resultado})` : ''}, aprovada por ${req.user!.username}.`, '/acoes/historico')
+        `Você participou da apreensão ${acao.qru}${acao.resultado ? ` (${acao.resultado})` : ''}, aprovada por ${nomeDaConta(peekData(), req.user!.contaId)}.`, '/acoes/historico')
     }
   }
   writeData(data)
@@ -169,7 +170,7 @@ router.delete('/:id', requireAuth, requireArea('pendentes', 'editar'), (req: Req
   data.acoes.splice(idx, 1)
   if (removida.status === 'pendente') {
     notificar(data, removida.criadoPorContaId, 'recusada', 'Apreensão recusada',
-      `Sua apreensão (${removida.qru}) foi recusada por ${req.user!.username}.`, '/acoes/historico')
+      `Sua apreensão (${removida.qru}) foi recusada por ${nomeDaConta(peekData(), req.user!.contaId)}.`, '/acoes/historico')
   }
   writeData(data)
 

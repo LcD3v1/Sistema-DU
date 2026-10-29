@@ -1,6 +1,6 @@
 /** Faixa fixa indicando o ambiente de TESTE LOCAL (não aparece em produção). */
 export default function FaixaAmbiente() {
-  const ambiente = document.querySelector('meta[name="fast-ambiente"]')?.getAttribute('content')
+  const ambiente = document.querySelector('meta[name="du-ambiente"]')?.getAttribute('content')
   if (ambiente !== 'local') return null
   return (
     <div className="fixed top-0 inset-x-0 z-9999 pointer-events-none flex justify-center">

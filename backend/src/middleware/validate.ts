@@ -61,7 +61,7 @@ export const membroSchema = z.object({
   badge:          safeStrOpt(20).default(''),
   passaporte:     safeStrOpt(20).default(''),
   policial:       safeStr(1, 100),
-  patenteNPD:     safeStrOpt(50).default(''),
+  patenteDPD:     safeStrOpt(50).default(''),
   patenteInterna: safeStrOpt(50).default(''),
   codinome:       safeStrOpt(40).default(''),
   status:         z.enum(['Ativo', 'Inativo', 'Ausência']).default('Ativo'),
@@ -77,9 +77,10 @@ export const membroUpdateSchema = z.object({
   badge:          safeStrOpt(20).optional(),
   passaporte:     safeStrOpt(20).optional(),
   policial:       safeStr(1, 100).optional(),
-  patenteNPD:     safeStrOpt(50).optional(),
+  patenteDPD:     safeStrOpt(50).optional(),
   patenteInterna: safeStrOpt(50).optional(),
   codinome:       safeStrOpt(40).optional(),
+  setor:          safeStrOpt(40).optional(),
   status:         z.enum(['Ativo', 'Inativo', 'Ausência']).optional(),
   entrada:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   promocao:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -153,7 +154,7 @@ export const onboardingSchema = z.object({
   policial:       safeStr(1, 100),
   badge:          safeStrOpt(20).default(''),
   passaporte:     safeStrOpt(20).default(''),
-  patenteNPD:     safeStrOpt(50).default(''),
+  patenteDPD:     safeStrOpt(50).default(''),
   patenteInterna: safeStrOpt(50).default(''),
   codinome:       safeStrOpt(40).default(''),
 })
@@ -163,9 +164,10 @@ export const membroSelfSchema = z.object({
   policial:       safeStr(1, 100).optional(),
   badge:          safeStrOpt(20).optional(),
   passaporte:     safeStrOpt(20).optional(),
-  patenteNPD:     safeStrOpt(50).optional(),
+  patenteDPD:     safeStrOpt(50).optional(),
   patenteInterna: safeStrOpt(50).optional(),
   codinome:       safeStrOpt(40).optional(),
+  setor:          safeStrOpt(40).optional(),
 }).refine(b => Object.keys(b).filter(k => b[k as keyof typeof b] !== undefined).length > 0, {
   message: 'Nenhum campo fornecido',
 })
@@ -327,7 +329,8 @@ export const logoSchema = z.object({
     .min(1)
     .max(2_900_000, 'Logo excede 2MB')
     .refine(
-      s => /^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(s) || s.startsWith('<svg'),
+      // Só PNG/JPEG/WEBP (o site converte qualquer imagem/PDF antes); SVG não — pode carregar script
+      s => /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(s),
       'Formato de imagem inválido',
     ),
 })
@@ -406,6 +409,11 @@ export const recusarSchema = z.object({
   motivo: safeStrOpt(300).optional(),
 })
 
+// Pedido de set: reprovar (motivo opcional) ou pedir para refazer (motivo obrigatório) pelo site
+// Sem corpo (cliente antigo) = sem motivo
+export const reprovarAcessoSchema = z.preprocess(v => v ?? {}, z.object({ motivo: safeStrOpt(500).optional() }).strict())
+export const corrigirAcessoSchema = z.object({ motivo: safeStr(3, 500) }).strict()
+
 export const nivelInicialSchema = z.object({ nivel: nivelSchema })
 
 // Personalização do perfil (dados públicos): links http/https e emojis de verdade
@@ -428,33 +436,167 @@ export const anuncioImagemSchema = z.object({
 // Aceite dos termos: só a versão vigente é aceita (evita aceitar texto antigo)
 export const termosAceiteSchema = z.object({ versao: z.string().regex(/^\d{4}-\d{2}-\d{2}(-\d{1,3})?$/) }).strict()
 
-// ── Acesso por usuário e senha (igual ao Sistema Tática) ─────────────────────
-const usuarioLogin = z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/, 'Usuário só pode ter letras, números, ponto, hífen e sublinhado')
-const senhaNova = z.string().min(8, 'A senha precisa de pelo menos 8 caracteres').max(128)
-
-export const loginSchema = z.object({
-  username: z.string().trim().min(1).max(32),
-  password: z.string().min(1).max(128),
-}).strict()
-
-export const solicitarAcessoSchema = z.object({
-  username: usuarioLogin,
-  password: senhaNova,
-  nome:     safeStr(2, 60),
-}).strict()
-
-export const trocarSenhaSchema = z.object({
-  senhaAtual: z.string().min(1).max(128),
-  novaSenha:  senhaNova,
-}).strict()
-
+// ── Pedidos de acesso (criados no primeiro login pelo Discord) ───────────────
 export const aprovarAcessoSchema = z.object({
   cargoPermId: z.number().int().positive().nullable().optional(),
 }).strict()
-
-export const redefinirSenhaSchema = z.object({ novaSenha: senhaNova }).strict()
 
 // Foto, fundo e vínculo do próprio perfil (o conteúdo da imagem é conferido na rota por imagemValida)
 export const avatarSchema = z.object({ avatar: z.string().max(2_500_000).nullable() }).strict()
 export const bannerSchema = z.object({ banner: z.string().max(3_500_000).nullable() }).strict()
 export const vincularMembroSchema = z.object({ membroId: z.number().int().positive().nullable() }).strict()
+
+// Restauração de backup: confere a forma mínima (listas de objetos com ID inteiro, contas com
+// usuário); o resto do arquivo passa como está. Só dev restaura (requireDev na rota).
+const registroComId = z.looseObject({ id: z.number().int().positive() })
+export const restoreSchema = z.looseObject({
+  membros: z.array(registroComId).max(20_000),
+  acoes:   z.array(registroComId).max(200_000),
+  contas:  z.array(z.looseObject({
+    id:       z.number().int().positive(),
+    username: z.string().trim().min(1).max(32),
+    password: z.unknown().optional(),
+  })).min(1).max(20_000),
+})
+
+// ── Protocolo (livro) ────────────────────────────────────────────────────────
+// Só flipbook do Heyzine: é o único site que a CSP deixa embutir (frame-src)
+export const FLIPBOOK_HEYZINE = /^https:\/\/heyzine\.com\/flip-book\/[A-Za-z0-9_-]{3,80}(\.html)?$/
+// (protocoloSchema fica depois de imagensPainelSchema, que ele usa)
+
+// ── Painel de hierarquia (Discord) ───────────────────────────────────────────
+const idDiscord = z.string().regex(/^\d{17,20}$/, 'ID do Discord inválido')
+// "Logo" do cargo: um emoji (ou emoji do servidor <:nome:id>). Sem menções nem formatação.
+const emojiCargo = z.string().trim().max(64)
+  .regex(/^(<a?:\w{2,32}:\d{17,20}>|[^\s<>@`*_~|\\#]{1,16})$/u, 'Use um emoji')
+// Imagens soltas num painel V2: posição conhecida + upload (bytes conferidos na rota) ou link. Até 4.
+const imagensPainelSchema = z.array(z.object({
+  posicao: z.string().regex(/^(topo|titulo|passos|texto|botao|fim|cargo:\d{17,20})$/, 'Posição de imagem inválida'),
+  url:     z.string().trim().min(1).max(1_500_000),
+  lado:    z.enum(['esquerda', 'direita']).nullable().optional(),   // null/ausente = largura toda
+}).strict()).max(4, 'No máximo 4 imagens por painel').optional()
+
+export const protocoloSchema = z.object({
+  flipbook: z.string().trim().max(200).regex(FLIPBOOK_HEYZINE, 'Use um link de flipbook do Heyzine (https://heyzine.com/flip-book/…)'),
+  secoes:   z.array(safeStr(1, 40)).max(30),
+  // Painel no Discord (opcional): canal, texto curto e imagens nas posições
+  canalId:   idDiscord.nullable().optional(),
+  descricao: z.string().trim().max(500).regex(/^[^@`]*$/, 'Mensagem com caractere não permitido').nullable().optional(),
+  imagens:   imagensPainelSchema,
+}).strict()
+
+export const hierarquiaSchema = z.object({
+  imagens: imagensPainelSchema,
+  titulo: safeStr(1, 100),
+  // Imagens: upload (data URL, conferido pelos bytes na rota) ou link http/https — opcionais
+  logo:        z.string().trim().max(1_500_000).nullable(),
+  rodapeIcone: z.string().trim().max(1_500_000).nullable(),
+  rodapeTexto: z.string().trim().max(100).nullable(),
+  canalId: idDiscord.nullable(),
+  cargos: z.array(z.object({
+    roleId: idDiscord,
+    nome:   safeStr(1, 60),
+    emoji:  emojiCargo.nullable().optional(),
+  }).strict()).max(25),
+  versao: z.number().int().min(0),   // controle de edição simultânea
+}).strict()
+// Nova hierarquia (painel extra): só o nome; o resto é configurado depois, como no principal
+export const novaHierarquiaSchema = z.object({ titulo: safeStr(1, 100) }).strict()
+
+// ── Setagem (pedido de set pelo Discord) ─────────────────────────────────────
+// Prefixo do apelido: curto, sem menção/formatação do Discord
+const prefixoSetagem = z.string().trim().min(1).max(12).regex(/^[^@`*_~|\\<>#\n]+$/, 'Prefixo com caractere não permitido')
+export const setagemSchema = z.object({
+  imagens:       imagensPainelSchema,
+  titulo:        safeStr(1, 45),
+  descricao:     z.string().trim().max(500).nullable(),
+  categoriaId:   idDiscord.nullable(),          // onde os canais temporários dos pedidos são criados
+  canalId:       idDiscord.nullable(),          // canal do painel
+  aprovadores:   z.array(idDiscord).max(15),    // cargos do Discord que aprovam/reprovam/pedem correção
+  // Imagem do rodapé (à direita): upload (conferido pelos bytes na rota) ou link http/https
+  imagem:        z.string().trim().max(1_500_000).nullable(),
+  rodapeTexto:   z.string().trim().max(100).regex(/^[^@`\n]*$/, 'Texto do rodapé com caractere não permitido').nullable(),
+  patentes: z.array(z.object({
+    id:          z.number().int().positive().nullable(),   // null = patente nova
+    nome:        safeStr(1, 60),
+    prefixo:     prefixoSetagem,
+    // Até 2 cargos do Discord por patente (sem repetir)
+    roleIds:     z.array(idDiscord).max(2, 'No máximo 2 cargos por patente')
+      .refine(r => new Set(r).size === r.length, 'Cargo repetido na patente'),
+    cargoPermId: z.number().int().positive().nullable(),
+  }).strict()).max(25),
+  // Cargos do Discord das advertências ADV 1, 2 e 3 (vazio = criado automaticamente)
+  advertencias:  z.array(idDiscord.or(z.literal(''))).max(3).optional(),
+  versao: z.number().int().min(0),
+}).strict()
+
+// Setores / subunidades (Configurações → Setores): nome e 1–2 cargos do Discord
+export const setoresSchema = z.object({
+  setores: z.array(z.object({
+    id:      z.number().int().positive().nullable(),
+    nome:    z.string().trim().min(1).max(40).regex(/^[^@`<>#*_~|\n]+$/, 'Nome do setor com caractere não permitido'),
+    roleIds: z.array(idDiscord).max(2, 'No máximo 2 cargos por setor').refine(r => new Set(r).size === r.length, 'Cargo repetido no setor'),
+  }).strict()).max(25),
+  versao: z.number().int().min(0),
+}).strict()
+
+// ── Árvore de investigação ──────────────────────────────────────────────────
+const textoArvore = (max: number) => safeStrOpt(max).refine(s => !/[<>`]/.test(s), 'Caractere não permitido').default('')
+const coord = z.number().finite().min(-20000).max(20000)
+const fotoArvore = z.union([
+  z.object({ arquivo: z.string().regex(/^[A-Za-z0-9_-]{24}$/) }).strict(),
+  z.object({ url: z.string().trim().max(MAX_URL_IMAGEM).refine(ehLinkImagem, 'Link de imagem inválido (use http/https)') }).strict(),
+])
+const ladoArvore = z.enum(['cima', 'direita', 'baixo', 'esquerda'])
+export const arvoreSchema = z.object({
+  nome:        safeStr(1, 60).refine(s => !/[<>`]/.test(s), 'Caractere não permitido'),
+  descricao:   textoArvore(500),
+  inqueritoId: z.number().int().positive().nullable(),
+  // Quem trabalha na árvore (além de quem criou); admins veem todas
+  participantes: z.array(z.number().int().positive()).max(30, 'No máximo 30 pessoas por árvore').optional(),
+}).strict()
+// Campos do card SEM valor padrão: o parcial (mover/editar) nunca apaga o que não veio
+const textoLivre = (max: number) => safeStrOpt(max).refine(s => !/[<>`]/.test(s), 'Caractere não permitido')
+const camposNo = {
+  x: coord, y: coord,
+  nome: textoLivre(80), apelido: textoLivre(60), funcao: textoLivre(60), faccao: textoLivre(60),
+  telefone: safeStrOpt(25).refine(s => /^[0-9+()\s.-]*$/.test(s), 'Telefone: só números, espaço, +, (, ), - e .'),
+  endereco: textoLivre(120), veiculo: textoLivre(80), status: textoLivre(40), observacoes: textoLivre(2000),
+  foto: fotoArvore.nullable(),
+  fotos: z.array(fotoArvore).max(12, 'No máximo 12 fotos extras'),
+}
+export const noArvoreSchema = z.object({
+  ...camposNo,
+  nome: camposNo.nome.default(''), apelido: camposNo.apelido.default(''), funcao: camposNo.funcao.default(''), faccao: camposNo.faccao.default(''),
+  telefone: camposNo.telefone.default(''), endereco: camposNo.endereco.default(''), veiculo: camposNo.veiculo.default(''),
+  status: camposNo.status.default(''), observacoes: camposNo.observacoes.default(''),
+}).strict()
+export const noArvoreParcialSchema = z.object(camposNo).partial().strict().refine(b => Object.values(b).some(v => v !== undefined), 'Nenhum campo fornecido')
+const corLinha = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor inválida')
+const curva = z.object({ dx: coord, dy: coord }).strict().nullable()
+// Ponta da linha: card + lado OU outra linha + ponto (t de 0 a 1 ao longo dela)
+const idPonta = z.number().int().positive().nullable().default(null)
+const tLinha = z.number().finite().min(0).max(1).nullable().default(null)
+const pontaOk = (no: number | null, lado: string | null, lig: number | null, t: number | null) =>
+  (no === null) === (lado === null) && (lig === null) === (t === null) && (no !== null) !== (lig !== null)
+export const ligacaoArvoreSchema = z.object({
+  de: idPonta, deLado: ladoArvore.nullable().default(null), deLig: idPonta, deT: tLinha,
+  para: idPonta, paraLado: ladoArvore.nullable().default(null), paraLig: idPonta, paraT: tLinha,
+  cor: corLinha.default('#ffffff'), rotulo: textoArvore(40), curva: curva.default(null),
+}).strict().refine(b => pontaOk(b.de, b.deLado, b.deLig, b.deT) && pontaOk(b.para, b.paraLado, b.paraLig, b.paraT),
+  'Cada ponta da linha liga num card (com o lado) ou num ponto de outra linha')
+export const ligacaoArvoreParcialSchema = z.object({ cor: corLinha, rotulo: textoLivre(40), curva, deLado: ladoArvore, paraLado: ladoArvore })
+  .partial().strict().refine(b => Object.values(b).some(v => v !== undefined), 'Nenhum campo fornecido')
+// Chat: texto e/ou um anexo (foto enviada na área árvore ou link http/https)
+const linkVideo = z.object({ video: z.string().trim().max(MAX_URL_IMAGEM).refine(ehLinkImagem, 'Link de vídeo inválido (use http/https)') }).strict()
+export const mensagemArvoreSchema = z.object({ texto: safeStrOpt(1000).default(''), anexo: z.union([fotoArvore, linkVideo]).nullable().optional() }).strict()
+  .refine(b => b.texto.length > 0 || Boolean(b.anexo), 'Escreva uma mensagem ou anexe uma foto')
+
+// ── Carteirinha no fórum do Discord ──────────────────────────────────────────
+export const carteiraForumSchema = z.object({ canalId: idDiscord.nullable() }).strict()
+export const carteiraPostarSchema = z.object({
+  membroId: z.number().int().positive(),
+  imagem:   z.string().max(6_000_000),   // PNG em data URL (bytes conferidos na rota, até 4 MB)
+  // Tópico do fórum escolhido à mão (conferido na rota: tem de ser do fórum configurado); vazio = tópico do membro
+  topicoId: idDiscord.nullable().optional(),
+}).strict()

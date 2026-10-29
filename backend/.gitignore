@@ -4,3 +4,4 @@ dist/
 data.json
 serviceAccountKey.json
 *.log
+logs.json

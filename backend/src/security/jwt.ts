@@ -5,8 +5,8 @@
 import jwt, { SignOptions } from 'jsonwebtoken'
 import crypto from 'crypto'
 
-export const JWT_ISSUER = 'fast-api'
-export const JWT_AUDIENCE = 'fast-painel'
+export const JWT_ISSUER = 'du-api'
+export const JWT_AUDIENCE = 'du-painel'
 export const JWT_EXPIRACAO = '8h'
 const MAX_IDADE_S = 8 * 3600
 const TOLERANCIA_S = 30

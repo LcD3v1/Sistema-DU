@@ -116,7 +116,7 @@ export default function DashboardPage() {
 
   if (membrosLoading) return <LoadingHud />
 
-  const nomeExibido = me?.nomeServidor || user?.username || 'investigador'
+  const nomeExibido = me?.nome || me?.nomeServidor || user?.username || 'investigador'   // codinome (regra)
   const fotoExibida = me?.avatarAtual || null
   const meuMembro = membrosList.find(m => m.id === me?.membroId)
   const meuCargo = meuMembro?.cargoNome || (admin ? 'Acesso total' : 'Sem cargo')
@@ -128,12 +128,12 @@ export default function DashboardPage() {
   const inqAndamento = inq.filter(i => i.status === 'em_andamento').length
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-6 sm:space-y-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8 space-y-6 sm:space-y-8">
       {/* ── Cabeçalho com arte ─────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-bdr">
         <div aria-hidden className="absolute inset-0 bg-cover bg-[center_30%]" style={{ backgroundImage: 'url(/media/du/hero-dashboard.webp)' }} />
-        <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-bg via-bg/80 to-bg/20" />
-        <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-bg/90 via-transparent to-transparent" />
+        <div aria-hidden className="absolute inset-0 bg-linear-to-r from-bg via-bg/80 to-bg/20" />
+        <div aria-hidden className="absolute inset-0 bg-linear-to-t from-bg/90 via-transparent to-transparent" />
         <div className="relative flex items-end justify-between gap-4 flex-wrap px-5 sm:px-8 py-7 sm:py-10 min-h-48">
           <div className="flex items-center gap-4 min-w-0">
             <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 border-gold/60 bg-card2 overflow-hidden flex items-center justify-center text-gold3 text-lg font-semibold shrink-0 shadow-[0_0_30px_-6px_rgba(139,92,246,0.7)]">

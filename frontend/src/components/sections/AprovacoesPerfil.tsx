@@ -48,11 +48,11 @@ export default function AprovacoesPerfil() {
       <div className="divide-y divide-bdr/60">
         {lista.map(sp => (
           <div key={sp.id} className="flex flex-wrap items-start gap-4 px-4 py-3">
-            <div className="min-w-[160px]">
+            <div className="min-w-40">
               <p className="text-sm text-txt font-medium">{sp.membroNome}</p>
               <p className="text-[11px] font-mono text-txt3">{sp.solicitante ? `@${sp.solicitante} · ` : ''}{new Date(sp.criadoEm).toLocaleString('pt-BR')}</p>
             </div>
-            <div className="flex-1 min-w-0 sm:min-w-[220px] space-y-1">
+            <div className="flex-1 min-w-0 sm:min-w-55 space-y-1">
               {sp.alteracoes.map(a => (
                 <p key={a.campo} className="text-xs flex flex-wrap items-center gap-1.5">
                   <span className="font-mono text-txt3 w-24">{ROTULO_CAMPO[a.campo] ?? a.campo}</span>

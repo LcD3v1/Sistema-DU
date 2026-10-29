@@ -8,7 +8,7 @@ const PLATAFORMAS: { hosts: string[]; p: Plataforma }[] = [
   { hosts: ['twitch.tv'], p: { nome: 'Twitch', cor: '#9146ff', emoji: 'si:twitch' } },
   { hosts: ['youtube.com', 'youtu.be'], p: { nome: 'YouTube', cor: '#ff0000', emoji: 'si:youtube' } },
   { hosts: ['kick.com'], p: { nome: 'Kick', cor: '#53fc18', emoji: 'si:kick' } },
-  { hosts: ['discord.gg', 'discord.com'], p: { nome: 'Discord', cor: '#5865f2', emoji: 'si:discord' } },
+  { hosts: ['discord.gg', 'discord.com'], p: { nome: 'Discord', cor: '#8b5cf6', emoji: 'si:discord' } },
   { hosts: ['x.com', 'twitter.com'], p: { nome: 'X', cor: '#e7e9ea', emoji: 'si:x' } },
   { hosts: ['facebook.com', 'fb.com'], p: { nome: 'Facebook', cor: '#1877f2', emoji: 'si:facebook' } },
   { hosts: ['threads.net', 'threads.com'], p: { nome: 'Threads', cor: '#e7e9ea', emoji: 'si:threads' } },

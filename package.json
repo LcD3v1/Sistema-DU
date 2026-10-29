@@ -1,10 +1,11 @@
 {
-  "name": "unidade-fast",
+  "name": "detective-unit",
   "version": "1.0.0",
   "description": "DU — Detroit Police Department · Sistema de Gestão Operacional",
   "scripts": {
     "build": "npm run install:all && cd frontend && npm run build && cd ../backend && npm run build",
-    "start": "npm run build && cd backend && npm start",
+    "start": "npm run build && cd backend && npm run local",
+    "local": "npm run build && cd backend && npm run local",
     "start:shardcloud": "npm run build && cd backend && npm run start:shardcloud",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",

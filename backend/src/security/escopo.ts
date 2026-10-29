@@ -8,7 +8,7 @@ import { iguaisSeguro } from './crypto'
 
 export function escopoDoToken(scope: RankingScope | null | undefined): string | undefined {
   if (!scope) return undefined
-  return crypto.createHash('sha256').update('fast-escopo:' + scopeKey(scope)).digest('base64url').slice(0, 22)
+  return crypto.createHash('sha256').update('du-escopo:' + scopeKey(scope)).digest('base64url').slice(0, 22)
 }
 
 /**

@@ -32,6 +32,12 @@ const carregadores = {
   '/recrutamento/:id': () => import('@/components/sections/RecrutaCandidatoPage'),
   '/membros': () => import('@/components/sections/MembrosPage'),
   '/configuracoes': () => import('@/components/sections/ConfiguracoesPage'),
+  '/hierarquia': () => import('@/components/sections/HierarquiaPage'),
+  '/servidor': () => import('@/components/sections/ServidorPage'),
+  '/logs': () => import('@/components/sections/LogsPage'),
+  '/arvores': () => import('@/components/sections/ArvoresPage'),
+  '/arvores/:id': () => import('@/components/sections/ArvoreQuadroPage'),
+  '/setagem': () => import('@/components/sections/SetagemPage'),
 } satisfies Record<string, Loader>
 
 export type Rota = keyof typeof carregadores

@@ -40,7 +40,7 @@ export default function MemberProfile({ id, period, publicView, onClose }: {
         </header>
         {isPending ? <Skeleton /> : error ? <EmptyState text={errorMessage(error)} retry={() => void refetch()} /> : member && <>
           <div className="flex gap-4 items-center mb-6"><Avatar member={member} large /><div className="min-w-0">
-            <h3 className="text-2xl text-txt font-semibold break-words">{member.name}</h3>
+            <h3 className="text-2xl text-txt font-semibold wrap-break-word">{member.name}</h3>
             <p className="text-gold3 text-sm">{member.hierarchy}</p><p className="text-txt2 text-xs mt-1">{member.role}</p>
           </div></div>
           <dl className="grid grid-cols-2 gap-4 text-sm mb-6">
@@ -49,7 +49,7 @@ export default function MemberProfile({ id, period, publicView, onClose }: {
               ['ID interno', publicView ? member.badge || '—' : member.internalId || member.badge || '—'],
               ['Nível', member.level > 0 ? member.level : '—'], ['Entrada', formatDate(member.joinedAt)], ['Status', member.status],
               ['Posição', member.rank ? `${member.rank}º` : 'Sem classificação'],
-            ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-txt2 text-xs mb-1">{label}</dt><dd className="text-txt break-words">{value}</dd></div>)}
+            ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-txt2 text-xs mb-1">{label}</dt><dd className="text-txt wrap-break-word">{value}</dd></div>)}
           </dl>
           <div className="grid grid-cols-2 gap-3 mb-6">{[
             ['Vitórias', member.wins], ['Derrotas', member.losses], ['Win Rate', `${member.winRate}%`], ['Registros', member.records],

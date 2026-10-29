@@ -7,7 +7,7 @@ import { readData, writeData } from '../data'
 import { isAdmin } from '../access'
 import { conferirArquivos, sincronizarArquivos } from './arquivos'
 import { idDaRota, nomeDaConta, erroArquivos } from '../registros'
-import type { FastData, FotoGaleria } from '../types'
+import type { DuData, FotoGaleria } from '../types'
 
 /**
  * Galeria da DU — fotos de operações, atividades e registros da unidade.
@@ -19,7 +19,7 @@ const MAX_FOTOS = 3000
 
 const router = Router()
 
-function publico(f: FotoGaleria, contaId: number, data: FastData) {
+function publico(f: FotoGaleria, contaId: number, data: DuData) {
   const conta = data.contas.find(c => c.id === contaId)
   return {
     id: f.id, imagem: f.imagem, arquivo: f.arquivo ?? null, titulo: f.titulo, descricao: f.descricao,
@@ -62,7 +62,7 @@ router.put('/:id', requireAuth, requireArea('galeria', 'editar'), validateBody(f
   const foto = data.galeria.find(f => f.id === id)
   if (!foto) { res.status(404).json({ error: 'Foto não encontrada' }); return }
   if (!publico(foto, req.user!.contaId, data).podeEditar) { res.status(403).json({ error: 'Só quem publicou edita esta foto.' }); return }
-  const arquivos = await conferirArquivos(body.arquivo ? [body.arquivo] : [], 'galeria')
+  const arquivos = await conferirArquivos(body.arquivo ? [body.arquivo] : [], 'galeria', foto.arquivo ? [foto.arquivo.id] : [])
   if (!arquivos || (arquivos[0] && !arquivos[0].mime.startsWith('image/'))) { erroArquivos(res); return }
   const antes = foto.arquivo ? [foto.arquivo] : []
   Object.assign(foto, { imagem: body.imagem, titulo: body.titulo, descricao: body.descricao, categoria: body.categoria, data: body.data })

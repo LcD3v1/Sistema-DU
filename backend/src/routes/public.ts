@@ -6,8 +6,29 @@ import { calcularRanking } from '../apreensoes'
 import { contaDoMembro } from '../efetivo'
 import { imagemValida, ehLinkImagem } from '../security/imagem'
 import { ehLinkPerfil, ehEmoji } from '../security/perfil'
+import { fotoDaChave } from '../fotoPublica'
+import { imagemEnviada } from '../hierarquia'
+import { baixarFotoDiscord } from '../discord'
 
 const router = Router()
+
+// GET /api/public/foto/:chave — foto do membro pelo link opaco (fotoPublica.ts): o navegador nunca vê a
+// URL do CDN do Discord (que leva o ID do servidor e da pessoa). Cache de 1 h no navegador; limite próprio (index.ts).
+router.get('/foto/:chave', async (req, res) => {
+  const chave = String(req.params.chave)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(chave)) { res.status(400).json({ error: 'Chave inválida' }); return }
+  const url = fotoDaChave(chave)
+  let img: { dados: Buffer; mime: string } | undefined
+  if (url?.startsWith('data:')) { const e = imagemEnviada(url, 4 * 1024 * 1024); img = e && { dados: e.dados, mime: e.mime } }
+  else if (url) img = await baixarFotoDiscord(url, 256)
+  if (!img) { res.status(404).json({ error: 'Recurso não encontrado' }); return }
+  res.setHeader('Content-Type', img.mime)
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox")
+  res.setHeader('Cache-Control', 'public, max-age=3600')
+  res.send(img.dados)
+})
+
 // Compatibility for existing widgets. New clients use the paginated /public/directory API.
 router.use((_req, res, next) => {
   if (!configuredScope() || !rankingPersistenceReady()) { res.status(503).json({ error: 'Diretório temporariamente indisponível.' }); return }

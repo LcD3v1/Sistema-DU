@@ -3,13 +3,19 @@ import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { User, CreditCard, Hash, Shield, Star, Check, Gauge, Fingerprint } from 'lucide-react'
 import Brand from '@/components/ui/Brand'
-import { useOnboarding, type OnboardingData } from '@/hooks/useMe'
+import { useOnboarding, useMe, type OnboardingData } from '@/hooks/useMe'
 import { useAuthStore } from '@/store/authStore'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
 export default function OnboardingPage() {
-  const { register, handleSubmit, formState: { errors } } = useForm<OnboardingData>()
+  const { data: me } = useMe()
+  // Pedido de set no Discord: codinome, passaporte e patente já vêm preenchidos
+  const setagem = me?.cadastroSetagem
+  const { register, handleSubmit, formState: { errors } } = useForm<OnboardingData>({
+    values: setagem ? { codinome: setagem.codinome, passaporte: setagem.passaporte, patenteInterna: setagem.patente } as OnboardingData : undefined,
+    resetOptions: { keepDirtyValues: true },
+  })
   const onboarding = useOnboarding()
   const [erro, setErro] = useState('')
   const username = useAuthStore(s => s.user?.username)
@@ -76,7 +82,7 @@ export default function OnboardingPage() {
           </div>
 
           <Field label="CODINOME" icon={<Fingerprint size={14} />}>
-            <input {...register('codinome')} maxLength={40} className="fld" placeholder="Ex.: Raven" />
+            <input {...register('codinome')} maxLength={40} className="fld" placeholder="Ex.: Raven" readOnly={Boolean(setagem)} title={setagem ? 'Aprovado na setagem' : undefined} />
           </Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -84,16 +90,18 @@ export default function OnboardingPage() {
               <input {...register('badge')} className="fld" placeholder="Ex.: 4521" />
             </Field>
             <Field label="PASSAPORTE / ID" icon={<Hash size={14} />}>
-              <input {...register('passaporte')} className="fld" placeholder="Ex.: 10293" />
+              <input {...register('passaporte')} className="fld" placeholder="Ex.: 10293" readOnly={Boolean(setagem)} title={setagem ? 'Aprovado na setagem' : undefined} />
             </Field>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="PATENTE DPD" icon={<Star size={14} />}>
-              <input {...register('patenteNPD')} className="fld" placeholder="Ex.: Soldado" />
+              <input {...register('patenteDPD')} className="fld" placeholder="Ex.: Soldado" />
             </Field>
             <Field label="CARGO / PATENTE INTERNA" icon={<CreditCard size={14} />}>
-              <input {...register('patenteInterna')} className="fld" placeholder="Ex.: Operador" />
+              {/* Patente da unidade é definida pelo comando (setagem/aprovação), nunca escolhida aqui */}
+              <input {...register('patenteInterna')} className="fld opacity-70" placeholder="Definida pelo comando" readOnly
+                title={setagem?.patente ? 'Aprovado na setagem' : 'Definida pelo comando; promoções passam por aprovação'} />
             </Field>
           </div>
 

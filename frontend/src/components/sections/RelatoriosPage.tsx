@@ -100,7 +100,7 @@ export default function RelatoriosPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-375 mx-auto p-3 sm:p-6 lg:px-8">
       <CabecalhoPagina sobretitulo="Investigação" titulo="Relatórios" icone={FileSearch}
         descricao="Relatórios produzidos pelos investigadores durante as investigações — organizados, pesquisáveis e com anexos.">
         {podeCadastrar && <BotaoPrimario onClick={() => { setEditId(null); setForm(vazio()) }}><Plus size={15} /> Cadastrar relatório</BotaoPrimario>}
@@ -174,7 +174,7 @@ export default function RelatoriosPage() {
                 {aberto.tipo && <Selo cor="#a78bfa">{aberto.tipo}</Selo>}
                 {aberto.sigiloso && <Selo cor="#d0453a">Sigiloso</Selo>}
               </div>
-              <h3 className="text-xl font-semibold text-txt break-words">{aberto.titulo}</h3>
+              <h3 className="text-xl font-semibold text-txt wrap-break-word">{aberto.titulo}</h3>
               <p className="text-xs text-txt3 mt-1">Registrado por {aberto.autorNome} em {new Date(aberto.criadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</p>
             </div>
             <Secao titulo="Investigadores responsáveis" icone={Users}><NomesInvestigadores ids={aberto.investigadores} /></Secao>
@@ -185,7 +185,7 @@ export default function RelatoriosPage() {
               </div>
             )}
             <Secao titulo="Conteúdo" icone={FileSearch}>
-              <div className="rounded-lg border border-bdr bg-card2/60 p-4 text-sm text-txt whitespace-pre-line break-words leading-relaxed">{aberto.conteudo}</div>
+              <div className="rounded-lg border border-bdr bg-card2/60 p-4 text-sm text-txt whitespace-pre-line wrap-break-word leading-relaxed">{aberto.conteudo}</div>
             </Secao>
             {aberto.arquivos.length > 0 && <Secao titulo="Arquivos"><ListaArquivos arquivos={aberto.arquivos} /></Secao>}
             {aberto.links.length > 0 && <Secao titulo="Links e evidências" icone={Link2}><ListaLinks links={aberto.links} /></Secao>}

@@ -30,7 +30,7 @@ export default function RecrutaCandidatoPage() {
   const [scores, setScores] = useState<Record<number, number>>({})
 
   const canEdit = can('recrutamento')
-  const categorias = recCfg?.categorias ?? []
+  const categorias = useMemo(() => recCfg?.categorias ?? [], [recCfg])
   const notaMinima = recCfg?.notaMinima ?? 7
 
   const minhaAvaliacao = recruta?.avaliacoes.find(a => a.contaId === user?.contaId)

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import type { AlteracaoRegistro, FastData, RegistroBase } from './types'
+import type { AlteracaoRegistro, Conta, DuData, Membro, RegistroBase } from './types'
 
 /**
  * Peças comuns dos módulos investigativos da DU (Relatórios, Boletins, Inquéritos, Galeria).
@@ -17,15 +17,29 @@ export function idDaRota(req: Request, res: Response): number | undefined {
 }
 
 /** Nome exibido do autor: apelido no servidor → usuário do Discord → login. */
-export function nomeDaConta(data: Readonly<FastData>, contaId: number): string {
+/**
+ * REGRA DA DU: a pessoa aparece pelo CODINOME em todo lugar (site, Discord, logs, chat, árvore…).
+ * Sem codinome: o do pedido de set, depois o nome no RP, o apelido do Discord e, por fim, o usuário.
+ */
+export function nomeDeExibicao(conta: Conta | undefined, membro: Membro | undefined): string {
+  return membro?.codinome?.trim() || conta?.cadastroSetagem?.codinome?.trim() || membro?.policial?.trim()
+    || conta?.nomeServidor || conta?.discordUsername || conta?.username || 'Desconhecido'
+}
+
+export function nomeDaConta(data: Readonly<DuData>, contaId: number): string {
   const c = data.contas.find(x => x.id === contaId)
   if (!c) return 'Desconhecido'
   const membro = c.membroId ? data.membros.find(m => m.id === c.membroId) : undefined
-  return c.nomeServidor || membro?.policial || c.discordUsername || c.username
+  return nomeDeExibicao(c, membro)
+}
+
+/** Nome de exibição de uma ficha de membro (codinome primeiro). */
+export function nomeDoMembro(data: Readonly<DuData>, membro: Membro): string {
+  return nomeDeExibicao(data.contas.find(c => c.membroId === membro.id), membro)
 }
 
 /** Só membros que existem; sem repetição. */
-export function investigadoresValidos(data: Readonly<FastData>, ids: number[]): number[] | null {
+export function investigadoresValidos(data: Readonly<DuData>, ids: number[]): number[] | null {
   const existentes = new Set(data.membros.map(m => m.id))
   const unicos = [...new Set(ids)]
   return unicos.every(id => existentes.has(id)) ? unicos : null

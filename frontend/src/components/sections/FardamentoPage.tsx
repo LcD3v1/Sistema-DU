@@ -9,15 +9,13 @@ import LoadingHud from '@/components/ui/LoadingHud'
 import ModalOverlay from '@/components/ui/ModalOverlay'
 import HudButton from '@/components/ui/HudButton'
 import { confirmar } from '@/lib/dialogo'
+import { ACEITA_FOTO, fotoDoArquivo, mensagemErroFoto } from '@/lib/imagemArquivo'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
 interface Form { patente: string; titulo: string; imagem: string; observacoes: string }
 const EMPTY: Form = { patente: '', titulo: '', imagem: '', observacoes: '' }
 
-function fileToDataUrl(file: File, cb: (s: string) => void) {
-  const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(file)
-}
 
 export default function FardamentoPage() {
   const { data: fardamentos, isLoading } = useFardamentos()
@@ -55,9 +53,10 @@ export default function FardamentoPage() {
     setModalOpen(true)
   }
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f) return
-    if (f.size > 3_000_000) { addToast('error', 'Imagem muito grande (máx 3MB).'); return }
-    fileToDataUrl(f, url => setForm(p => ({ ...p, imagem: url })))
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return
+    fotoDoArquivo(f, { maxLado: 1600, formato: 'image/webp' })
+      .then(url => setForm(p => ({ ...p, imagem: url })))
+      .catch(err => addToast('error', mensagemErroFoto(err)))
   }
   function salvar() {
     if (!form.patente.trim()) { addToast('error', 'Escolha a patente.'); return }
@@ -72,7 +71,7 @@ export default function FardamentoPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       {/* Header */}
       <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
         <div>
@@ -160,7 +159,7 @@ export default function FardamentoPage() {
           </div>
           <div>
             <label className="font-mono text-xs text-txt2 block mb-1">IMAGEM DO FARDAMENTO</label>
-            <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+            <input ref={fileRef} type="file" accept={ACEITA_FOTO} onChange={onFile} className="hidden" />
             {form.imagem ? (
               <div className="relative rounded-lg overflow-hidden border border-bdr2">
                 <img src={form.imagem} alt="" className="w-full max-h-64 object-contain bg-black/40" />
@@ -172,7 +171,7 @@ export default function FardamentoPage() {
             ) : (
               <button onClick={() => fileRef.current?.click()}
                 className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border border-dashed border-bdr2 text-txt3 hover:text-txt hover:border-gold/40 transition-colors">
-                <ImageIcon size={22} /> <span className="text-xs">Clique para anexar uma imagem (máx 3MB)</span>
+                <ImageIcon size={22} /> <span className="text-xs">Clique para anexar uma imagem ou PDF (máx 500 MB)</span>
               </button>
             )}
           </div>

@@ -25,14 +25,17 @@ export function useDeleteConta() {
   })
 }
 
-export function useRedefinirSenha() {
-  return useMutation({
-    mutationFn: ({ id, novaSenha }: { id: number; novaSenha: string }) => api.put(`/config/contas/${id}/senha`, { novaSenha }),
-  })
+// ── Pedidos de acesso (primeiro login pelo Discord) ──────────────────────────
+export interface PedidoAcesso {
+  id: number; username: string; nome: string; avatar: string | null; criadoEm: string
+  /** Pedido de set feito no Discord (dados do modal) */
+  setagem: {
+    codinome: string; passaporte: string; apelido: string
+    patente: { nome: string; cargoPermId: number | null } | null
+    setor: string | null
+    status: 'pendente' | 'correcao'; motivoCorrecao: string | null
+  } | null
 }
-
-// ── Pedidos de acesso feitos na tela de login ─────────────────────────────────
-export interface PedidoAcesso { id: number; username: string; nome: string; criadoEm: string }
 
 export function usePedidosAcesso() {
   return useQuery<PedidoAcesso[]>({
@@ -54,7 +57,17 @@ export function useAprovarAcesso() {
 
 export function useRecusarAcesso() {
   return useMutation({
-    mutationFn: (id: number) => api.delete(`/config/solicitacoes-acesso/${id}`),
+    mutationFn: ({ id, motivo }: { id: number; motivo?: string }) =>
+      api.delete(`/config/solicitacoes-acesso/${id}`, { data: motivo ? { motivo } : {} }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'solicitacoes-acesso'] }),
+  })
+}
+
+/** Pedido de set: pede para a pessoa refazer o preenchimento (o motivo vai no privado do Discord). */
+export function useCorrigirAcesso() {
+  return useMutation({
+    mutationFn: async ({ id, motivo }: { id: number; motivo: string }) =>
+      (await api.post<{ ok: true; privado: 'ok' | 'fechado' | 'erro' }>(`/config/solicitacoes-acesso/${id}/corrigir`, { motivo })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config', 'solicitacoes-acesso'] }),
   })
 }

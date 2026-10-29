@@ -1,9 +1,11 @@
 import { z } from 'zod'
-import type { FastData } from '../../types'
+import type { DuData } from '../../types'
 import { belongsToScope, type RankingScope } from './scope'
 import { avatarAtual, nivelDoMembro } from '../../identidadeMembro'
+import { fotoSemIds } from '../../fotoPublica'
 import { imagemValida } from '../../security/imagem'
 import { isAdmin, isDev, PROTECTED_OWNER_ID } from '../../access'
+import { nomeDeExibicao } from '../../registros'
 
 export const filtersSchema = z.object({
   period: z.enum(['all', '7d', '15d', '30d']).default('all'),
@@ -58,7 +60,7 @@ export interface Snapshot {
  * `ocultarDevs` (visão pública): o dev aparece em Membros, mas testa tudo, então fica fora
  * do ranking e dos totais — não pontua e ações em que só devs participaram não contam.
  */
-export function buildSnapshot(data: FastData, scope: RankingScope, period: Filters['period'], now = new Date(), ocultarDevs = false): Snapshot {
+export function buildSnapshot(data: DuData, scope: RankingScope, period: Filters['period'], now = new Date(), ocultarDevs = false): Snapshot {
   const accounts = new Map(data.contas.filter(c => belongsToScope(c, scope) && c.membroId).map(c => [c.membroId!, c]))
   const foreignLinks = new Set(data.contas.filter(c => c.membroId && !belongsToScope(c, scope)).map(c => c.membroId))
   const roles = data.cargosPermissao.map((role, order) => ({ id: String(role.id), name: role.nome, order }))
@@ -82,9 +84,9 @@ export function buildSnapshot(data: FastData, scope: RankingScope, period: Filte
       roles.push({ id: roleId, name: m.patenteInterna || 'Sem cargo', order: data.cargosPermissao.length + (order < 0 ? data.patentes.length : order) })
     }
     rows.set(m.id, {
-      id: m.id, name: account?.nomeServidor || m.policial || `Membro #${m.id}`, discordId: account?.discordId ?? null,
-      badge: m.badge || '', internalId: m.passaporte || '', avatar: safeAvatar(avatarAtual(account) ?? undefined),
-      role: m.patenteNPD || 'Sem cargo', roleId, hierarchy: configuredRole?.name ?? (m.patenteInterna || 'Sem cargo'),
+      id: m.id, name: nomeDeExibicao(account, m), discordId: account?.discordId ?? null,
+      badge: m.badge || '', internalId: m.passaporte || '', avatar: fotoSemIds(m.id, safeAvatar(avatarAtual(account) ?? undefined)),   // CDN do Discord vira link opaco (sem IDs)
+      role: m.patenteDPD || 'Sem cargo', roleId, hierarchy: configuredRole?.name ?? (m.patenteInterna || 'Sem cargo'),
       level: 1, joinedAt: m.entrada || '', status: m.status || 'Ativo', rank: null, points: 0,
       wins: 0, losses: 0, records: 0, winRate: 0, achievements: [], activity: [], achievedAt: '',
       discordRoles: [...(account?.discordRoleIds ?? [])],

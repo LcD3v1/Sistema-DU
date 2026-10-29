@@ -103,7 +103,7 @@ function Card({ atual, fechar }: { atual: Pedido; fechar: () => void }) {
               {atual.opcoes.detalhes.map(d => (
                 <div key={d.label} className="flex gap-3 px-3 py-2 text-xs">
                   <dt className="w-24 shrink-0 font-mono text-txt3 uppercase tracking-wider text-[10px] pt-0.5">{d.label}</dt>
-                  <dd className="flex-1 text-txt break-words">{d.valor || '—'}</dd>
+                  <dd className="flex-1 text-txt wrap-break-word">{d.valor || '—'}</dd>
                 </div>
               ))}
             </dl>

@@ -1,7 +1,7 @@
-import { defineConfig, createLogger } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { createLogger, defineConfig } from 'vite';
 
 const logger = createLogger()
 const loggerInfo = logger.info.bind(logger)
@@ -13,10 +13,14 @@ logger.info = (msg, opts) => {
 
 export default defineConfig({
   plugins: [react({ jsxRuntime: 'automatic' }), tailwindcss()],
+  // Só lê .env da pasta frontend/ e só expõe VITE_*: o .env da raiz (segredos do Discord)
+  // e o backend/.env nunca entram no bundle público.
+  envDir: import.meta.dirname,
+  envPrefix: 'VITE_',
   customLogger: logger,
   clearScreen: false,
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
+    alias: { '@': path.resolve(import.meta.dirname, './src') },
   },
   build: {
     sourcemap: false,
@@ -35,7 +39,7 @@ export default defineConfig({
             { name: 'query', test: /node_modules[\\/](@tanstack|zustand|axios)[\\/]/, priority: 25 },
             { name: 'motion', test: /node_modules[\\/](framer-motion|motion-dom|motion-utils)[\\/]/, priority: 20 },
             { name: 'charts', test: /node_modules[\\/](recharts|d3-[^\\/]+|victory-vendor|@reduxjs|redux|immer|reselect|es-toolkit|decimal\.js-light)[\\/]/, priority: 15 },
-            { name: 'pdf', test: /node_modules[\\/](jspdf|jspdf-autotable|fflate|fast-png|iobuffer|pako|@babel[\\/]runtime)[\\/]/, priority: 15 },
+            { name: 'pdf', test: /node_modules[\\/](jspdf|jspdf-autotable|fflate|DU-png|iobuffer|pako|@babel[\\/]runtime)[\\/]/, priority: 15 },
             { name: 'dnd', test: /node_modules[\\/]@dnd-kit[\\/]/, priority: 15 },
             { name: 'icons', test: /node_modules[\\/]lucide-react[\\/]/, priority: 10 },
           ],

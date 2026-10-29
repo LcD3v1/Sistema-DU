@@ -53,7 +53,7 @@ function Capa({ livro, className = '' }: { livro: Pick<Livro, 'titulo' | 'autor'
       <span className="absolute left-0 top-0 bottom-0 w-2 bg-black/30" aria-hidden="true" />
       <BookOpen size={16} className="opacity-70 ml-1" aria-hidden="true" />
       <div className="ml-1">
-        <p className="font-semibold text-sm leading-tight line-clamp-4 break-words">{livro.titulo || 'Sem título'}</p>
+        <p className="font-semibold text-sm leading-tight line-clamp-4 wrap-break-word">{livro.titulo || 'Sem título'}</p>
         {livro.autor && <p className="text-[10px] opacity-75 mt-1 truncate">{livro.autor}</p>}
       </div>
     </div>
@@ -116,7 +116,7 @@ export default function CursosPage() {
   const salvando = criar.isPending || atualizar.isPending
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       {/* Cabeçalho */}
       <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
         <div>
@@ -174,7 +174,7 @@ export default function CursosPage() {
               <div className="rounded-lg overflow-hidden border border-bdr group-hover:border-gold/50 shadow-lg transition-all group-hover:-translate-y-1 motion-reduce:transform-none">
                 <Capa livro={l} className="w-full aspect-[2/3]" />
               </div>
-              <p className="text-sm font-medium text-txt mt-2 line-clamp-2 break-words">{l.titulo}</p>
+              <p className="text-sm font-medium text-txt mt-2 line-clamp-2 wrap-break-word">{l.titulo}</p>
               {(l.autor || l.categoria) && <p className="text-[11px] text-txt3 truncate">{l.autor || l.categoria}</p>}
             </motion.button>
           ))}
@@ -189,12 +189,12 @@ export default function CursosPage() {
               <div className="rounded-lg overflow-hidden border border-bdr"><Capa livro={aberto} className="w-full aspect-[2/3]" /></div>
             </div>
             <div className="flex-1 min-w-0 space-y-3">
-              <h3 className="text-xl font-semibold text-txt break-words">{aberto.titulo}</h3>
+              <h3 className="text-xl font-semibold text-txt wrap-break-word">{aberto.titulo}</h3>
               <div className="flex flex-wrap gap-2 text-xs text-txt2">
                 {aberto.autor && <span className="inline-flex items-center gap-1"><User size={12} /> {aberto.autor}</span>}
                 {aberto.categoria && <span className="inline-flex items-center gap-1"><Tag size={12} /> {aberto.categoria}</span>}
               </div>
-              {aberto.descricao && <p className="text-sm text-txt2 whitespace-pre-line break-words">{aberto.descricao}</p>}
+              {aberto.descricao && <p className="text-sm text-txt2 whitespace-pre-line wrap-break-word">{aberto.descricao}</p>}
               {linkSeguro(aberto.url) && (
                 <a href={aberto.url} target="_blank" rel="noopener noreferrer nofollow"
                   className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-gold text-white text-sm font-medium hover:bg-gold2 transition-colors">

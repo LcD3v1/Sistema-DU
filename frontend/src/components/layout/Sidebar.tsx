@@ -1,9 +1,9 @@
 import { Link, NavLink } from 'react-router-dom'
 import {
-  LayoutGrid, FilePlus2, FileSearch, FolderArchive, Images,
+  LayoutGrid, FilePlus2, FileSearch, FolderArchive, Images, GitBranch,
   Users, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
-  Settings, ArrowUpRight, Code2, Bell, X, Send,
+  Settings, ArrowUpRight, Code2, Bell, X, Network, Server, ClipboardCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAvisos } from '@/hooks/useAvisos'
@@ -36,6 +36,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: '/dashboard', icon: LayoutGrid, label: 'Visão geral', minNivel: 'membro', area: 'dashboard' },
       { to: '/avisos',    icon: Bell,       label: 'Avisos',      minNivel: 'membro', viewOnly: true, area: 'avisos' },
+      { to: '/protocolo', icon: BookOpen,   label: 'Protocolo',   minNivel: 'membro', viewOnly: true, area: 'protocolo' },
     ],
   },
   {
@@ -46,6 +47,7 @@ const GROUPS: NavGroup[] = [
       { to: '/boletins',        icon: ScrollText,    label: 'Boletins',             minNivel: 'membro', area: 'boletins' },
       { to: '/inqueritos',      icon: FolderArchive, label: 'Arquivo de Inquéritos', minNivel: 'membro', area: 'inqueritos' },
       { to: '/galeria',         icon: Images,        label: 'Galeria da DU',        minNivel: 'membro', area: 'galeria' },
+      { to: '/arvores',         icon: GitBranch,     label: 'Árvore de investigação', minNivel: 'membro', area: 'arvore' },
     ],
   },
   {
@@ -64,12 +66,15 @@ const GROUPS: NavGroup[] = [
       { to: '/cursos',    icon: GraduationCap, label: 'Cursos Internos',   minNivel: 'membro', area: 'cursos' },
       { to: '/carteira',  icon: CreditCard,    label: 'Carteirinha DU',    minNivel: 'membro', area: 'carteira' },
       { to: '/anuncio',   icon: Megaphone,     label: 'Gerar anúncio',     minNivel: 'moderador', area: 'anuncio' },
-      { to: '/protocolo', icon: BookOpen,      label: 'Protocolo',         minNivel: 'membro', viewOnly: true, area: 'protocolo' },
     ],
   },
   {
     title: 'Sistema',
     items: [
+      { to: '/setagem',       icon: ClipboardCheck, label: 'Setagem',    minNivel: 'membro', area: 'setagem' },
+      { to: '/servidor',      icon: Server,   label: 'Servidor Discord', minNivel: 'membro', area: 'servidor' },
+      { to: '/logs',          icon: ScrollText, label: 'Logs',          minNivel: 'membro', area: 'logs' },
+      { to: '/hierarquia',    icon: Network,  label: 'Hierarquia',    minNivel: 'membro', area: 'hierarquia' },
       { to: '/configuracoes', icon: Settings, label: 'Configurações', minNivel: 'moderador', area: 'configuracoes' },
     ],
   },
@@ -201,7 +206,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
       </div>
 
       {/* Footer — desenvolvido por */}
-      <div className="group m-3 flex items-center gap-2.5 rounded-lg border border-white/6 bg-gradient-to-br from-navy2/50 to-transparent px-3 py-2.5 transition-colors hover:border-gold/30">
+      <div className="group m-3 flex items-center gap-2.5 rounded-lg border border-white/6 bg-linear-to-br from-navy2/50 to-transparent px-3 py-2.5 transition-colors hover:border-gold/30">
         <div className="w-7 h-7 shrink-0 rounded-md bg-gold/15 border border-gold/30 flex items-center justify-center transition-transform group-hover:scale-105">
           <Code2 size={14} className="text-gold3" />
         </div>

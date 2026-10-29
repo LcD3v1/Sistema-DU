@@ -1,9 +1,6 @@
 import { create } from 'zustand'
 import { queryClient } from '@/lib/queryClient'
-// Credenciais ficam somente em memória. Remove sessões de versões anteriores.
-for (const name of ['localStorage', 'sessionStorage'] as const) {
-  try { window[name].removeItem('fast-auth') } catch { /* indisponível */ }
-}
+// Credenciais ficam somente em memória (nunca localStorage/sessionStorage).
 import type { AuthUser } from '@/types'
 import api from '@/lib/axios'
 
@@ -28,7 +25,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           // fetch direto (sem o interceptor de 401 do axios, que redirecionaria em loop)
           const r = await fetch((import.meta.env.VITE_API_URL || '') + '/api/auth/sessao', {
-            method: 'POST', credentials: 'same-origin', headers: { 'X-Fast-Sessao': '1' },
+            method: 'POST', credentials: 'same-origin', headers: { 'X-DU-Sessao': '1' },
           })
           if (r.status === 200) {
             const d = await r.json() as AuthUser & { token: string }

@@ -98,19 +98,20 @@ export const arquivoLimiter = limitador('arquivo', 15 * 60_000, 60,
 // Endpoints públicos (sem login): 60 / 1 min por IP
 export const publicLimiter = limitador('publico', 60_000, 60, 'Muitas requisições. Tente em um minuto.', 5)
 
+// /api/public/foto/:chave (fotos de membros, cache de 1 h no navegador): 600 / 1 min por IP —
+// uma lista com dezenas de fotos (ou várias pessoas no mesmo IP/CGNAT) não pode cair no limite público
+export const fotoLimiter = limitador('foto', 60_000, 600, 'Muitas requisições. Tente em um minuto.', 1)
+
 // /api/public/revisao (resposta de poucos bytes): 240 / 1 min por IP (~16 abas no mesmo IP)
 export const revisaoLimiter = limitador('revisao', 60_000, 240, 'Muitas requisições. Tente em um minuto.', 2)
 
 // Ranking (autenticado, consultas pesadas): 90 / 1 min por IP
 export const rankingLimiter = limitador('ranking', 60_000, 90, 'Muitas requisições. Tente em um minuto.', 3)
 
-// Login por usuário e senha: 10 tentativas / 15 min por IP (além do bloqueio por usuário)
-export const loginLimiter = limitador('login', 15 * 60_000, 10,
+// Login pelo Discord (início + volta do OAuth, cada uma conta): 30 / 15 min por IP.
+// A volta chama a API do Discord (troca do code + consulta ao servidor): limite apertado.
+export const discordLoginLimiter = limitador('login_discord', 15 * 60_000, 30,
   'Muitas tentativas de login. Tente novamente em 15 minutos.', P)
-
-// Pedido de acesso (público): 10 / 1 h por IP — evita encher a fila do comando
-export const solicitarAcessoLimiter = limitador('solicitar_acesso', 60 * 60_000, 10,
-  'Muitos pedidos de acesso. Tente novamente mais tarde.', 5)
 
 // Restaurar sessão ao recarregar a página: 60 / 15 min por IP
 export const sessaoLimiter = limitador('sessao', 15 * 60_000, 60,
@@ -123,3 +124,7 @@ export const criticalLimiter = limitador('critico', 15 * 60_000, 5,
 // Backup (download da base inteira): 5 / 1 h por IP
 export const backupLimiter = limitador('backup', 60 * 60_000, 5,
   'Limite de downloads de backup atingido. Tente mais tarde.', P + 5)
+
+// Painel de hierarquia: salvar/publicar chama a API do Discord — 12 / 1 min por IP
+export const hierarquiaLimiter = limitador('hierarquia', 60_000, 12,
+  'Muitas atualizações do painel. Aguarde um minuto.', 5)

@@ -1,11 +1,11 @@
-import type { FastData } from '../types'
+import type { DuData } from '../types'
 import { Request, Response, NextFunction } from 'express'
 import { verificarToken } from '../security/jwt'
 import { escopoConfere } from '../security/escopo'
 import { AuthPayload } from '../types'
 import { isRevoked } from '../security/tokenBlacklist'
 import { peekData } from '../data'
-import { bloqueioDeAcesso, ehContaDona } from '../efetivo'
+import { bloqueioDeAcesso, ehContaDona, MOTIVO_SAIU_DO_SERVIDOR } from '../efetivo'
 import { configuredScope, scopeKey, belongsToScope } from '../modules/ranking/scope'
 
 declare global {
@@ -43,7 +43,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   // 2. Conta ainda existe e está ativa? (efeito imediato ao desativar)
   // Somente leitura, sem cópia do banco (roda em toda requisição)
-  const data = peekData() as FastData
+  const data = peekData() as DuData
   const conta = data.contas.find(c => c.id === payload.contaId)
   const scope = configuredScope()
   if (scope && (!escopoConfere(payload.scope, scope) || (conta && !belongsToScope(conta, scope)))) {
@@ -54,14 +54,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   // (usado por requireRankingScope). Nunca é devolvido ao cliente.
   if (scope) payload.scope = scopeKey(scope)
   if (conta?.exonerado) {
-    res.status(401).json({ error: 'EXONERADO' })
+    // "saiu": a própria pessoa saiu do servidor do Discord (só ela recebe esta resposta)
+    res.status(401).json({ error: 'EXONERADO', ...(conta.exoneradoMotivo === MOTIVO_SAIU_DO_SERVIDOR ? { reason: 'saiu' } : {}) })
     return
   }
   if (!conta || !conta.ativo) {
     res.status(401).json({ error: 'CONTA_DESATIVADA' })
     return
   }
-  // Senha trocada/redefinida ou "sair de todos": tokens emitidos antes deixam de valer
+  // "Sair de todos": tokens emitidos antes deixam de valer
   if ((payload.sv ?? 0) !== (conta.sessaoVersao ?? 0)) {
     res.status(401).json({ error: 'Não autenticado' })
     return

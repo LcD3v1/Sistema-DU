@@ -5,13 +5,14 @@
   "main": "index.js",
   "scripts": {
     "test:ranking": "npm run build && node --test tests/ranking.test.cjs",
-    "test:du": "npm run build && node --test tests/du.test.cjs tests/dados.test.cjs tests/login.test.cjs",
+    "test:du": "npm run build && node --test tests/du.test.cjs tests/dados.test.cjs tests/login.test.cjs tests/hierarquia.test.cjs tests/servidor.test.cjs tests/setagem.test.cjs tests/carteira.test.cjs tests/setores.test.cjs tests/logs.test.cjs tests/arvores.test.cjs tests/protocolo.test.cjs tests/auditoria.test.cjs tests/banco.test.cjs",
     "test:ranking:browser": "node tests/ranking-browser.cjs",
     "test:perfil:browser": "node tests/perfil-browser.cjs",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "cross-env NODE_ENV=production node dist/index.js",
-    "start:shardcloud": "cross-env NODE_ENV=production PUBLIC_URL=https://fastunit.shardweb.app FRONTEND_URL=https://fastunit.shardweb.app node dist/index.js",
+    "local": "node dist/index.js",
+    "start:shardcloud": "cross-env NODE_ENV=production node dist/index.js",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-check.mjs",
     "audit": "npm audit --omit=dev --audit-level=high",
@@ -23,7 +24,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
@@ -32,10 +32,10 @@
     "helmet": "^8.2.0",
     "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.3",
+    "mongodb": "^6.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/hpp": "^0.2.7",

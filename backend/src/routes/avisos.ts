@@ -4,7 +4,8 @@ import { canArea } from '../access'
 import { requireArea } from '../middleware/roles'
 import { validateBody, avisoSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
+import { nomeDaConta } from '../registros'
 import { Aviso } from '../types'
 import { notificar, notificarArea } from '../notificacoes'
 
@@ -31,7 +32,7 @@ router.post('/', requireAuth, requireArea('avisos', 'editar'), validateBody(avis
     id: data.nextAvisoId,
     titulo,
     mensagem,
-    autor: req.user!.username,
+    autor: nomeDaConta(peekData(), req.user!.contaId),
     criadoEm: new Date().toISOString(),
   }
   data.avisos.push(novo)

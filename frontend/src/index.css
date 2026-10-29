@@ -99,15 +99,15 @@ h1, h2, h3 {
 @keyframes du-pan { from { transform: scale(1.04) translate3d(-1.5%, 0, 0); } to { transform: scale(1.1) translate3d(1.5%, -1%, 0); } }
 
 /* ── Fundo animado da login (assets próprios, sem vídeo) ───────── */
-@keyframes fast-beams {
+@keyframes du-beams {
   0%   { transform: translate3d(-8%, 0, 0); }
   100% { transform: translate3d(8%, 0, 0); }
 }
-@keyframes fast-glow {
+@keyframes du-glow {
   0%, 100% { opacity: 0.45; transform: scale(1); }
   50%      { opacity: 0.85; transform: scale(1.08); }
 }
-@keyframes fast-sweep {
+@keyframes du-sweep {
   0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
   15%  { opacity: 0.5; }
   60%  { opacity: 0; }
@@ -280,13 +280,19 @@ input[type=range].hud-slider::-moz-range-thumb {
 }
 
 /* ── Slider do player de música ──────────────────────────────── */
-.fast-range {
+/* Barra do player de música (bolinha branca, trilho fino) */
+.du-range-min { -webkit-appearance: none; appearance: none; border-radius: 9999px; outline: none; }
+.du-range-min::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #a78bfa; border: 0; box-shadow: 0 0 8px rgba(139, 92, 246, 0.7); cursor: pointer; }
+.du-range-min::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #a78bfa; border: 0; box-shadow: 0 0 8px rgba(139, 92, 246, 0.7); cursor: pointer; }
+.du-range-min:focus-visible { box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.6); }
+
+.du-range {
   -webkit-appearance: none;
   appearance: none;
   border-radius: 9999px;
   outline: none;
 }
-.fast-range::-webkit-slider-thumb {
+.du-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 11px;
@@ -297,7 +303,7 @@ input[type=range].hud-slider::-moz-range-thumb {
   cursor: pointer;
   box-shadow: 0 0 6px rgba(139, 92, 246,0.6);
 }
-.fast-range::-moz-range-thumb {
+.du-range::-moz-range-thumb {
   width: 11px;
   height: 11px;
   border-radius: 50%;

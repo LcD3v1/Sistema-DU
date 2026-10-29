@@ -45,7 +45,7 @@ async function main() {
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)) })
   const base = `http://127.0.0.1:${server.address().port}`
   let browser
-  const output = path.join(os.tmpdir(), 'fast-ranking-browser')
+  const output = path.join(os.tmpdir(), 'du-ranking-browser')
   fs.mkdirSync(output, { recursive: true })
   try {
     browser = await chromium.launch({ headless: true })
@@ -67,7 +67,7 @@ async function main() {
     await page.screenshot({ path: path.join(output, 'public-desktop.png') })
     await page.getByRole('button', { name: 'Fechar ranking e membros' }).click()
     const token = jwt.sign({ contaId: 1, username: 'comando', nivel: 'admin', scope: `${scope.guildId}:${scope.botId}` }, process.env.JWT_SECRET, { expiresIn: '1h' })
-    await page.evaluate(value => sessionStorage.setItem('fast-auth', JSON.stringify({ state: { token: value, user: { contaId: 1, username: 'comando', nivel: 'admin' } }, version: 0 })), token)
+    await page.evaluate(value => sessionStorage.setItem('du-auth', JSON.stringify({ state: { token: value, user: { contaId: 1, username: 'comando', nivel: 'admin' } }, version: 0 })), token)
     await page.goto(base + '/ranking')
     await page.getByRole('button', { name: 'Ver perfil de Membro 1, 1º lugar' }).waitFor()
     await page.getByRole('heading', { name: 'Membros', exact: true }).waitFor()

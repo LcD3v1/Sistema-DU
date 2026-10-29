@@ -8,38 +8,7 @@ import ModalOverlay from '@/components/ui/ModalOverlay'
 import api from '@/lib/axios'
 import { queryClient } from '@/lib/queryClient'
 
-const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
-const MAX_BYTES = 2 * 1024 * 1024
-
-function resizeImage(file: File, maxSize = 300): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      let w = img.width, h = img.height
-      if (w > h && w > maxSize) { h = h * maxSize / w; w = maxSize }
-      else if (h > w && h > maxSize) { w = w * maxSize / h; h = maxSize }
-      else if (w > maxSize) { w = h = maxSize }
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/png', 0.85))
-    }
-    img.src = url
-  })
-}
-
-function processImage(file: File): Promise<string> {
-  if (file.type === 'image/svg+xml') {
-    return new Promise((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.readAsDataURL(file)
-    })
-  }
-  return resizeImage(file)
-}
+import { ACEITA_FOTO, fotoDoArquivo, mensagemErroFoto } from '@/lib/imagemArquivo'
 
 interface Props {
   currentLogo: string
@@ -50,7 +19,8 @@ export default function LogoUploader({ currentLogo }: Props) {
   const updateLogo = useUpdateLogo()
 
   const [preview, setPreview] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [convertida, setConvertida] = useState<string | null>(null)
+  const [convertendo, setConvertendo] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [errorKey, setErrorKey] = useState(0)
   const [hasError, setHasError] = useState(false)
@@ -65,23 +35,23 @@ export default function LogoUploader({ currentLogo }: Props) {
     setTimeout(() => setHasError(false), 600)
   }, [addToast])
 
-  function validateAndSelect(file: File) {
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      triggerError('Formato inválido. Use PNG, JPG, WEBP ou SVG.')
-      return
+  /** Qualquer imagem (ou a 1ª página de um PDF) vira PNG seguro antes de salvar. */
+  async function validateAndSelect(file: File) {
+    setConvertendo(true)
+    try {
+      const png = await fotoDoArquivo(file, { maxLado: 512 })
+      setConvertida(png)
+      setPreview(png)
+    } catch (e) {
+      triggerError(mensagemErroFoto(e))
+    } finally {
+      setConvertendo(false)
     }
-    if (file.size > MAX_BYTES) {
-      triggerError('Imagem excede 2MB.')
-      return
-    }
-    setSelectedFile(file)
-    const url = URL.createObjectURL(file)
-    setPreview(url)
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) validateAndSelect(file)
+    if (file) void validateAndSelect(file)
     e.target.value = ''
   }
 
@@ -89,18 +59,17 @@ export default function LogoUploader({ currentLogo }: Props) {
     e.preventDefault()
     setDragActive(false)
     const file = e.dataTransfer.files?.[0]
-    if (file) validateAndSelect(file)
+    if (file) void validateAndSelect(file)
   }
 
   async function handleSave() {
-    if (!selectedFile) return
+    if (!convertida) return
     setSaving(true)
     try {
-      const base64 = await processImage(selectedFile)
-      await updateLogo.mutateAsync(base64)
+      await updateLogo.mutateAsync(convertida)
       addToast('success', 'Logo atualizada com sucesso!')
       setPreview(null)
-      setSelectedFile(null)
+      setConvertida(null)
     } catch {
       addToast('error', 'Erro ao salvar logo.')
     } finally {
@@ -160,11 +129,11 @@ export default function LogoUploader({ currentLogo }: Props) {
         <p className="font-mono text-sm text-txt2 mb-1">
           Arraste sua logo aqui ou clique para selecionar
         </p>
-        <p className="font-mono text-[10px] text-txt3">PNG, JPG, WEBP, SVG — máx 2MB</p>
+        <p className="font-mono text-[10px] text-txt3">{convertendo ? 'Convertendo…' : 'Qualquer imagem ou PDF (1ª página) — máx 500 MB'}</p>
         <input
           ref={inputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          accept={ACEITA_FOTO}
           onChange={handleInputChange}
           className="hidden"
         />
@@ -172,7 +141,7 @@ export default function LogoUploader({ currentLogo }: Props) {
 
       {/* Botões */}
       <div className="flex gap-3">
-        {selectedFile && (
+        {convertida && (
           <HudButton loading={saving} onClick={handleSave} className="flex-1">
             {saving ? 'ENVIANDO...' : '✓ SALVAR LOGO'}
           </HudButton>

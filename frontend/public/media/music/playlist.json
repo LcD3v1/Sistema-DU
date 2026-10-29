@@ -1,6 +1,6 @@
 [
-  { "title": "Devil Eyes", "artist": "Hippie Sabotage", "src": "/media/music/devil-eyes.mp3" },
-  { "title": "Running Miles", "artist": "Hippie Sabotage", "src": "/media/music/running-miles.mp3" },
-  { "title": "Toretto", "artist": "PiuTrap", "src": "/media/music/toretto.mp3" },
-  { "title": "QTA", "artist": "S4DRAC", "src": "/media/music/qta.mp3" }
+  { "title": "Far From Any Road", "artist": "The Handsome Family", "src": "/media/music/far-from-any-road.mp3", "cover": "/media/music/far-from-any-road.jpg" },
+  { "title": "Almost Blue", "artist": "Chet Baker", "src": "/media/music/almost-blue.mp3", "cover": "/media/music/almost-blue.jpg" },
+  { "title": "The Fragrance of Dark Coffee", "artist": "Turnabout Jazz Soul", "src": "/media/music/fragrance-of-dark-coffee.mp3", "cover": "/media/music/fragrance-of-dark-coffee.jpg" },
+  { "title": "Private Investigator A", "artist": "Graham de Wilde", "src": "/media/music/private-investigator.mp3", "cover": "/media/music/private-investigator.jpg" }
 ]

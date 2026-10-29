@@ -29,6 +29,7 @@ export type AuditEvent =
   | 'BOLETIM_CREATED' | 'BOLETIM_UPDATED' | 'BOLETIM_DELETED'
   | 'INQUERITO_CREATED' | 'INQUERITO_UPDATED' | 'INQUERITO_DELETED'
   | 'FOTO_CREATED' | 'FOTO_UPDATED' | 'FOTO_DELETED'
+  | 'ARVORE_CREATED' | 'ARVORE_UPDATED' | 'ARVORE_DELETED'
   | 'BACKUP_DOWNLOADED' | 'RESTORE_EXECUTED'
   | 'UNAUTHORIZED_ACCESS' | 'PRIVILEGE_ESCALATION_ATTEMPT'
   | 'RATE_LIMIT_HIT'
@@ -52,6 +53,11 @@ function getClientIp(req: Pick<Request, 'ip' | 'headers'>): string {
   return req.ip ?? 'unknown'
 }
 
+/** Quem recebe cada evento (o módulo de Logs do painel). Sem import direto: evita ciclo entre módulos. */
+type OuvinteAudit = (event: AuditEvent, req: Pick<Request, 'user'> | undefined, detail: string | null) => void
+let ouvinte: OuvinteAudit | undefined
+export function ouvirAudit(fn: OuvinteAudit): void { ouvinte = fn }
+
 export function audit(
   event: AuditEvent,
   req?: Pick<Request, 'ip' | 'headers' | 'user'>,
@@ -69,17 +75,39 @@ export function audit(
   rotacionarSeNecessario()
   // Append não-bloqueante
   fs.appendFile(LOG_PATH, line, () => {})
+  try { ouvinte?.(event, req, entry.detail ? redact(entry.detail) : null) } catch { /* log do painel nunca derruba a ação */ }
 }
 
-export function readAuditLog(limit = 200): unknown[] {
+/** Lê só o fim do arquivo (até 2 MB): o log pode chegar a 20 MB e é lido a cada abertura da tela. */
+const MAX_LEITURA_AUDIT = 2 * 1024 * 1024
+
+/**
+ * Últimas entradas para a tela de administração. Lista branca: data, evento, usuário e detalhe —
+ * o IP fica só no arquivo (regra: logs na tela sem IP).
+ */
+export function readAuditLog(limit = 200): { ts: unknown; event: unknown; user: unknown; detail: unknown }[] {
   try {
-    const raw = fs.readFileSync(LOG_PATH, 'utf-8')
+    const fd = fs.openSync(LOG_PATH, 'r')
+    let raw: string
+    try {
+      const tamanho = fs.fstatSync(fd).size
+      const ler = Math.min(tamanho, MAX_LEITURA_AUDIT)
+      const buf = Buffer.alloc(ler)
+      fs.readSync(fd, buf, 0, ler, tamanho - ler)
+      raw = buf.toString('utf-8')
+      if (ler < tamanho) raw = raw.slice(raw.indexOf('\n') + 1)   // descarta a linha cortada no início
+    } finally { fs.closeSync(fd) }
     return raw
       .trim()
       .split('\n')
       .filter(Boolean)
-      .map(l => JSON.parse(redact(l)))
       .slice(-limit)
+      .flatMap(l => {
+        try {
+          const e = JSON.parse(redact(l)) as Record<string, unknown>
+          return [{ ts: e.ts ?? null, event: e.event ?? null, user: e.user ?? null, detail: e.detail ?? null }]
+        } catch { return [] }
+      })
       .reverse()
   } catch {
     return []

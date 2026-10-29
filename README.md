@@ -7,7 +7,7 @@ protocolo e um sistema de cargos de permissão granular.
 ## Stack
 
 - **Frontend:** React 19 + Vite + TypeScript + Tailwind v4 + React Query + Zustand + framer-motion
-- **Backend:** Express 5 + TypeScript, JWT + bcrypt, persistência em MongoDB, Zod
+- **Backend:** Express 5 + TypeScript, JWT, login pelo Discord (OAuth2), persistência em MongoDB, Zod
 
 ## Como rodar (desenvolvimento)
 
@@ -42,7 +42,7 @@ Em produção o backend serve o frontend buildado e ativa CSP/HSTS.
 
 ## Segurança
 
-Este projeto segue práticas do OWASP Top 10 (headers/CSP, rate limiting, bcrypt,
+Este projeto segue práticas do OWASP Top 10 (headers/CSP, rate limiting, login pelo Discord,
 login exclusivo via Discord OAuth2, JWT revogável, RBAC + permissões por área, auditoria).
 
 ```bash

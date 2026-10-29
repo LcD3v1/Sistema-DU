@@ -1,4 +1,5 @@
-import { FastData, Acao } from './types'
+import { DuData, Acao } from './types'
+import { nomeDeExibicao } from './registros'
 
 /** Placar de apreensões (só cálculo; o painel não posta no Discord). */
 
@@ -18,7 +19,7 @@ function momentoNoPlacar(a: Acao): number {
 }
 
 /** Apreensões aprovadas que contam para o placar (depois do último reset). */
-function apreensoesValidas(data: FastData) {
+function apreensoesValidas(data: DuData) {
   const corte = data.painelApreensoes?.resetadoEm ? Date.parse(data.painelApreensoes.resetadoEm) : NaN
   const hoje = diaSP(new Date())
   return data.acoes.filter(a =>
@@ -34,7 +35,7 @@ export interface ResumoApreensoes {
 }
 
 /** Monta o placar: uma apreensão conta 1 para CADA participante. */
-export function calcularRanking(data: FastData): ResumoApreensoes {
+export function calcularRanking(data: DuData): ResumoApreensoes {
   const acoes = apreensoesValidas(data)
   const porMembro = new Map<number, number>()
   for (const a of acoes) {
@@ -50,7 +51,7 @@ export function calcularRanking(data: FastData): ResumoApreensoes {
     const conta = data.contas.find(c => c.membroId === memId)
     if (conta?.exonerado || conta?.ativo === false) continue
     linhas.push({
-      nome: conta?.nomeServidor || membro.policial || `Membro #${memId}`,
+      nome: nomeDeExibicao(conta, membro),
       discordId: conta?.discordId,
       passaporte: membro.passaporte || '',
       total,

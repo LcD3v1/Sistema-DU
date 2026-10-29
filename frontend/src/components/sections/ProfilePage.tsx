@@ -16,11 +16,12 @@ import type { Membro } from '@/types'
 import PersonalizarPerfil from '@/components/perfil/PersonalizarPerfil'
 import LinksPerfil from '@/components/perfil/LinksPerfil'
 import EmojiPerfil from '@/components/perfil/EmojiPerfil'
-import { TrocarSenha } from '@/components/sections/SenhaConta'
+import ServidorDaUnidade from '@/components/perfil/ServidorDaUnidade'
+import { ACEITA_FOTO, fotoDoArquivo, mensagemErroFoto } from '@/lib/imagemArquivo'
+import { useOpcoesPerfil } from '@/hooks/useSetagem'
 
 function initials(n: string) { return n.split(/[.\s]+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') }
 function fmt(d?: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
-function fileToDataUrl(file: File, cb: (s: string) => void) { const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(file) }
 
 function Stat({ icon: Icon, label, value, color = '#8b5cf6', to }: { icon: typeof FileSearch; label: string; value: string | number; color?: string; to?: string }) {
   const corpo = (
@@ -55,7 +56,8 @@ export default function ProfilePage() {
   const [editMembro, setEditMembro] = useState(false)
   const [editNivel, setEditNivel] = useState(false)
   const [novoNivel, setNovoNivel] = useState('')
-  const [form, setForm] = useState({ nivel: '', policial: '', codinome: '', badge: '', passaporte: '', patenteNPD: '', patenteInterna: '' })
+  const [form, setForm] = useState({ nivel: '', policial: '', codinome: '', badge: '', passaporte: '', patenteInterna: '', setor: '' })
+  const { data: opcoes } = useOpcoesPerfil()
   const bannerInput = useRef<HTMLInputElement>(null)
 
   const membrosList: Membro[] = membros ?? []
@@ -70,7 +72,7 @@ export default function ProfilePage() {
   if (lme || primeiraCarga(qMembros)) return <LoadingHud />
   if (!me) return null
 
-  const nome = me.nomeServidor || membro?.policial || me.username
+  const nome = me.nome || membro?.codinome || me.nomeServidor || membro?.policial || me.username   // codinome (regra)
   const banner = resolveBanner(me.banner, nome)
   const doMembro = <T extends { investigadores: number[] }>(lista: T[] | undefined) => membro ? (lista ?? []).filter(x => x.investigadores.includes(membro.id)) : []
   const meusRel = doMembro(relatorios)
@@ -79,9 +81,10 @@ export default function ProfilePage() {
   const minhasFotos = (fotos ?? []).filter(f => f.podeEditar)
 
   function onBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f) return
-    if (f.size > 3_000_000) { addToast('error', 'Imagem muito grande (máx 3MB).'); return }
-    fileToDataUrl(f, url => setBanner.mutate(url, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }))
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return
+    fotoDoArquivo(f, { maxLado: 1920, formato: 'image/webp', qualidade: 0.88 })
+      .then(url => setBanner.mutate(url, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }))
+      .catch(err => addToast('error', mensagemErroFoto(err)))
   }
   function escolherBanner(key: string) { setBanner.mutate(key, { onSuccess: () => { addToast('success', 'Banner atualizado!'); setPickBanner(false) } }) }
   function vincular() { if (sel) link.mutate(Number(sel), { onSuccess: () => { addToast('success', 'Perfil vinculado!'); setSel('') } }) }
@@ -104,7 +107,7 @@ export default function ProfilePage() {
   }
   function abrirEdicao() {
     if (!membro) return
-    setForm({ nivel: me?.nivelMembro ? String(me.nivelMembro) : '', policial: membro.policial, codinome: membro.codinome ?? '', badge: membro.badge, passaporte: membro.passaporte, patenteNPD: membro.patenteNPD, patenteInterna: membro.patenteInterna })
+    setForm({ nivel: me?.nivelMembro ? String(me.nivelMembro) : '', policial: membro.policial, codinome: membro.codinome ?? '', badge: membro.badge, passaporte: membro.passaporte, patenteInterna: membro.patenteInterna, setor: membro.setor ?? '' })
     setEditMembro(true)
   }
   function salvarEdicao() {
@@ -122,7 +125,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       {/* ── Hero com banner ─────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-bdr mb-6">
         {banner.img
@@ -153,7 +156,7 @@ export default function ProfilePage() {
             )}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono tracking-wider uppercase ${me.admin ? 'text-red border-red/40 bg-red/10' : 'text-gold3 border-gold/40 bg-gold/10'}`}>{me.admin ? 'Administrador' : 'Investigador'}</span>
-              {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteNPD}</span>}
+              {membro && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono">{membro.patenteInterna || membro.patenteDPD}</span>}
               {me.nivelMembro !== null && <span className="px-2.5 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/80 text-[11px] font-mono flex items-center gap-1"><Gauge size={11} /> Nv. {me.nivelMembro}</span>}
             </div>
             <LinksPerfil links={me.links ?? []} className="mt-3" />
@@ -191,7 +194,7 @@ export default function ProfilePage() {
               <Upload size={14} /> Enviar imagem do computador
             </button>
             {me.banner && <button onClick={() => setBanner.mutate(null, { onSuccess: () => addToast('success', 'Banner redefinido.') })} className="px-3 py-2 rounded-lg text-txt3 hover:text-red text-xs transition-colors">Redefinir</button>}
-            <input ref={bannerInput} type="file" accept="image/*" onChange={onBannerUpload} className="hidden" />
+            <input ref={bannerInput} type="file" accept={ACEITA_FOTO} onChange={onBannerUpload} className="hidden" />
           </div>
         </div>
       )}
@@ -204,11 +207,11 @@ export default function ProfilePage() {
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between"><dt className="text-txt2">Usuário</dt><dd className="text-txt font-medium">{me.username}</dd></div>
               <div className="flex justify-between"><dt className="text-txt2">Acesso</dt><dd className="text-txt font-medium">{me.admin ? 'Administrador' : 'Membro'}</dd></div>
-              <div className="flex justify-between"><dt className="text-txt2">Nome</dt><dd className="text-txt font-medium">{me.nomeServidor || me.username}</dd></div>
+              <div className="flex justify-between"><dt className="text-txt2">Nome no Discord</dt><dd className="text-txt font-medium">{me.nomeServidor || me.username}</dd></div>
             </dl>
           </div>
 
-          <TrocarSenha />
+          <ServidorDaUnidade />
 
           <div className="bg-card border border-bdr rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
@@ -235,15 +238,13 @@ export default function ProfilePage() {
             )}
             {membro && editMembro ? (
               <div className="space-y-3">
-                <p className="text-[11px] text-txt3">As alterações só valem depois da aprovação de um superior.</p>
+                <p className="text-[11px] text-txt3">As alterações só valem depois da aprovação de um superior. Aprovadas, a patente, o setor e o apelido mudam também no Discord.</p>
                 {([
                   ['nivel', 'Nível', 'Ex.: 48'],
                   ['policial', 'Nome do investigador', 'Ex.: Peter Wolf'],
                   ['codinome', 'Codinome', 'Ex.: Raven'],
                   ['badge', 'Badge', 'Ex.: 4521'],
                   ['passaporte', 'Passaporte / ID', 'Ex.: 10293'],
-                  ['patenteNPD', 'Patente DPD', 'Ex.: Soldado'],
-                  ['patenteInterna', 'Cargo / patente interna', 'Ex.: Operador'],
                 ] as const).map(([key, label, ph]) => (
                   <div key={key} className="flex flex-col gap-1">
                     <label className="font-mono text-[10px] text-txt2 tracking-wider uppercase">{label}</label>
@@ -253,6 +254,20 @@ export default function ProfilePage() {
                       placeholder={ph}
                       className="input-gold bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm text-txt"
                     />
+                  </div>
+                ))}
+                {([
+                  ['patenteInterna', 'Patente', opcoes?.patentes ?? []],
+                  ['setor', 'Setor (subunidade)', opcoes?.setores ?? []],
+                ] as const).map(([key, label, lista]) => (
+                  <div key={key} className="flex flex-col gap-1">
+                    <label htmlFor={`perfil-${key}`} className="font-mono text-[10px] text-txt2 tracking-wider uppercase">{label}</label>
+                    <select id={`perfil-${key}`} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                      className="input-gold bg-card2 border border-bdr2 rounded-lg px-3 py-2 text-sm text-txt">
+                      {key === 'setor' && <option value="">— sem setor —</option>}
+                      {form[key] && !lista.includes(form[key]) && <option value={form[key]}>{form[key]} (atual)</option>}
+                      {lista.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </div>
                 ))}
                 <div className="flex gap-2 pt-1">
@@ -302,7 +317,8 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex justify-between"><dt className="text-txt2">Badge</dt><dd className="text-txt font-medium font-mono">{membro.badge || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-txt2">Passaporte</dt><dd className="text-txt font-medium font-mono">{membro.passaporte || '—'}</dd></div>
-                  <div className="flex justify-between"><dt className="text-txt2">Patente</dt><dd className="text-txt font-medium">{membro.patenteInterna || membro.patenteNPD || '—'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-txt2">Patente</dt><dd className="text-txt font-medium">{membro.patenteInterna || membro.patenteDPD || '—'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-txt2">Setor</dt><dd className="text-txt font-medium">{membro.setor || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-txt2">Status</dt><dd className="text-txt font-medium">{membro.status}</dd></div>
                   <div className="flex justify-between"><dt className="text-txt2"><CalendarDays size={12} className="inline mr-1" />Entrada</dt><dd className="text-txt font-medium">{fmt(membro.entrada)}</dd></div>
                   <div className="flex justify-between"><dt className="text-txt2">Última promoção</dt><dd className="text-txt font-medium">{fmt(membro.promocao)}</dd></div>

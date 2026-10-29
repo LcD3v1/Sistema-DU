@@ -9,7 +9,7 @@ import { conferirArquivos, sincronizarArquivos } from './arquivos'
 import {
   idDaRota, nomeDaConta, investigadoresValidos, registrarAlteracao, camposAlterados, numeroPadrao, basePublica, erroArquivos,
 } from '../registros'
-import type { FastData, Inquerito } from '../types'
+import type { DuData, Inquerito } from '../types'
 
 /**
  * Arquivo de Inquéritos — estante no mesmo modelo dos Cursos Internos, com
@@ -38,7 +38,7 @@ function publico(i: Inquerito) {
   }
 }
 
-function numeroLivre(data: FastData, numero: string, exceto?: number): boolean {
+function numeroLivre(data: DuData, numero: string, exceto?: number): boolean {
   const n = numero.toLowerCase()
   return !data.inqueritos.some(i => i.id !== exceto && i.numero.toLowerCase() === n)
 }
@@ -85,7 +85,7 @@ router.put('/:id', requireAuth, requireArea('inqueritos', 'editar'), validateBod
   if (!investigadores) { res.status(400).json({ error: 'Investigador inválido.' }); return }
   const numero = body.numero || inq.numero
   if (!numeroLivre(data, numero, id)) { res.status(409).json({ error: 'Já existe um inquérito com esse número.' }); return }
-  const arquivos = await conferirArquivos(body.arquivos, 'inqueritos')
+  const arquivos = await conferirArquivos(body.arquivos, 'inqueritos', inq.arquivos.map(a => a.id))
   if (!arquivos) { erroArquivos(res); return }
 
   const antes = { ...inq }

@@ -1,4 +1,4 @@
-import { Ausencia, Conta, FastData, Membro } from './types'
+import { Ausencia, Conta, DuData, Membro } from './types'
 import { readData, writeData } from './data'
 import { isAdmin, isDev, getCargo, ehDono, cargoConcedeEditar } from './access'
 import { audit } from './security/audit'
@@ -26,7 +26,7 @@ export function ehContaDona(conta: Conta | undefined): boolean {
 export const statusAusencia = (a: Ausencia) => a.status ?? 'aprovada'
 
 /** Ausência aprovada em andamento hoje para o membro, se houver. */
-export function ausenciaAtivaDoMembro(data: FastData, membroId: number | undefined): Ausencia | undefined {
+export function ausenciaAtivaDoMembro(data: DuData, membroId: number | undefined): Ausencia | undefined {
   if (!membroId) return undefined
   const d = hoje()
   return data.ausencias.find(a =>
@@ -34,7 +34,7 @@ export function ausenciaAtivaDoMembro(data: FastData, membroId: number | undefin
 }
 
 /** Motivo pelo qual a conta não pode acessar o painel agora (ou undefined). */
-export function bloqueioDeAcesso(conta: Conta, data: FastData): { codigo: 'EXONERADO' } | { codigo: 'AUSENTE'; ate: string } | undefined {
+export function bloqueioDeAcesso(conta: Conta, data: DuData): { codigo: 'EXONERADO' } | { codigo: 'AUSENTE'; ate: string } | undefined {
   if (ehContaDona(conta)) return undefined
   if (conta.exonerado) return { codigo: 'EXONERADO' }
   const aus = ausenciaAtivaDoMembro(data, conta.membroId)
@@ -43,13 +43,13 @@ export function bloqueioDeAcesso(conta: Conta, data: FastData): { codigo: 'EXONE
 }
 
 /** Posição do cargo na hierarquia (0 = topo). Sem cargo = abaixo de todos. */
-export function nivelHierarquia(data: FastData, cargoPermId: number | undefined): number {
+export function nivelHierarquia(data: DuData, cargoPermId: number | undefined): number {
   if (!cargoPermId) return Number.MAX_SAFE_INTEGER
   const i = data.cargosPermissao.findIndex(c => c.id === cargoPermId)
   return i === -1 ? Number.MAX_SAFE_INTEGER : i
 }
 
-export const contaDoMembro = (data: FastData, membroId: number) => data.contas.find(c => c.membroId === membroId)
+export const contaDoMembro = (data: DuData, membroId: number) => data.contas.find(c => c.membroId === membroId)
 
 /**
  * Quem pode gerenciar quem. Em ordem:
@@ -61,7 +61,7 @@ export const contaDoMembro = (data: FastData, membroId: number) => data.contas.f
  *   mesmo com "editar" ativo, e não atribuem cargo de acesso total, cargo com
  *   "editar" (só admin/dev fazem isso) nem cargo do próprio nível ou acima.
  */
-export function podeGerenciar(data: FastData, atorId: number, membro: Membro, cargoDestinoId?: number): string | undefined {
+export function podeGerenciar(data: DuData, atorId: number, membro: Membro, cargoDestinoId?: number): string | undefined {
   const ator = data.contas.find(c => c.id === atorId)
   if (!ator) return 'Conta não encontrada'
   const alvo = contaDoMembro(data, membro.id)
@@ -91,7 +91,7 @@ export function podeGerenciar(data: FastData, atorId: number, membro: Membro, ca
  * de exoneração ao entrar) e registra no tópico pessoal do Discord (❌).
  * Muta `data` — o chamador grava com writeData.
  */
-export function exonerarMembro(data: FastData, membro: Membro, por: string, motivo: string): Conta | undefined {
+export function exonerarMembro(data: DuData, membro: Membro, por: string, motivo: string): Conta | undefined {
   const conta = contaDoMembro(data, membro.id)
   if (ehContaDona(conta)) throw new Error('Um dono do sistema não pode ser exonerado.')
 
@@ -126,6 +126,28 @@ export function exonerarMembro(data: FastData, membro: Membro, por: string, moti
     }
   }
   return conta
+}
+
+/** Motivo gravado quando a exoneração é automática (saiu do servidor do Discord). */
+export const MOTIVO_SAIU_DO_SERVIDOR = 'Saiu do servidor do Discord da unidade'
+
+/**
+ * Exonera a conta, com ou sem ficha de membro (ex.: aprovada mas sem cadastro ainda).
+ * Mesmo efeito de exonerarMembro: bloqueio total, ficha arquivada. Muta `data`.
+ */
+export function exonerarConta(data: DuData, conta: Conta, por: string, motivo: string): void {
+  if (ehContaDona(conta)) throw new Error('Um dono do sistema não pode ser exonerado.')
+  const membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+  if (membro) { exonerarMembro(data, membro, por, motivo); return }
+  conta.exonerado = true
+  conta.exoneradoEm = new Date().toISOString()
+  conta.exoneradoMotivo = motivo
+  conta.ativo = false
+  delete conta.cargoPermId
+  delete conta.membroId
+  delete conta.banner
+  delete conta.links
+  delete conta.emojisPerfil
 }
 
 /**
@@ -163,7 +185,7 @@ export function verificarAusencias(): void {
 }
 
 /** Nome do cargo atual do membro (cargo de permissão da conta, ou o texto salvo). */
-export function nomeCargoAtual(data: FastData, membro: Membro): string {
+export function nomeCargoAtual(data: DuData, membro: Membro): string {
   const conta = contaDoMembro(data, membro.id)
   const cargo = conta ? getCargo(conta, data) : undefined
   return cargo?.nome || membro.patenteInterna || 'Sem cargo'

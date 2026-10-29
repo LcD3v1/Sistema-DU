@@ -1,6 +1,6 @@
 // Prévia local do painel da DU com dados SINTÉTICOS (sem Mongo e sem Discord).
 // Usa as rotas reais de Relatórios, Boletins, Inquéritos e Galeria sobre dados em memória;
-// login e pedidos de acesso são os reais (usuário comando / senha preview-du-2026); /me e arquivos são simulados. Requer `npm run build` no backend e no frontend.
+// o login pelo Discord é simulado (botão "Entrar com Discord" entra direto como comando); pedidos de acesso são os reais; /me e arquivos são simulados. Requer `npm run build` no backend e no frontend.
 //   node tests/du-preview.cjs   →   http://127.0.0.1:4173
 const path = require('node:path')
 const crypto = require('node:crypto')
@@ -15,15 +15,14 @@ delete process.env.DISCORD_BOT_TOKEN
 
 const { scopeKey, configuredScope } = require('../dist/modules/ranking/scope')
 const scope = configuredScope() ?? { guildId: '', botId: '' }
-const membro = (id, policial, codinome, cargo, badge) => ({ id, policial, codinome, badge, passaporte: String(10000 + id), patenteNPD: 'Detective',
+const membro = (id, policial, codinome, cargo, badge) => ({ id, policial, codinome, badge, passaporte: String(10000 + id), patenteDPD: 'Detective',
   patenteInterna: cargo, status: 'Ativo', entrada: '2026-08-01', promocao: '2026-10-01', adv1: false, adv2: false, adv3: false })
 const todas = Object.fromEntries(require('../dist/permAreas').PERM_AREAS.map(a => [a.id, { ver: true, editar: true }]))
 let data = {
   membros: [membro(1, 'Peter Wolf', 'Raven', '(DU) Commander', '1001'), membro(2, 'Ana Torres', 'Viper', '(DU) Senior', '2044'),
     membro(3, 'Marcus Reed', 'Ghost', '(DU) Officer', '3120'), membro(4, 'Lia Moreau', 'Echo', '(DU) Probationary', '4210')],
-  contas: [{ id: 1, username: 'comando', nivel: 'admin', ativo: true, onboarded: true, membroId: 1, cargoPermId: 10, nomeServidor: 'Peter Wolf',
-    password: require('bcrypt').hashSync('preview-du-2026', 10) }],
-  solicitacoesAcesso: [{ id: 1, username: 'lia.moreau', nome: 'Lia Moreau', senha: require('bcrypt').hashSync('senha-da-lia', 10), criadoEm: '2026-10-26T20:00:00Z' }],
+  contas: [{ id: 1, username: 'comando', nivel: 'admin', ativo: true, onboarded: true, membroId: 1, cargoPermId: 10, nomeServidor: 'Peter Wolf' }],
+  solicitacoesAcesso: [{ id: 1, discordId: '900000000000000001', username: 'lia.moreau', nome: 'Lia Moreau', criadoEm: '2026-10-26T20:00:00Z' }],
   nextSolAcessoId: 2, nextContaId: 2,
   cargosPermissao: [{ id: 10, nome: '(DU) Commander', admin: true, permissoes: todas }],
   acoes: [], patentes: [], membrosOrder: [1, 2, 3, 4], ausencias: [], notificacoes: [], nextNotifId: 1, canais: {}, avisos: [],
@@ -58,7 +57,9 @@ app.post('/api/arquivos', express.raw({ type: 'application/octet-stream', limit:
 app.get('/api/arquivos/:id', (q, r) => { const a = memoria.get(q.params.id); if (!a) return r.status(404).end(); r.type(a.mime).send(a.bytes) })
 app.use(express.json({ limit: '5mb' }))
 // Sem o cookie do login real, a prévia abre na tela de login
-app.post('/api/auth/sessao', (q, r) => /fast_sessao=/.test(q.headers.cookie ?? '') ? r.json({ token, contaId: 1, username: 'comando', nivel: 'admin' }) : r.status(204).end())
+// Login pelo Discord simulado: entra direto como comando
+app.get('/api/auth/discord', (_q, r) => { r.cookie('du_sessao', '1', { httpOnly: true, sameSite: 'strict', path: '/api/auth/sessao' }); r.redirect(303, '/dashboard') })
+app.post('/api/auth/sessao', (q, r) => /du_sessao=/.test(q.headers.cookie ?? '') ? r.json({ token, contaId: 1, username: 'comando', nivel: 'admin' }) : r.status(204).end())
 app.get('/api/auth/me', (_q, r) => r.json(me))
 app.get('/api/auth/me/solicitacao-perfil', (_q, r) => r.json(null))
 app.put('/api/auth/me/banner', (q, r) => { me.banner = q.body.banner; revisao++; r.json({ ok: true }) })

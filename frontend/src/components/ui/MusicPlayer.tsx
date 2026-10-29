@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Play, Pause, SkipBack, SkipForward, Music, Volume2, VolumeX } from 'lucide-react'
 
 export interface Track {
   title: string
@@ -10,13 +10,6 @@ export interface Track {
 }
 
 const EASE = [0.16, 1, 0.3, 1] as const
-
-function fmt(t: number) {
-  if (!isFinite(t) || t < 0) return '0:00'
-  const m = Math.floor(t / 60)
-  const s = Math.floor(t % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
 
 /**
  * Player de música flutuante (canto inferior esquerdo da tela de login).
@@ -31,10 +24,12 @@ export default function MusicPlayer() {
   const [cur, setCur] = useState(0)
   const [dur, setDur] = useState(0)
   const [vol, setVol] = useState(() => {
-    try { const v = localStorage.getItem('fast-music-vol'); return v ? Number(v) : 0.6 } catch { return 0.6 }
+    try {
+      const salvo = localStorage.getItem('du-music-vol')
+      const v = Number(salvo)
+      return salvo !== null && v >= 0 && v <= 1 ? v : 0.6
+    } catch { return 0.6 }
   })
-  const [muted, setMuted] = useState(false)
-  const [expanded, setExpanded] = useState(false)
 
   // Carrega a playlist
   useEffect(() => {
@@ -54,14 +49,10 @@ export default function MusicPlayer() {
 
   const track = tracks[idx]
 
-  // Aplica volume/mute (reaplica quando o <audio> monta após a playlist carregar)
+  // Aplica o volume salvo (reaplica quando o <audio> monta após a playlist carregar)
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = vol
-      audioRef.current.muted = muted
-    }
-    try { localStorage.setItem('fast-music-vol', String(vol)) } catch { /* noop */ }
-  }, [vol, muted, idx, tracks.length])
+    if (audioRef.current) audioRef.current.volume = vol
+  }, [vol, idx, tracks.length])
 
   // Ao trocar de faixa, se estava tocando, continua tocando
   useEffect(() => {
@@ -103,16 +94,19 @@ export default function MusicPlayer() {
   const next = useCallback(() => setIdx(i => (tracks.length ? (i + 1) % tracks.length : 0)), [tracks.length])
   const prev = useCallback(() => setIdx(i => (tracks.length ? (i - 1 + tracks.length) % tracks.length : 0)), [tracks.length])
 
-  function seek(e: React.ChangeEvent<HTMLInputElement>) {
-    const a = audioRef.current
-    if (!a || !dur) return
-    a.currentTime = (Number(e.target.value) / 100) * dur
-    setCur(a.currentTime)
+  /** Barra de volume (0–100): aplica na hora e guarda para a próxima visita. */
+  function mudarVolume(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = Number(e.target.value) / 100
+    setVol(v)
+    try { localStorage.setItem('du-music-vol', String(v)) } catch { /* modo privado */ }
   }
 
   if (tracks.length === 0) return null
 
-  const pct = dur ? (cur / dur) * 100 : 0
+  // Anel em volta da foto: enche conforme a música toca, até ela terminar
+  const progresso = dur ? Math.min(cur / dur, 1) : 0
+  const RAIO = 21, VOLTA = 2 * Math.PI * RAIO
+  const volPct = Math.round(vol * 100)
 
   return (
     <motion.div
@@ -120,8 +114,6 @@ export default function MusicPlayer() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: EASE, delay: 0.4 }}
       className="fixed bottom-24 left-4 sm:bottom-[4.5rem] sm:left-6 z-40"
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
     >
       <audio
         ref={audioRef}
@@ -134,76 +126,48 @@ export default function MusicPlayer() {
         onPause={() => setPlaying(false)}
       />
 
-      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/55 backdrop-blur-md px-3 py-2.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]">
-        {/* Capa (gira ao tocar) */}
-        <div className="relative shrink-0">
-          <div
-            className="w-11 h-11 rounded-full overflow-hidden border border-white/15 bg-gradient-to-br from-navy2 to-black flex items-center justify-center"
-            style={{ animation: playing ? 'logo-ring 8s linear infinite' : 'none' }}
-          >
+      {/* Visual minimalista: foto com o anel do tempo · título + volume · controles (sem caixa de fundo) */}
+      <div className="flex items-center gap-3 w-[min(17rem,calc(100vw-2rem))]">
+        <div className="relative w-12 h-12 shrink-0" role="progressbar" aria-label="Tempo da música"
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progresso * 100)}>
+          <svg viewBox="0 0 48 48" className="absolute inset-0 w-full h-full -rotate-90" aria-hidden="true">
+            <circle cx="24" cy="24" r={RAIO} fill="none" stroke="rgba(139,92,246,0.2)" strokeWidth="2.5" />
+            <circle cx="24" cy="24" r={RAIO} fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round"
+              strokeDasharray={VOLTA} strokeDashoffset={VOLTA * (1 - progresso)}
+              style={{ transition: 'stroke-dashoffset 0.25s linear', filter: 'drop-shadow(0 0 4px rgba(139,92,246,0.6))' }} />
+          </svg>
+          <div className="absolute inset-1.25 rounded-full overflow-hidden bg-gold/15 flex items-center justify-center">
             {track?.cover
               ? <img src={track.cover} alt="" className="w-full h-full object-cover" />
-              : <Music size={16} className="text-gold3" />}
+              : <Music size={14} className="text-gold3" />}
           </div>
-          {/* furo central do "disco" */}
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black border border-white/20" />
         </div>
 
-        {/* Info + controles */}
-        <div className="flex flex-col gap-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <button onClick={prev} disabled={tracks.length < 2}
-              className="text-white/50 hover:text-white transition-colors disabled:opacity-25 disabled:hover:text-white/50" aria-label="Anterior">
-              <SkipBack size={15} />
-            </button>
-            <button onClick={toggle}
-              className="w-8 h-8 rounded-full bg-gold text-white flex items-center justify-center hover:bg-gold2 transition-colors shrink-0" aria-label={playing ? 'Pausar' : 'Tocar'}>
-              {playing ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
-            </button>
-            <button onClick={next} disabled={tracks.length < 2}
-              className="text-white/50 hover:text-white transition-colors disabled:opacity-25 disabled:hover:text-white/50" aria-label="Próxima">
-              <SkipForward size={15} />
-            </button>
-            <div className="min-w-0 ml-1 max-w-[150px]">
-              <p className="text-[12px] text-white font-medium truncate leading-tight">{track?.title}</p>
-              {track?.artist && <p className="text-[10px] text-white/45 truncate leading-tight">{track.artist}</p>}
-            </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.02em] text-gold3 truncate leading-tight" title={track?.artist ? `${track.title} — ${track.artist}` : track?.title}>
+            {track?.title}
+          </p>
+          <div className="flex items-center gap-1.5 mt-2">
+            {vol === 0 ? <VolumeX size={11} className="text-gold3/80 shrink-0" /> : <Volume2 size={11} className="text-gold3/80 shrink-0" />}
+            <input
+              type="range" min={0} max={100} step={1} value={volPct} onChange={mudarVolume}
+              className="du-range-min w-full h-0.75 cursor-pointer block"
+              style={{ background: `linear-gradient(to right, #8b5cf6 ${volPct}%, rgba(139,92,246,0.2) ${volPct}%)` }}
+              aria-label="Volume da música" title={`Volume ${volPct}%`}
+            />
           </div>
+        </div>
 
-          {/* Barra de progresso + volume (expande no hover) */}
-          <AnimatePresence initial={false}>
-            {expanded && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.25, ease: EASE }}
-                className="overflow-hidden"
-              >
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="font-mono text-[9px] text-white/40 tabular-nums w-7 text-right">{fmt(cur)}</span>
-                  <input
-                    type="range" min={0} max={100} value={pct} onChange={seek}
-                    className="fast-range flex-1 h-1 cursor-pointer"
-                    style={{ background: `linear-gradient(to right, #8b5cf6 ${pct}%, rgba(255,255,255,0.15) ${pct}%)` }}
-                    aria-label="Progresso"
-                  />
-                  <span className="font-mono text-[9px] text-white/40 tabular-nums w-7">{fmt(dur)}</span>
-                  <button onClick={() => setMuted(m => { const nm = !m; if (audioRef.current) audioRef.current.muted = nm; return nm })}
-                    className="text-white/50 hover:text-white transition-colors" aria-label="Volume">
-                    {muted || vol === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}
-                  </button>
-                  <input
-                    type="range" min={0} max={1} step={0.01} value={muted ? 0 : vol}
-                    onChange={e => { setMuted(false); if (audioRef.current) audioRef.current.muted = false; setVol(Number(e.target.value)) }}
-                    className="fast-range w-14 h-1 cursor-pointer"
-                    style={{ background: `linear-gradient(to right, #8b5cf6 ${(muted ? 0 : vol) * 100}%, rgba(255,255,255,0.15) ${(muted ? 0 : vol) * 100}%)` }}
-                    aria-label="Nível de volume"
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="flex items-center gap-2.5 shrink-0 text-gold3/80">
+          <button onClick={prev} disabled={tracks.length < 2} className="hover:text-gold3 hover:brightness-125 transition disabled:opacity-30" aria-label="Anterior">
+            <SkipBack size={11} fill="currentColor" />
+          </button>
+          <button onClick={toggle} className="hover:text-gold3 hover:brightness-125 transition" aria-label={playing ? 'Pausar' : 'Tocar'}>
+            {playing ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+          </button>
+          <button onClick={next} disabled={tracks.length < 2} className="hover:text-gold3 hover:brightness-125 transition disabled:opacity-30" aria-label="Próxima">
+            <SkipForward size={11} fill="currentColor" />
+          </button>
         </div>
       </div>
     </motion.div>

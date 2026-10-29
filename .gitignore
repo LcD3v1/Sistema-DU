@@ -41,6 +41,8 @@ backend/.*.tmp
 
 # Log de auditoria de segurança
 backend/audit.log
+backend/logs.json
+backend/.logs.json.*
 *.log
 
 # Chaves de serviço

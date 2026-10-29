@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Images, Plus, Search, Pencil, Trash2, Calendar, User, Upload, Link2, Loader2, Tag, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
-  galeriaApi, enviarArquivo, erroApi, normalizar, hojeISO, dataBR, MAX_BYTES_ARQUIVO, ACEITA_IMAGENS,
+  galeriaApi, enviarArquivo, erroApi, normalizar, hojeISO, dataBR, MAX_BYTES_ARQUIVO,
   type FotoGaleria, type ArquivoRef,
 } from '@/hooks/useInvestigacao'
 import { usePerms } from '@/hooks/usePerms'
@@ -12,6 +12,7 @@ import ModalOverlay from '@/components/ui/ModalOverlay'
 import { confirmar } from '@/lib/dialogo'
 import { linkSeguro } from '@/lib/plataformas'
 import { INPUT, Campo, CabecalhoPagina, BotaoPrimario, BotaoSecundario, Vazio, ImagemArquivo } from '@/components/investigacao/Campos'
+import { ACEITA_FOTO, arquivoDeFoto, mensagemErroFoto } from '@/lib/imagemArquivo'
 
 /**
  * Galeria da DU — fotos de operações, atividades e registros da unidade,
@@ -55,10 +56,13 @@ export default function GaleriaPage() {
 
   async function escolherArquivo(file: File | undefined) {
     if (!file || !form) return
-    if (file.size > MAX_BYTES_ARQUIVO) { addToast('error', 'A foto passa de 10 MB.'); return }
     setEnviando(true)
     try {
-      const ref = await enviarArquivo(file, 'galeria')
+      // Qualquer imagem/PDF vira WEBP no navegador antes de subir (GIF pequeno mantém a animação)
+      let foto: File
+      try { foto = file.type === 'image/gif' && file.size <= MAX_BYTES_ARQUIVO ? file : await arquivoDeFoto(file, { maxLado: 2560, formato: 'image/webp', qualidade: 0.9 }) }
+      catch (e) { addToast('error', mensagemErroFoto(e)); return }
+      const ref = await enviarArquivo(foto, 'galeria')
       setForm(f => f && { ...f, arquivo: ref, imagem: '', titulo: f.titulo || file.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 120) })
     } catch (e) { addToast('error', erroApi(e, 'Não foi possível enviar a foto.')) } finally { setEnviando(false) }
   }
@@ -85,7 +89,7 @@ export default function GaleriaPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       <CabecalhoPagina sobretitulo="Unidade" titulo="Galeria da DU" icone={Images}
         descricao="Operações, atividades e registros da Detective Unit em um só lugar.">
         {podePublicar && <BotaoPrimario onClick={() => { setEditId(null); setForm(vazio()) }}><Plus size={15} /> Publicar foto</BotaoPrimario>}
@@ -124,7 +128,7 @@ export default function GaleriaPage() {
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: Math.min(i, 20) * 0.03, ease: EASE }}
               className="group relative mb-3 block w-full break-inside-avoid overflow-hidden rounded-xl border border-bdr hover:border-gold/50 text-left">
               <Foto foto={f} className={`w-full ${i % 3 === 0 ? 'aspect-[4/5]' : i % 3 === 1 ? 'aspect-square' : 'aspect-[4/3]'}`} />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-10">
+              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 via-black/50 to-transparent p-3 pt-10">
                 <p className="text-sm font-medium text-white line-clamp-1">{f.titulo}</p>
                 <p className="text-[11px] text-white/70">{dataBR(f.data)} · {f.autorNome}</p>
               </div>
@@ -145,13 +149,13 @@ export default function GaleriaPage() {
               </>}
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-txt break-words">{aberto.titulo}</h3>
+              <h3 className="text-lg font-semibold text-txt wrap-break-word">{aberto.titulo}</h3>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-txt2 mt-1">
                 <span className="inline-flex items-center gap-1"><Calendar size={12} /> {dataBR(aberto.data)}</span>
                 <span className="inline-flex items-center gap-1"><User size={12} /> {aberto.autorNome}</span>
                 {aberto.categoria && <span className="inline-flex items-center gap-1"><Tag size={12} /> {aberto.categoria}</span>}
               </div>
-              {aberto.descricao && <p className="text-sm text-txt2 mt-3 whitespace-pre-line break-words">{aberto.descricao}</p>}
+              {aberto.descricao && <p className="text-sm text-txt2 mt-3 whitespace-pre-line wrap-break-word">{aberto.descricao}</p>}
             </div>
             {aberto.podeEditar && (
               <div className="flex gap-2 pt-2 border-t border-bdr">
@@ -176,7 +180,7 @@ export default function GaleriaPage() {
               <BotaoSecundario type="button" onClick={() => input.current?.click()} disabled={enviando} className="sm:w-56">
                 {enviando ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {form.arquivo ? 'Trocar foto' : 'Enviar do computador'}
               </BotaoSecundario>
-              <input ref={input} type="file" accept={ACEITA_IMAGENS} className="hidden" onChange={e => { void escolherArquivo(e.target.files?.[0]); e.target.value = '' }} />
+              <input ref={input} type="file" accept={ACEITA_FOTO} className="hidden" onChange={e => { void escolherArquivo(e.target.files?.[0]); e.target.value = '' }} />
               <div className="relative flex-1">
                 <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt3" />
                 <input value={form.imagem} maxLength={2048} inputMode="url" onChange={e => setForm({ ...form, imagem: e.target.value, arquivo: null })}

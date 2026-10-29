@@ -108,7 +108,7 @@ export const inqueritosApi = crud<Inquerito, InqueritoInput>('inqueritos', '/inq
 export const galeriaApi = crud<FotoGaleria, FotoInput>('galeria', '/galeria')
 
 // ── Arquivos ────────────────────────────────────────────────────────────────
-export type AreaArquivo = 'inqueritos' | 'boletins' | 'relatorios' | 'cursos' | 'galeria'
+export type AreaArquivo = 'inqueritos' | 'boletins' | 'relatorios' | 'cursos' | 'galeria' | 'arvore'
 export const MAX_BYTES_ARQUIVO = 10 * 1024 * 1024
 export const ACEITA_ARQUIVOS = '.pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.txt,.csv,.zip,.mp3,.mp4'
 export const ACEITA_IMAGENS = '.png,.jpg,.jpeg,.gif,.webp'

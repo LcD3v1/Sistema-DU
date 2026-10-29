@@ -11,7 +11,11 @@ export interface Me {
   nivel: Nivel
   membroId: number | null
   discordUsername: string | null
+  /** Dados do pedido de set no Discord (pré-preenchem o cadastro inicial) */
+  cadastroSetagem?: { codinome: string; passaporte: string; patente: string } | null
   nomeServidor: string
+  /** Como a pessoa aparece em todo lugar: o CODINOME (regra da DU). */
+  nome: string
   avatarServidor: string | null
   avatarAtual: string | null
   nivelMembro: number | null
@@ -25,8 +29,6 @@ export interface Me {
   dev: boolean
   permissoes: PermMap | null
   termos?: { atual: string; aceita: string | null }
-  /** Conta dona ainda com a senha padrão (admin123) — o painel pede para trocar. */
-  senhaPadrao?: boolean
 }
 
 export interface LinkPerfil { rotulo: string; url: string; emoji?: string }
@@ -59,7 +61,7 @@ export interface OnboardingData {
   codinome?: string
   badge?: string
   passaporte?: string
-  patenteNPD?: string
+  patenteDPD?: string
   patenteInterna?: string
 }
 

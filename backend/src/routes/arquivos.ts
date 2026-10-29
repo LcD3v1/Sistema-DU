@@ -1,12 +1,13 @@
-import express, { Router, Request, Response } from 'express'
+import express, { Router, Request, Response, NextFunction } from 'express'
 import crypto from 'crypto'
 import { peekData } from '../data'
 import { pastaDeArquivos } from '../armazenamento'
 import { requireAuth } from '../middleware/auth'
 import { canArea } from '../access'
 import { audit } from '../security/audit'
-import type { ArquivoRef, FastData } from '../types'
+import type { ArquivoRef, DuData } from '../types'
 import type { AreaId } from '../permAreas'
+import { duracaoMp4 } from '../security/video'
 
 /**
  * Arquivos enviados do computador (PDF, documentos, planilhas, imagens…) para
@@ -21,9 +22,12 @@ import type { AreaId } from '../permAreas'
  */
 
 export const MAX_BYTES_ARQUIVO = 10 * 1024 * 1024
+/** Vídeo da árvore de investigação: até 50 MB e no máximo 1 minuto (duração lida dos bytes). */
+export const MAX_BYTES_VIDEO = 50 * 1024 * 1024
+export const MAX_SEGUNDOS_VIDEO = 60
 const EXPIRA_PENDENTE_MS = 6 * 60 * 60 * 1000
 export const ID_ARQUIVO_REGEX = /^[A-Za-z0-9_-]{24}$/
-export const AREAS_ARQUIVO = ['inqueritos', 'boletins', 'relatorios', 'cursos', 'galeria'] as const
+export const AREAS_ARQUIVO = ['inqueritos', 'boletins', 'relatorios', 'cursos', 'galeria', 'arvore'] as const
 export type AreaArquivo = typeof AREAS_ARQUIVO[number]
 
 const comeca = (b: Buffer, ...bytes: number[]) => bytes.every((x, i) => b[i] === x)
@@ -32,7 +36,7 @@ const ehOle = (b: Buffer) => comeca(b, 0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a,
 const ehTexto = (b: Buffer) => !b.subarray(0, 8192).includes(0)
 
 /** Tipos aceitos: extensão → mime + conferência dos bytes. */
-const TIPOS: Record<string, { mime: string; confere: (b: Buffer) => boolean; imagem?: boolean }> = {
+const TIPOS: Record<string, { mime: string; confere: (b: Buffer) => boolean; imagem?: boolean; video?: boolean }> = {
   pdf:  { mime: 'application/pdf', confere: b => b.subarray(0, 5).toString('latin1') === '%PDF-' },
   png:  { mime: 'image/png', imagem: true, confere: b => comeca(b, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) },
   jpg:  { mime: 'image/jpeg', imagem: true, confere: b => comeca(b, 0xff, 0xd8, 0xff) },
@@ -51,7 +55,8 @@ const TIPOS: Record<string, { mime: string; confere: (b: Buffer) => boolean; ima
   txt:  { mime: 'text/plain', confere: ehTexto },
   csv:  { mime: 'text/csv', confere: ehTexto },
   mp3:  { mime: 'audio/mpeg', confere: b => b.subarray(0, 3).toString('latin1') === 'ID3' || comeca(b, 0xff, 0xfb) || comeca(b, 0xff, 0xf3) },
-  mp4:  { mime: 'video/mp4', confere: b => b.subarray(4, 8).toString('latin1') === 'ftyp' },
+  mp4:  { mime: 'video/mp4', video: true, confere: b => b.subarray(4, 8).toString('latin1') === 'ftyp' },
+  mov:  { mime: 'video/quicktime', video: true, confere: b => b.subarray(4, 8).toString('latin1') === 'ftyp' || ['moov', 'mdat', 'wide', 'free'].includes(b.subarray(4, 8).toString('latin1')) },
 }
 
 /** Nome exibido: sem caminho, sem caracteres de controle, até 120 caracteres. */
@@ -85,24 +90,28 @@ setInterval(() => {
   try { limparArquivosPendentes() } catch (err) { console.error('[DU][ARQUIVOS] limpeza:', err instanceof Error ? err.message : err) }
 }, 30 * 60 * 1000).unref()
 
-const contaPode = (data: Readonly<FastData>, contaId: number, area: AreaId, modo: 'ver' | 'editar') => {
+const contaPode = (data: Readonly<DuData>, contaId: number, area: AreaId, modo: 'ver' | 'editar') => {
   const conta = data.contas.find(c => c.id === contaId)
-  return Boolean(conta && canArea(conta, data as FastData, area, modo))
+  return Boolean(conta && canArea(conta, data as DuData, area, modo))
 }
 
 /**
- * Confere os arquivos de um registro antes de salvar: cada ID precisa existir e
- * ter sido enviado para a mesma área. Devolve as referências com os dados do banco
- * (nunca confia em nome/tamanho vindos do cliente) ou null se algum não bate.
+ * Confere os arquivos de um registro antes de salvar: cada ID precisa existir, ter sido enviado
+ * para a mesma área e ser DESTE registro — recém-enviado (ainda não vinculado) ou já presente em
+ * `jaDoRegistro` (os anexos atuais do registro). Sem isso, alguém citava o ID do anexo de OUTRO
+ * registro no seu e, ao apagar/editar o seu, o arquivo do outro era apagado.
+ * Devolve as referências com os dados do banco (nunca confia em nome/tamanho do cliente) ou null.
  */
-export async function conferirArquivos(ids: string[], area: AreaArquivo): Promise<ArquivoRef[] | null> {
+export async function conferirArquivos(ids: string[], area: AreaArquivo, jaDoRegistro: string[] = []): Promise<ArquivoRef[] | null> {
   const unicos = [...new Set(ids)]
   if (unicos.length === 0) return []
   if (unicos.some(id => !ID_ARQUIVO_REGEX.test(id))) return null
+  const doRegistro = new Set(jaDoRegistro)
   const refs: ArquivoRef[] = []
   for (const id of unicos) {
     const m = pasta.meta(id)
     if (!m || m.area !== area) return null
+    if (!m.expiraEm && !doRegistro.has(id)) return null   // já pertence a outro registro
     refs.push({ id, nome: m.nome, mime: m.mime, tamanho: m.tamanho })
   }
   return refs
@@ -127,11 +136,16 @@ const router = Router()
 
 // POST /api/arquivos?area=inqueritos&nome=laudo.pdf  (corpo: bytes do arquivo)
 router.post('/', requireAuth,
-  express.raw({ type: 'application/octet-stream', limit: MAX_BYTES_ARQUIVO }),
-  async (req: Request, res: Response): Promise<void> => {
+  // Permissão ANTES de receber o corpo: sem isso, qualquer conta logada fazia o servidor guardar até 50 MB por envio
+  (req: Request, res: Response, next: NextFunction): void => {
     const area = String(req.query.area ?? '') as AreaArquivo
     if (!AREAS_ARQUIVO.includes(area)) { res.status(400).json({ error: 'Área inválida' }); return }
     if (!contaPode(peekData(), req.user!.contaId, area, 'editar')) { res.status(403).json({ error: 'Acesso negado' }); return }
+    next()
+  },
+  express.raw({ type: 'application/octet-stream', limit: MAX_BYTES_VIDEO }),
+  async (req: Request, res: Response): Promise<void> => {
+    const area = String(req.query.area ?? '') as AreaArquivo
     const nome = limparNome(String(req.query.nome ?? ''))
     const ext = (nome.match(/\.([a-z0-9]{2,5})$/i)?.[1] ?? '').toLowerCase()
     const tipo = Object.prototype.hasOwnProperty.call(TIPOS, ext) ? TIPOS[ext] : undefined
@@ -139,6 +153,15 @@ router.post('/', requireAuth,
     if (!nome || !tipo) { res.status(400).json({ error: 'Tipo de arquivo não permitido.' }); return }
     if (!bytes || bytes.length < 4) { res.status(400).json({ error: 'Arquivo vazio.' }); return }
     if (!tipo.confere(bytes)) { res.status(400).json({ error: 'O conteúdo do arquivo não corresponde à extensão.' }); return }
+    // Árvore de investigação: só imagem e vídeo; vídeo até 50 MB e 1 minuto. Outras áreas: até 10 MB (vídeo .mov só na árvore).
+    if (area === 'arvore' && !tipo.imagem && !tipo.video) { res.status(400).json({ error: 'Na árvore, envie só imagem ou vídeo (MP4/MOV).' }); return }
+    if (ext === 'mov' && area !== 'arvore') { res.status(400).json({ error: 'Tipo de arquivo não permitido.' }); return }
+    if (bytes.length > (area === 'arvore' && tipo.video ? MAX_BYTES_VIDEO : MAX_BYTES_ARQUIVO)) { res.status(413).json({ error: 'Arquivo grande demais.' }); return }
+    if (area === 'arvore' && tipo.video) {
+      const segundos = duracaoMp4(bytes)
+      if (segundos === undefined) { res.status(400).json({ error: 'Não foi possível ler a duração do vídeo. Envie em MP4.' }); return }
+      if (segundos > MAX_SEGUNDOS_VIDEO + 0.5) { res.status(400).json({ error: `O vídeo tem ${Math.round(segundos)} s: o máximo é 1 minuto.` }); return }
+    }
     try {
       const id = crypto.randomBytes(18).toString('base64url')
       const agora = new Date()

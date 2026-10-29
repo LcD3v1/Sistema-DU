@@ -4,6 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
 import NotificationBell from './NotificationBell'
+import Ajuda from '@/components/ui/Ajuda'
+import { ajudaDaRota } from '@/lib/ajuda'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':        'Visão geral',
@@ -15,6 +17,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/inqueritos':       'Arquivo de Inquéritos',
   '/galeria':          'Galeria da DU',
   '/membros':          'Membros da unidade',
+  '/logs':             'Logs',
+  '/arvores':          'Árvores de investigação',
   '/ausencias/nova':   'Registrar ausência',
   '/ausencias':        'Ausências',
   '/fardamento':       'Fardamento',
@@ -24,11 +28,15 @@ const PAGE_TITLES: Record<string, string> = {
   '/carteira':         'Carteirinha da DU',
   '/cursos':           'Cursos internos',
   '/configuracoes':    'Configurações',
+  '/hierarquia':       'Hierarquia',
+  '/setagem':          'Setagem',
+  '/servidor':         'Servidor Discord',
 }
 
 function resolveTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
   if (pathname.startsWith('/recrutamento/')) return 'Avaliação de recruta'
+  if (pathname.startsWith('/arvores/')) return 'Árvore de investigação'
   return 'Detective Unit'
 }
 
@@ -38,6 +46,7 @@ export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const title = resolveTitle(pathname)
+  const ajuda = ajudaDaRota(pathname)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -54,7 +63,7 @@ export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
     navigate('/login')
   }
 
-  const nomeExibido = me?.nomeServidor || user?.username || '?'
+  const nomeExibido = me?.nome || me?.nomeServidor || user?.username || '?'   // codinome (regra)
   const fotoExibida = me?.avatarAtual || null
   const initials = nomeExibido.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '?'
   const roleLabel = me?.admin ? 'Administrador' : 'Membro'
@@ -71,9 +80,13 @@ export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
           <Menu size={20} />
         </button>
       )}
-      <p className="font-mono text-[10px] sm:text-[11px] text-txt2 tracking-[0.18em] sm:tracking-[0.25em] uppercase flex-1 min-w-0 truncate">
-        {title}
-      </p>
+      <div className="flex-1 min-w-0 flex items-center gap-1">
+        <p className="font-mono text-[10px] sm:text-[11px] text-txt2 tracking-[0.18em] sm:tracking-[0.25em] uppercase min-w-0 truncate">
+          {title}
+        </p>
+        {/* "?" de todo módulo: explica como a página funciona */}
+        {ajuda && <Ajuda key={pathname} titulo={ajuda.titulo} passos={ajuda.passos} dicas={ajuda.dicas} />}
+      </div>
 
       {user && <NotificationBell />}
 
@@ -84,7 +97,7 @@ export default function Topbar({ onAbrirMenu }: { onAbrirMenu?: () => void }) {
             className="flex items-center gap-2 sm:gap-3 group min-h-10"
           >
             <div className="hidden sm:block text-right leading-tight">
-              <p className="text-sm font-medium text-txt max-w-[180px] truncate">{nomeExibido}</p>
+              <p className="text-sm font-medium text-txt max-w-45 truncate">{nomeExibido}</p>
               <p className="font-mono text-[10px] text-txt2 tracking-wider uppercase">
                 {roleLabel}
               </p>

@@ -90,7 +90,7 @@ export default function BoletinsPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-375 mx-auto p-3 sm:p-6 lg:px-8">
       <CabecalhoPagina sobretitulo="Investigação" titulo="Boletins" icone={ScrollText}
         descricao="Registro e consulta dos boletins da unidade, com investigadores responsáveis, imagens, evidências e histórico.">
         {podeEditar && <BotaoPrimario onClick={() => { setEditId(null); setForm(vazio()) }}><Plus size={15} /> Registrar boletim</BotaoPrimario>}
@@ -161,7 +161,7 @@ export default function BoletinsPage() {
                 <span className="text-gold3 text-sm">{aberto.numero}</span>
                 <Selo cor={STATUS_BOLETIM[aberto.status].cor}>{STATUS_BOLETIM[aberto.status].rotulo}</Selo>
               </div>
-              <h3 className="text-xl font-semibold text-txt break-words">{aberto.titulo}</h3>
+              <h3 className="text-xl font-semibold text-txt wrap-break-word">{aberto.titulo}</h3>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-txt2 mt-1.5">
                 <span className="inline-flex items-center gap-1"><Calendar size={12} /> {dataBR(aberto.data)}</span>
                 {aberto.local && <span className="inline-flex items-center gap-1"><MapPin size={12} /> {aberto.local}</span>}
@@ -171,11 +171,11 @@ export default function BoletinsPage() {
             </div>
             <Secao titulo="Investigadores responsáveis" icone={Users}><NomesInvestigadores ids={aberto.investigadores} /></Secao>
             <Secao titulo="Descrição dos fatos" icone={FileText}>
-              <div className="rounded-lg border border-bdr bg-card2/60 p-4 text-sm text-txt whitespace-pre-line break-words leading-relaxed">{aberto.descricao}</div>
+              <div className="rounded-lg border border-bdr bg-card2/60 p-4 text-sm text-txt whitespace-pre-line wrap-break-word leading-relaxed">{aberto.descricao}</div>
             </Secao>
             {aberto.observacoes && (
               <Secao titulo="Observações complementares" icone={StickyNote}>
-                <p className="text-sm text-txt2 whitespace-pre-line break-words">{aberto.observacoes}</p>
+                <p className="text-sm text-txt2 whitespace-pre-line wrap-break-word">{aberto.observacoes}</p>
               </Secao>
             )}
             {aberto.imagens.length > 0 && (

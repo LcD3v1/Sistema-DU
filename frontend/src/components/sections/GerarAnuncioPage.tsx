@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Copy, Eraser, Info, Settings, ImagePlus, Link2, Loader2 } from 'lucide-react'
 import api from '@/lib/axios'
@@ -6,19 +6,19 @@ import { useUIStore } from '@/store/uiStore'
 import { useAnuncioSituacoes } from '@/hooks/useConfig'
 import Brand from '@/components/ui/Brand'
 import LoadingHud from '@/components/ui/LoadingHud'
+import { ACEITA_FOTO, fotoDoArquivo, mensagemErroFoto } from '@/lib/imagemArquivo'
 
-/** Brasão padrão do anúncio: escudo DPD, com fallback pro emblema DU se não existir. */
+/** Brasão padrão do anúncio: brasão da DU, com fallback pro emblema DU se não existir. */
 function DefaultEmblem({ size = 56 }: { size?: number }) {
   const [erro, setErro] = useState(false)
   if (erro) return <Brand size={size} />
-  return <img src="/media/dpd-shield.png" alt="" width={size} height={size} className="object-contain" style={{ width: size, height: size }} onError={() => setErro(true)} />
+  return <img src="/media/du-brasao.png" alt="" width={size} height={size} className="object-contain" style={{ width: size, height: size }} onError={() => setErro(true)} />
 }
 
-const TIPOS_FOTO = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const MAX_FOTO = 3 * 1024 * 1024
 
-/** Logo padrão da DPD já preenchida no campo de imagem — editável para trocar por outro link. */
-const LOGO_NPD = `${window.location.origin}/media/dpd-shield.png`
+/** Brasão da DU já preenchido no campo de imagem — editável para trocar por outro link. */
+const LOGO_DU = `${window.location.origin}/media/du-brasao.png`
 
 function resolve(template: string, local: string, assinatura: string) {
   return template
@@ -31,47 +31,35 @@ export default function GerarAnuncioPage() {
   const { addToast } = useUIStore()
   const { data: situacoes, isLoading } = useAnuncioSituacoes()
 
-  const [situacaoId, setSituacaoId] = useState<number | null>(null)
+  // Sem escolha ainda = a primeira situação da lista
+  const [situacaoEscolhida, setSituacaoEscolhida] = useState<number | null>(null)
   const [local, setLocal] = useState('')
   const [assinatura, setAssinatura] = useState('')
-  const [titulo, setTitulo] = useState('')
-  const [texto, setTexto] = useState('')
   const [duracao, setDuracao] = useState(60)
-  const [imagem, setImagem] = useState(LOGO_NPD)
-  const manual = useRef(false)
+  const [imagem, setImagem] = useState(LOGO_DU)
+  // Título e texto vêm da situação (o texto com LOCAL/ASSINATURA ao vivo) até a pessoa editar à mão
+  const [tituloManual, setTituloManual] = useState<string | null>(null)
+  const [textoManual, setTextoManual] = useState<string | null>(null)
 
+  const situacaoId = situacaoEscolhida ?? situacoes?.[0]?.id ?? null
   const situacao = useMemo(
     () => (situacoes ?? []).find(s => s.id === situacaoId) ?? null,
     [situacoes, situacaoId],
   )
+  const titulo = tituloManual ?? situacao?.titulo ?? ''
+  const texto = textoManual ?? (situacao ? resolve(situacao.texto, local, assinatura) : '')
 
-  // Seleciona a primeira situação assim que a lista carrega
-  useEffect(() => {
-    if (situacaoId === null && situacoes && situacoes.length > 0) {
-      setSituacaoId(situacoes[0].id)
-    }
-  }, [situacoes, situacaoId])
-
-  // Troca de situação → título + reseta edição manual
-  useEffect(() => {
-    if (situacao) { setTitulo(situacao.titulo); manual.current = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [situacaoId])
-
-  // Regenera o texto (com LOCAL/ASSINATURA já resolvidos) ao vivo — a menos que editado à mão
-  useEffect(() => {
-    if (situacao && !manual.current) setTexto(resolve(situacao.texto, local, assinatura))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [situacaoId, local, assinatura, situacao])
+  /** Troca de situação: volta título e texto para os da situação nova. */
+  function escolherSituacao(id: number) {
+    setSituacaoEscolhida(id); setTituloManual(null); setTextoManual(null)
+  }
 
   const previewTexto = useMemo(() => resolve(texto, local, assinatura), [texto, local, assinatura])
   const mensagemCompleta = useMemo(() => `${titulo}\n${previewTexto}`.trim(), [titulo, previewTexto])
 
   function limpar() {
-    setLocal(''); setAssinatura(''); setImagem(LOGO_NPD); setDuracao(60)
-    manual.current = false
-    if (situacoes && situacoes.length) setSituacaoId(situacoes[0].id)
-    if (situacao) { setTitulo(situacao.titulo); setTexto(resolve(situacao.texto, '', '')) }
+    setLocal(''); setAssinatura(''); setImagem(LOGO_DU); setDuracao(60)
+    setSituacaoEscolhida(null); setTituloManual(null); setTextoManual(null)
     addToast('success', 'Formulário limpo.')
   }
 
@@ -84,13 +72,11 @@ export default function GerarAnuncioPage() {
   const arquivoRef = useRef<HTMLInputElement>(null)
   const [enviando, setEnviando] = useState(false)
   async function enviarFoto(arquivo: File) {
-    if (!TIPOS_FOTO.includes(arquivo.type)) { addToast('error', 'Use uma imagem PNG, JPG, WEBP ou GIF.'); return }
-    if (arquivo.size > MAX_FOTO) { addToast('error', 'A imagem pode ter no máximo 3 MB.'); return }
     setEnviando(true)
     try {
-      const dataUrl = await new Promise<string>((ok, falha) => {
-        const r = new FileReader(); r.onload = () => ok(r.result as string); r.onerror = falha; r.readAsDataURL(arquivo)
-      })
+      let dataUrl: string
+      try { dataUrl = await fotoDoArquivo(arquivo, { maxLado: 1600, formato: 'image/webp', manterGifAte: MAX_FOTO }) }
+      catch (e) { addToast('error', mensagemErroFoto(e)); return }
       const { data } = await api.post<{ caminho: string }>('/anuncio/imagem', { imagem: dataUrl })
       const link = `${window.location.origin}${data.caminho}`
       setImagem(link)
@@ -107,7 +93,7 @@ export default function GerarAnuncioPage() {
   if (isLoading) return <LoadingHud />
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-txt2 hover:text-txt text-xs font-mono tracking-wider mb-4 transition-colors">
         <ChevronLeft size={14} /> VOLTAR
       </button>
@@ -143,7 +129,7 @@ export default function GerarAnuncioPage() {
                     <Settings size={12} />
                   </button>
                 </div>
-                <select value={situacaoId ?? ''} onChange={e => setSituacaoId(Number(e.target.value))} className={inputCls}>
+                <select value={situacaoId ?? ''} onChange={e => escolherSituacao(Number(e.target.value))} className={inputCls}>
                   {(situacoes ?? []).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </div>
@@ -159,7 +145,7 @@ export default function GerarAnuncioPage() {
 
             <div>
               <label className={labelCls}>Título *</label>
-              <input value={titulo} onChange={e => setTitulo(e.target.value)} className={inputCls} />
+              <input value={titulo} onChange={e => setTituloManual(e.target.value)} className={inputCls} />
             </div>
 
             <div>
@@ -169,7 +155,7 @@ export default function GerarAnuncioPage() {
               </div>
               <textarea
                 value={texto}
-                onChange={e => { setTexto(e.target.value); manual.current = true }}
+                onChange={e => setTextoManual(e.target.value)}
                 rows={6} maxLength={2000}
                 className={`${inputCls} resize-none leading-relaxed`}
               />
@@ -187,7 +173,7 @@ export default function GerarAnuncioPage() {
                 <label className={labelCls}>Imagem (URL)</label>
                 <div className="flex gap-2">
                   <input value={imagem} onChange={e => setImagem(e.target.value)} placeholder="Envie uma foto ou cole um link" className={`${inputCls} min-w-0`} />
-                  <input ref={arquivoRef} type="file" accept={TIPOS_FOTO.join(',')} className="hidden"
+                  <input ref={arquivoRef} type="file" accept={ACEITA_FOTO} className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) enviarFoto(f) }} />
                   <button type="button" onClick={() => arquivoRef.current?.click()} disabled={enviando} title="Enviar foto"
                     className="shrink-0 flex items-center gap-1.5 px-3 rounded-lg border border-bdr2 text-txt2 text-xs hover:text-txt hover:border-bdrg transition-colors disabled:opacity-60">
@@ -218,7 +204,7 @@ export default function GerarAnuncioPage() {
             <span className="flex items-center gap-1.5 font-mono text-[10px] text-txt3 tracking-wider uppercase"><Info size={12} /> Atualização automática</span>
           </div>
 
-          <div className="rounded-xl border border-gold/30 bg-gradient-to-br from-navy2/30 to-black/40 p-4 shadow-[0_20px_50px_-24px_rgba(139, 92, 246,0.5)]">
+          <div className="rounded-xl border border-gold/30 bg-linear-to-br from-navy2/30 to-black/40 p-4 shadow-[0_20px_50px_-24px_rgba(139, 92, 246,0.5)]">
             <div className="flex items-start gap-3">
               <div className="shrink-0 rounded-lg overflow-hidden border border-gold/30 bg-black/40 p-1">
                 {imagem.trim()
@@ -227,7 +213,7 @@ export default function GerarAnuncioPage() {
               </div>
               <div className="min-w-0">
                 <p className="wordmark text-gold3 text-sm tracking-wide mb-1">{titulo || 'D.P.D INFORMA:'}</p>
-                <p className="text-[13px] text-txt leading-relaxed whitespace-pre-wrap break-words">{previewTexto}</p>
+                <p className="text-[13px] text-txt leading-relaxed whitespace-pre-wrap wrap-break-word">{previewTexto}</p>
               </div>
             </div>
           </div>

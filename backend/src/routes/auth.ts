@@ -1,40 +1,51 @@
 import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
-import bcrypt from 'bcrypt'
 import { configuredScope } from '../modules/ranking/scope'
 import { assinarToken } from '../security/jwt'
 import { escopoDoToken } from '../security/escopo'
+import { iguaisSeguro } from '../security/crypto'
 import { requireAuth } from '../middleware/auth'
 import { adminOnly } from '../middleware/roles'
-import { loginLimiter, sessaoLimiter, solicitarAcessoLimiter, criticalLimiter } from '../middleware/rateLimiter'
-import { validateBody, avatarSchema, bannerSchema, vincularMembroSchema, loginSchema, solicitarAcessoSchema, trocarSenhaSchema, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
+import { discordLoginLimiter, sessaoLimiter, criticalLimiter } from '../middleware/rateLimiter'
+import { validateBody, avatarSchema, bannerSchema, vincularMembroSchema, onboardingSchema, membroSelfSchema, nivelInicialSchema, termosAceiteSchema, personalizacaoSchema } from '../middleware/validate'
 import { TERMOS_VERSAO } from '../termos'
-import { Membro, Conta, FastData, LinkPerfil } from '../types'
+import { Membro, LinkPerfil } from '../types'
 import { revokeToken } from '../security/tokenBlacklist'
 import { audit } from '../security/audit'
 import { readData, writeData } from '../data'
-import { bloqueioDeAcesso } from '../efetivo'
-import { bloqueio, registrarFalha, limparFalhas } from '../security/bruteForce'
-import { alertar } from '../security/alertas'
+import { vincularContasAoEfetivo, aplicarPerfilNoDiscord, valorDePerfilInvalido, setagemAtual } from '../setagem'
+import { bloqueioDeAcesso, MOTIVO_SAIU_DO_SERVIDOR, hoje } from '../efetivo'
 import { notificar, notificarAprovadores, notificarAdmins, notificarArea } from '../notificacoes'
 import { CampoPerfil } from '../types'
 import { avatarAtual, nivelDoMembro, aplicarCampoPerfil } from '../identidadeMembro'
 import { imagemValida, ehLinkImagem } from '../security/imagem'
 import { isAdmin, isDev, resolvePerms, PROTECTED_OWNER_ID } from '../access'
+import { nomeDaConta, nomeDoMembro } from '../registros'
+import {
+  discordConfig, urlAutorizacao, usuarioDoCodigo, situacaoNoServidor, contaDoDiscord,
+  acessoLivre, ehSegundoDono, cargoDev, usuarioLivre, exonerarPorSaida, atualizarDadosDoServidor,
+} from '../discord'
 
 const router = Router()
 
-// Autenticação por usuário e senha (igual ao Sistema Tática): quem não tem conta
-// pede o acesso na tela de login e o comando aprova em Configurações → Solicitações.
+// Autenticação SOMENTE pelo Discord (OAuth2). Só entra quem está no servidor da unidade,
+// exceto no máximo 2 donos (DISCORD_DONO_ID no .env): o 1º é a conta dona, o 2º tem cargo dev.
+// Primeiro acesso vira pedido de acesso; o comando aprova em Configurações → Solicitações.
 
 function lerCookie(req: Request, nome: string): string | undefined {
   return req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith(`${nome}=`))?.slice(nome.length + 1)
 }
 // Sessão ao recarregar a página: o token fica num cookie httpOnly (JS não lê), SameSite=Strict,
 // enviado só para /api/auth/sessao. Nada de token em localStorage/sessionStorage.
-const sessaoCookie = 'fast_sessao'
+const sessaoCookie = 'du_sessao'
 const sessaoCookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const, path: '/api/auth/sessao' }
 const SESSAO_MAX_MS = 8 * 3600_000
+
+// `state` do OAuth (anti-CSRF): cookie httpOnly só para /api/auth/discord. SameSite=Lax porque
+// a volta do Discord é uma navegação vinda de outro site (Strict não enviaria o cookie).
+const estadoCookie = 'du_oauth'
+const estadoCookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api/auth/discord' }
+const ESTADO_MAX_MS = 10 * 60_000
 
 function issueToken(conta: { id: number; username: string; nivel: string; sessaoVersao?: number }): string {
   const jti = crypto.randomUUID()
@@ -45,103 +56,120 @@ function issueToken(conta: { id: number; username: string; nivel: string; sessao
   return assinarToken(payload)
 }
 
-// Hash fixo para comparar quando o usuário não existe: o tempo de resposta é o mesmo
-// (não revela quais usuários existem).
-const HASH_FALSO = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 12)
-const mesmoUsuario = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
-
-// POST /api/auth/login — usuário + senha
-router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Request, res: Response): Promise<void> => {
-  const { username, password } = req.body as { username: string; password: string }
-  const espera = bloqueio(username)
-  if (espera > 0) {
-    audit('LOGIN_LOCKED', req, `Usuário: ${username}`)
-    res.status(429).json({ error: `Muitas tentativas. Tente novamente em ${Math.ceil(espera / 60_000)} minuto(s).` }); return
-  }
-
-  const conta = readData().contas.find(c => mesmoUsuario(c.username, username))
-  const senhaCorreta = await bcrypt.compare(password, conta?.password ?? HASH_FALSO)
-  if (!conta?.password || !senhaCorreta) {
-    // Só alerta para contas que existem (usuário inventado não vira spam de alerta)
-    if (registrarFalha(username) && conta) {
-      alertar('login_bloqueado', 'Conta bloqueada por tentativas de senha', `A conta "${conta.username}" recebeu 5 senhas erradas seguidas e ficou bloqueada por 15 min. IP: ${req.ip}`, conta.username)
-    }
-    audit('LOGIN_FAILED', req, `Usuário: ${username}`)
-    res.status(401).json({ error: 'Usuário ou senha incorretos.' }); return
-  }
-  // Senha correta: só agora o estado da conta é revelado
-  const data = readData()
-  const atual = data.contas.find(c => c.id === conta.id)!
-  if (atual.exonerado) {
-    audit('LOGIN_FAILED', req, `Exonerado: ${atual.username}`)
-    res.status(403).json({ error: 'Você foi exonerado da unidade.', reason: 'exonerado' }); return
-  }
-  if (!atual.ativo) {
-    audit('LOGIN_FAILED', req, `Conta desativada: ${atual.username}`)
-    res.status(403).json({ error: 'Conta desativada. Contate o comando.', reason: 'desativada' }); return
-  }
-  const bloqueioAcesso = bloqueioDeAcesso(atual, data)
-  if (bloqueioAcesso?.codigo === 'AUSENTE') {
-    audit('LOGIN_FAILED', req, `Em ausência até ${bloqueioAcesso.ate} — ${atual.username}`)
-    res.status(403).json({ error: 'Você está em ausência.', reason: 'ausente', ate: bloqueioAcesso.ate }); return
-  }
-
-  limparFalhas(username)
-
-  const token = issueToken(atual)
-  audit('LOGIN_SUCCESS', req, `Usuário: ${atual.username}`)
-  res.cookie(sessaoCookie, token, { ...sessaoCookieOptions, maxAge: SESSAO_MAX_MS })
-  res.json({ token, contaId: atual.id, username: atual.username, nivel: atual.nivel })
-})
-
-// POST /api/auth/solicitar — pedido de acesso (público). O comando aprova e a conta é criada.
-router.post('/solicitar', solicitarAcessoLimiter, validateBody(solicitarAcessoSchema), async (req: Request, res: Response): Promise<void> => {
-  const { username, password, nome } = req.body as { username: string; password: string; nome: string }
-  const senha = await bcrypt.hash(password, 12)
-  // Sem await daqui até writeData
-  const data = readData()
-  if (data.contas.some(c => mesmoUsuario(c.username, username)) || data.solicitacoesAcesso.some(s => mesmoUsuario(s.username, username))) {
-    res.status(409).json({ error: 'Esse usuário já está em uso. Escolha outro.' }); return
-  }
-  if (data.solicitacoesAcesso.length >= 200) {
-    res.status(429).json({ error: 'Muitos pedidos aguardando aprovação. Tente novamente mais tarde.' }); return
-  }
-  data.solicitacoesAcesso.push({ id: data.nextSolAcessoId++, username, senha, nome, criadoEm: new Date().toISOString() })
-  notificarAdmins(data, undefined, 'pendente_aprovacao', 'Pedido de acesso',
-    `${nome} (@${username}) pediu acesso ao painel.`, '/configuracoes')
-  writeData(data)
-  audit('SIGNUP_REQUESTED', req, `Usuário: ${username}`)
-  res.status(201).json({ ok: true })
-})
-
-// PUT /api/auth/me/senha — troca a própria senha (encerra a sessão atual)
-router.put('/me/senha', requireAuth, criticalLimiter, validateBody(trocarSenhaSchema), async (req: Request, res: Response): Promise<void> => {
-  const { senhaAtual, novaSenha } = req.body as { senhaAtual: string; novaSenha: string }
-  const conta = readData().contas.find(c => c.id === req.user!.contaId)
-  if (!conta?.password || !(await bcrypt.compare(senhaAtual, conta.password))) {
-    audit('PASSWORD_CHANGED', req, 'Falha — senha atual incorreta')
-    res.status(400).json({ error: 'Senha atual incorreta.' }); return
-  }
-  if (senhaAtual === novaSenha) { res.status(400).json({ error: 'A nova senha precisa ser diferente da atual.' }); return }
-  const hash = await bcrypt.hash(novaSenha, 12)
-  const data = readData()
-  const alvo = data.contas.find(c => c.id === conta.id)
-  if (!alvo) { res.status(404).json({ error: 'Conta não encontrada' }); return }
-  alvo.password = hash
-  delete alvo.senhaPadrao
-  alvo.sessaoVersao = (alvo.sessaoVersao ?? 0) + 1   // derruba as sessões em outros aparelhos
-  writeData(data)
-  if (req.user!.jti && req.user!.exp) revokeToken(req.user!.jti, req.user!.exp * 1000)
+/** Volta para a tela de login com um motivo fixo (lista branca no frontend; nada vindo do usuário). */
+type Motivo = 'exonerado' | 'saiu' | 'desativada' | 'ausente' | 'fora_do_servidor' | 'pendente' | 'erro' | 'cancelado' | 'indisponivel'
+function voltarLogin(res: Response, motivo: Motivo, ate?: string): void {
+  // Login pelo Discord que não terminou em sessão: apaga a sessão anterior deste navegador
+  // (senão outra pessoa no mesmo computador "volta" logada na conta de quem entrou antes)
   res.clearCookie(sessaoCookie, sessaoCookieOptions)
-  audit('PASSWORD_CHANGED', req, 'Senha alterada')
-  res.json({ ok: true })
+  const q = new URLSearchParams({ reason: motivo })
+  if (ate && /^\d{4}-\d{2}-\d{2}$/.test(ate)) q.set('ate', ate)
+  res.redirect(303, `/login?${q}`)
+}
+
+// GET /api/auth/discord — começa o login: gera o `state` e manda para o Discord
+router.get('/discord', discordLoginLimiter, (req: Request, res: Response): void => {
+  const cfg = discordConfig()
+  if (!cfg) { voltarLogin(res, 'indisponivel'); return }
+  const state = crypto.randomBytes(32).toString('base64url')
+  res.cookie(estadoCookie, state, { ...estadoCookieOptions, maxAge: ESTADO_MAX_MS })
+  res.redirect(303, urlAutorizacao(cfg, state))
+})
+
+// GET /api/auth/discord/callback — volta do Discord (code + state)
+router.get('/discord/callback', discordLoginLimiter, async (req: Request, res: Response): Promise<void> => {
+  const cfg = discordConfig()
+  const esperado = lerCookie(req, estadoCookie)
+  res.clearCookie(estadoCookie, estadoCookieOptions)   // state é de uso único
+  if (!cfg) { voltarLogin(res, 'indisponivel'); return }
+  const { code, state, error } = req.query
+  if (typeof error === 'string') { voltarLogin(res, 'cancelado'); return }
+  if (typeof code !== 'string' || !/^[\w-]{1,256}$/.test(code) || typeof state !== 'string' || !iguaisSeguro(state, esperado)) {
+    audit('DISCORD_LOGIN_DENIED', req, 'state/code inválido')
+    voltarLogin(res, 'erro'); return
+  }
+
+  let usuario
+  try { usuario = await usuarioDoCodigo(cfg, code) } catch { usuario = undefined }
+  if (!usuario) { audit('DISCORD_LOGIN_ERROR', req, 'troca do code falhou'); voltarLogin(res, 'erro'); return }
+  const discordId = usuario.id
+
+  // 1. Conta já existente: estado da conta antes de qualquer outra coisa
+  const antes = contaDoDiscord(readData(), cfg, discordId)
+  if (antes?.exonerado) {
+    audit('DISCORD_LOGIN_DENIED', req, `Exonerado: conta #${antes.id}`)
+    voltarLogin(res, antes.exoneradoMotivo === MOTIVO_SAIU_DO_SERVIDOR ? 'saiu' : 'exonerado'); return
+  }
+  if (antes && !antes.ativo) { audit('DISCORD_LOGIN_DENIED', req, `Conta desativada #${antes.id}`); voltarLogin(res, 'desativada'); return }
+
+  // 2. Precisa estar no servidor (exceto os até 2 donos do .env). Falha da API = não entra.
+  const livre = acessoLivre(cfg, discordId)
+  const situacao = livre ? undefined : await situacaoNoServidor(cfg, discordId)
+  if (situacao?.status === 'erro') { audit('DISCORD_LOGIN_ERROR', req, 'consulta ao servidor falhou'); voltarLogin(res, 'erro'); return }
+
+  // Daqui até writeData: sem await (dados relidos depois das consultas ao Discord)
+  const data = readData()
+  let conta = contaDoDiscord(data, cfg, discordId)
+
+  // Segundo dono (2º ID de DISCORD_DONO_ID): conta própria criada na hora, com cargo dev, sem pedido
+  if (!conta && ehSegundoDono(cfg, discordId)) {
+    conta = { id: data.nextContaId++, username: usuarioLivre(data, usuario.username), nivel: 'admin', ativo: true,
+      discordId, discordUsername: usuario.username, nomeServidor: usuario.nome, onboarded: false, cargoPermId: cargoDev(data).id }
+    data.contas.push(conta)
+    data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.discordId !== discordId)
+    audit('DISCORD_ACCOUNT_CREATED', req, `Segundo dono: conta #${conta.id} (cargo dev)`)
+  }
+
+  if (!conta) {
+    if (situacao?.status === 'fora') { audit('DISCORD_LOGIN_DENIED', req, 'fora do servidor, sem conta'); voltarLogin(res, 'fora_do_servidor'); return }
+    if (!data.solicitacoesAcesso.some(s => s.discordId === discordId)) {
+      if (data.solicitacoesAcesso.length >= 200) { voltarLogin(res, 'erro'); return }
+      const nome = (situacao?.status === 'membro' && situacao.apelido) || usuario.nome
+      data.solicitacoesAcesso.push({ id: data.nextSolAcessoId++, discordId, username: usuario.username, nome,
+        ...(usuario.avatar ? { avatar: usuario.avatar } : {}), criadoEm: new Date().toISOString() })
+      notificarAdmins(data, undefined, 'pendente_aprovacao', 'Pedido de acesso',
+        `${nome} (@${usuario.username}) pediu acesso ao painel.`, '/configuracoes')
+      writeData(data)
+      audit('SIGNUP_REQUESTED', req, `Discord: @${usuario.username}`)
+    }
+    voltarLogin(res, 'pendente'); return
+  }
+
+  if (conta.exonerado) { voltarLogin(res, conta.exoneradoMotivo === MOTIVO_SAIU_DO_SERVIDOR ? 'saiu' : 'exonerado'); return }
+  if (!conta.ativo) { voltarLogin(res, 'desativada'); return }
+  if (situacao?.status === 'fora') {
+    // Saiu do servidor: exonera agora (dados arquivados)
+    if (exonerarPorSaida(data, cfg, conta)) writeData(data)
+    voltarLogin(res, 'saiu'); return
+  }
+
+  conta.discordId = discordId
+  conta.discordUsername = usuario.username
+  if (situacao?.status === 'membro') atualizarDadosDoServidor(conta, situacao)
+  else if (usuario.avatar && usuario.avatar !== conta.avatarServidor) atualizarDadosDoServidor(conta, { avatar: usuario.avatar })
+  if (!conta.nomeServidor) conta.nomeServidor = usuario.nome
+  vincularContasAoEfetivo(data)   // aprovada sem ficha em Membros → ganha a sua
+
+  const bloqueioAcesso = bloqueioDeAcesso(conta, data)
+  if (bloqueioAcesso?.codigo === 'AUSENTE') {
+    writeData(data)
+    audit('DISCORD_LOGIN_DENIED', req, `Em ausência até ${bloqueioAcesso.ate} — conta #${conta.id}`)
+    voltarLogin(res, 'ausente', bloqueioAcesso.ate); return
+  }
+  writeData(data)
+
+  const token = issueToken(conta)
+  audit('DISCORD_LOGIN_SUCCESS', req, `Conta #${conta.id} (@${usuario.username})`)
+  res.cookie(sessaoCookie, token, { ...sessaoCookieOptions, maxAge: SESSAO_MAX_MS })
+  // O app chama POST /api/auth/sessao ao carregar e recebe o token pelo cookie
+  res.redirect(303, '/dashboard')
 })
 
 // POST /api/auth/sessao — devolve a sessão do cookie httpOnly (recarregar a página sem novo login).
 // Exige header próprio (bloqueia formulário/CSRF entre sites) e valida o token como qualquer rota.
 router.post('/sessao', sessaoLimiter, (req: Request, res: Response): void => {
   const token = lerCookie(req, sessaoCookie)
-  if (req.get('x-fast-sessao') !== '1' || !token || token.length > 4096 || !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) {
+  if (req.get('x-du-sessao') !== '1' || !token || token.length > 4096 || !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) {
     res.status(204).end(); return
   }
   // Se o token não valer mais (revogado, exonerado, conta desativada…), o cookie é apagado
@@ -196,6 +224,7 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     membroId: conta.membroId ?? null,
     discordUsername: conta.discordUsername ?? null,
     nomeServidor: conta.nomeServidor ?? conta.discordUsername ?? conta.username,
+    nome: nomeDaConta(data, conta.id),   // codinome (regra: é como a pessoa aparece em todo lugar)
     avatarServidor: conta.avatarServidor ?? null,
     avatar: conta.avatar ?? null,
     avatarAtual: avatarAtual(conta),
@@ -209,7 +238,8 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
     dev: isDev(conta, data),
     permissoes: resolvePerms(conta, data),
     termos: { atual: TERMOS_VERSAO, aceita: conta.termosAceitos?.versao ?? null },
-    senhaPadrao: conta.senhaPadrao === true,
+    // Dados do pedido de set (Discord): pré-preenchem o cadastro
+    cadastroSetagem: conta.cadastroSetagem ?? null,
   })
 })
 
@@ -238,9 +268,16 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
   if (conta.onboarded !== false && conta.membroId && data.membros.some(m => m.id === conta.membroId)) {
     res.status(409).json({ error: 'Cadastro já concluído. Envie uma alteração de perfil para aprovação.' }); return
   }
-  const body = req.body as { nivel: number; policial: string; badge: string; passaporte: string; patenteNPD: string; patenteInterna: string; codinome: string }
-
+  const body = req.body as { nivel: number; policial: string; badge: string; passaporte: string; patenteDPD: string; patenteInterna: string; codinome: string }
+  // Pedido de set aprovado: codinome e passaporte são os aprovados pelo comando (não mudam aqui)
+  if (conta.cadastroSetagem) { body.codinome = conta.cadastroSetagem.codinome; body.passaporte = conta.cadastroSetagem.passaporte }
   let membro = conta.membroId ? data.membros.find(m => m.id === conta.membroId) : undefined
+  // Patente da unidade NUNCA vem do navegador (senão a pessoa se dava a patente que quisesse e, numa
+  // aprovação qualquer depois, ganhava os cargos dela no Discord). Vale a aprovada: setagem → ficha atual →
+  // ficha arquivada → a mais baixa cadastrada. Promoção só pelo fluxo de aprovação (Membros).
+  const patentesDaUnidade = setagemAtual(data).patentes.map(p => p.nome)
+  body.patenteInterna = conta.cadastroSetagem?.patente || membro?.patenteInterna || conta.membroArquivado?.patenteInterna
+    || patentesDaUnidade[patentesDaUnidade.length - 1] || ''
   const novo = !membro
   if (!membro) {
     if (conta.membroArquivado && !data.membros.some(m => m.id === conta.membroArquivado!.id)) {
@@ -255,11 +292,11 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     membro = {
       id: data.nextMemId,
       badge: body.badge, passaporte: body.passaporte, policial: body.policial,
-      patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel,
+      patenteDPD: body.patenteDPD, patenteInterna: body.patenteInterna, nivel: body.nivel,
       codinome: body.codinome,
       status: 'Ativo',
-      entrada: new Date().toISOString().slice(0, 10),
-      promocao: new Date().toISOString().slice(0, 10),
+      entrada: hoje(),
+      promocao: hoje(),
       adv1: false, adv2: false, adv3: false,
     } as Membro
     data.membros.push(membro)
@@ -267,11 +304,11 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     data.nextMemId++
     conta.membroId = membro.id
   } else {
-    Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteNPD: body.patenteNPD, patenteInterna: body.patenteInterna, nivel: body.nivel, codinome: body.codinome })
+    Object.assign(membro, { policial: body.policial, badge: body.badge, passaporte: body.passaporte, patenteDPD: body.patenteDPD, patenteInterna: body.patenteInterna, nivel: body.nivel, codinome: body.codinome })
   }
   conta.onboarded = true
 
-  const resumo = `${membro.policial}${membro.passaporte ? ` | ID ${membro.passaporte}` : ''}`
+  const resumo = `${nomeDoMembro(data, membro)}${membro.passaporte ? ` | ID ${membro.passaporte}` : ''}`
   const aprovado = conta.id === PROTECTED_OWNER_ID || Boolean(conta.cargoPermId)
   if (aprovado) {
     notificar(data, conta.id, 'aprovada', 'Cadastro concluído',
@@ -284,7 +321,7 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
       `${resumo} enviou o cadastro e aguarda aprovação.`, '/configuracoes')
   }
   writeData(data)
-  audit('ONBOARDING_DONE', req, `Membro: ${membro.policial} (#${membro.id})`)
+  audit('ONBOARDING_DONE', req, `Membro: ${nomeDoMembro(data, membro)} (#${membro.id})`)
   res.json({ ok: true, membroId: membro.id })
 })
 
@@ -343,10 +380,16 @@ router.post('/me/nivel/solicitar', requireAuth, validateBody(nivelInicialSchema)
   notificar(data, conta.id, 'solicitacao', 'Atualização de nível enviada',
     `Seu pedido para atualizar o nível para ${nivel} foi enviado. Você está aguardando a aprovação de um superior.`, '/perfil')
   notificarAprovadores(data, 'membros', membro.id, conta.id, 'pendente_aprovacao', 'Atualização de nível aguardando aprovação',
-    `${membro.policial} pediu para atualizar o nível: ${atual} → ${nivel}.`, '/membros')
+    `${nomeDoMembro(data, membro)} pediu para atualizar o nível: ${atual} → ${nivel}.`, '/membros')
   writeData(data)
   audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: nivel=${nivel}`)
   res.status(202).json({ pendente: true, solicitacao: sol })
+})
+
+// GET /api/auth/me/opcoes-perfil — patentes e setores para os selects do perfil (só nomes, sem IDs do Discord)
+router.get('/me/opcoes-perfil', requireAuth, (_req: Request, res: Response): void => {
+  const s = setagemAtual(readData())
+  res.json({ patentes: s.patentes.map(p => p.nome), setores: (s.setores ?? []).map(x => x.nome) })
 })
 
 // PUT /api/auth/me/membro-dados — o usuário PEDE alteração do próprio perfil;
@@ -358,17 +401,21 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
   const membro = data.membros.find(m => m.id === conta.membroId)
   if (!membro) { res.status(404).json({ error: 'Membro não encontrado' }); return }
 
-  const campos: CampoPerfil[] = ['nivel', 'policial', 'codinome', 'badge', 'passaporte', 'patenteNPD', 'patenteInterna']
+  const campos: CampoPerfil[] = ['nivel', 'policial', 'codinome', 'badge', 'passaporte', 'patenteDPD', 'patenteInterna', 'setor']
   const body = req.body as Partial<Record<CampoPerfil, string | number>>
   const alteracoes = campos
     .filter(k => body[k] !== undefined && String(body[k]) !== String(membro[k] ?? ''))
     .map(k => ({ campo: k, de: String(membro[k] ?? ''), para: String(body[k]) }))
   if (alteracoes.length === 0) { res.status(400).json({ error: 'Nenhuma alteração em relação ao perfil atual.' }); return }
+  const invalido = alteracoes.map(a => valorDePerfilInvalido(data, a.campo, a.para)).find(Boolean)
+  if (invalido) { res.status(400).json({ error: invalido }); return }
 
   if (conta.id === PROTECTED_OWNER_ID) {
+    const antes = { patente: membro.patenteInterna, setor: membro.setor }
     for (const a of alteracoes) aplicarCampoPerfil(membro, a.campo, a.para)
     writeData(data)
     audit('PROFILE_SELF_EDITED', req, `Membro #${membro.id} (conta dona)`)
+    if (alteracoes.some(a => ['patenteInterna', 'setor', 'codinome', 'passaporte'].includes(a.campo))) void aplicarPerfilNoDiscord(membro.id, antes)
     const { discordThreadId: _t, registroCanal: _r, ...membroPublico } = membro
     res.json({ pendente: false, membro: membroPublico })
     return
@@ -388,7 +435,7 @@ router.put('/me/membro-dados', requireAuth, validateBody(membroSelfSchema), (req
   notificar(data, conta.id, 'solicitacao', 'Alteração de perfil enviada',
     'Sua solicitação de alteração de perfil foi enviada. Você está aguardando a aprovação de um superior.', '/perfil')
   notificarAprovadores(data, 'membros', membro.id, conta.id, 'pendente_aprovacao', 'Alteração de perfil aguardando aprovação',
-    `${membro.policial} pediu para alterar: ${alteracoes.map(a => a.campo).join(', ')}.`, '/membros')
+    `${nomeDoMembro(data, membro)} pediu para alterar: ${alteracoes.map(a => a.campo).join(', ')}.`, '/membros')
   writeData(data)
   audit('PERFIL_SOLICITADO', req, `Membro #${membro.id}: ${alteracoes.map(a => `${a.campo}=${a.para}`).join(', ')}`)
   res.status(202).json({ pendente: true, solicitacao: sol })
@@ -456,7 +503,7 @@ router.get('/me/qrus', requireAuth, (req: Request, res: Response): void => {
   const conta = data.contas.find(c => c.id === req.user!.contaId)
   const membroId = conta?.membroId
   if (!membroId) { res.json([]); return }
-  const nomes = new Map(data.membros.map(m => [m.id, m.policial]))
+  const nomes = new Map(data.membros.map(m => [m.id, nomeDoMembro(data, m)]))   // codinome (regra)
   const lista = data.acoes
     .filter(a => Array.isArray(a.participants) && a.participants.some(p => p.memberId === membroId))
     .sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id)

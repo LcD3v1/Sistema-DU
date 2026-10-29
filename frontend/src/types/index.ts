@@ -11,7 +11,7 @@ export interface Membro {
   passaporte: string
   policial: string
   codinome?: string
-  patenteNPD: string
+  patenteDPD: string
   patenteInterna: string
   status: StatusMembro
   entrada: string
@@ -20,6 +20,7 @@ export interface Membro {
   adv2: boolean
   adv3: boolean
   ordem?: number
+  setor?: string             // setor/subunidade (COD, DNARC, COD/DNARC…)
   advertencias?: Advertencia[]
   // Calculados pelo backend a partir da conta vinculada
   contaId?: number | null
@@ -80,7 +81,7 @@ export interface Conta {
   discordId?: string
   discordUsername?: string
   nomeServidor?: string
-  temSenha?: boolean
+  nome?: string          // codinome (regra: como a pessoa aparece em todo lugar)
   onboarded?: boolean
   exonerado?: boolean
   exoneradoEm?: string

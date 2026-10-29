@@ -2,7 +2,7 @@ const guild = '111111111111111111'
 const bot = '222222222222222222'
 const scope = { guildId: guild, botId: bot }
 function member(id, extra = {}) {
-  return { id, policial: `Membro ${id}`, badge: `B${id}`, passaporte: `P${id}`, patenteNPD: 'Officer',
+  return { id, policial: `Membro ${id}`, badge: `B${id}`, passaporte: `P${id}`, patenteDPD: 'Officer',
     patenteInterna: 'Officer', status: 'Ativo', entrada: '2026-08-01', promocao: '2026-08-01',
     adv1: false, adv2: false, adv3: false, ...extra }
 }

@@ -19,12 +19,12 @@ const ICONE: Record<TipoNotificacao, { icon: typeof Bell; cor: string }> = {
   promocao:           { icon: ChevronsUp,    cor: '#2ecc71' },
   rebaixamento:       { icon: ChevronsDown,  cor: '#e67e22' },
   advertencia:        { icon: AlertTriangle, cor: '#f1c40f' },
-  ausencia:           { icon: CalendarDays,  cor: '#3498db' },
+  ausencia:           { icon: CalendarDays,  cor: '#8b5cf6' },
   cadastro:           { icon: UserCheck,     cor: '#8b5cf6' },
   aviso:              { icon: Megaphone,     cor: '#8b5cf6' },
   fardamento:         { icon: Shirt,         cor: '#9b59b6' },
   recrutamento:       { icon: UserPlus,      cor: '#1abc9c' },
-  apreensao:          { icon: ClipboardCheck, cor: '#5865f2' },
+  apreensao:          { icon: ClipboardCheck, cor: '#8b5cf6' },
   exoneracao:         { icon: UserX,         cor: '#e74c3c' },
   membro:             { icon: Users,         cor: '#2ecc71' },
   curso:              { icon: BookOpen,      cor: '#b8860b' },
@@ -78,7 +78,7 @@ export default function NotificationBell() {
         }`}
         aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}`}
       >
-        <Bell size={16} className="text-[#3b82f6]" />
+        <Bell size={16} className="text-gold" />
         {naoLidas > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-red text-white text-[10px] font-bold flex items-center justify-center">
             {naoLidas > 99 ? '99+' : naoLidas}
@@ -93,7 +93,7 @@ export default function NotificationBell() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-24px)] bg-card border border-bdr2 rounded-xl shadow-2xl z-50 overflow-hidden"
+            className="absolute right-0 top-full mt-2 w-90 max-w-[calc(100vw-24px)] bg-card border border-bdr2 rounded-xl shadow-2xl z-50 overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-bdr">
               <p className="text-sm font-semibold text-txt">Notificações</p>
@@ -105,7 +105,7 @@ export default function NotificationBell() {
               )}
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto">
+            <div className="max-h-105 overflow-y-auto">
               {lista.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10 text-txt3">
                   <Bell size={24} className="opacity-40" />

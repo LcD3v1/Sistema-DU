@@ -9,7 +9,7 @@ import { conferirArquivos, sincronizarArquivos } from './arquivos'
 import {
   idDaRota, nomeDaConta, investigadoresValidos, registrarAlteracao, camposAlterados, numeroPadrao, basePublica, erroArquivos,
 } from '../registros'
-import type { Boletim, FastData } from '../types'
+import type { Boletim, DuData } from '../types'
 
 /**
  * Boletins da unidade — registro e consulta, independente dos relatórios.
@@ -40,7 +40,7 @@ function publico(b: Boletim) {
 }
 
 /** Número informado não pode repetir o de outro boletim. */
-function numeroLivre(data: FastData, numero: string, exceto?: number): boolean {
+function numeroLivre(data: DuData, numero: string, exceto?: number): boolean {
   const n = numero.toLowerCase()
   return !data.boletins.some(b => b.id !== exceto && b.numero.toLowerCase() === n)
 }
@@ -89,7 +89,7 @@ router.put('/:id', requireAuth, requireArea('boletins', 'editar'), validateBody(
   if (body.inqueritoId && !data.inqueritos.some(i => i.id === body.inqueritoId)) { res.status(400).json({ error: 'Inquérito vinculado não encontrado.' }); return }
   const numero = body.numero || bol.numero
   if (!numeroLivre(data, numero, id)) { res.status(409).json({ error: 'Já existe um boletim com esse número.' }); return }
-  const arquivos = await conferirArquivos(body.arquivos, 'boletins')
+  const arquivos = await conferirArquivos(body.arquivos, 'boletins', bol.arquivos.map(a => a.id))
   if (!arquivos) { erroArquivos(res); return }
 
   const antes = { ...bol }

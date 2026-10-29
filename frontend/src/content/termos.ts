@@ -23,7 +23,7 @@ export interface Documento {
 export const EMPRESAS = 'Nata Studios'
 
 export const TERMOS = {
-  versao: '2026-10-27',
+  versao: '2026-10-28-6',
   vigencia: '14 de setembro de 2026',
   atualizacao: '18 de setembro de 2026',
   leiAplicavel: 'Brasil e Flórida, EUA',
@@ -39,7 +39,7 @@ export const DOCUMENTOS: Documento[] = [
         titulo: '1. Quem somos',
         texto: [
           `O sistema DU é um sistema privado, de propriedade exclusiva da ${EMPRESAS} ("nós"), que o criou, mantém e opera. O uso é cedido à Detective Unit (DU) do Detroit Police Department ("unidade") — a unidade usa o sistema, mas ele não pertence a ela nem a nenhum usuário.`,
-          'Ao acessar o site, entrar com seu usuário e senha ou usar qualquer recurso do painel, você concorda com estes Termos de Uso e com a Política de Privacidade, a Política de Cookies, a Política de Propriedade Intelectual, a Licença de Uso e os Termos de Responsabilidade. Se não concordar, não use o sistema.',
+          'Ao acessar o site, entrar com a sua conta do Discord ou usar qualquer recurso do painel, você concorda com estes Termos de Uso e com a Política de Privacidade, a Política de Cookies, a Política de Propriedade Intelectual, a Licença de Uso e os Termos de Responsabilidade. Se não concordar, não use o sistema.',
         ],
       },
       {
@@ -48,7 +48,7 @@ export const DOCUMENTOS: Documento[] = [
           { t: 'Efetivo e hierarquia.', d: 'Cadastro de membros, patentes, promoções, rebaixamentos, advertências e histórico de cargos.' },
           { t: 'Operações.', d: 'Registro e aprovação de ações e apreensões, histórico, estatísticas e rankings.' },
           { t: 'Rotina da unidade.', d: 'Ausências, avisos, notificações, recrutamento, fardamentos, boletins, anúncios, protocolos e carteirinhas.' },
-          { t: 'Acesso por usuário e senha.', d: 'Você pede o acesso na tela de login e o comando da unidade aprova. O painel não usa bot nem publica nada no Discord.' },
+          { t: 'Acesso pelo Discord.', d: 'Você entra com a sua conta do Discord. Só quem está no servidor da unidade pode entrar, e o primeiro acesso precisa ser aprovado pelo comando. Quem sai do servidor perde o acesso e é exonerado automaticamente (os dados ficam arquivados). O bot da unidade publica no servidor os painéis de hierarquia e de setagem, sem notificar ninguém. Na setagem você informa codinome, passaporte (ID in-game) e patente: o bot troca o seu apelido no servidor na hora e abre um canal privado, visível só para quem avalia, com esses dados. O comando pode aprovar, reprovar ou pedir correção, e o bot avisa você por mensagem no privado. Depois da aprovação, ele dá o cargo da patente e você passa a fazer parte do efetivo, com os dados já preenchidos. A sua carteirinha (foto, nome, codinome, cargo e passaporte) só é postada no fórum do servidor quando o comando escolher postar.' },
           { t: 'Páginas públicas.', d: 'Ranking, diretório de membros e perfil público de cada membro ativo.' },
         ],
       },
@@ -92,9 +92,9 @@ export const DOCUMENTOS: Documento[] = [
     secoes: [
       {
         titulo: '1. Dados da sua conta',
-        texto: ['Para o acesso, pedimos apenas um nome de usuário, uma senha e o seu nome. A senha é guardada só de forma cifrada (hash) — nem o comando nem nós conseguimos lê‑la.'],
+        texto: ['Para o acesso, usamos apenas o login do Discord (permissão "identify"): recebemos o seu ID, nome de usuário, nome de exibição e foto do Discord. Não recebemos e‑mail, senha nem mensagens. Um bot da unidade, sem nenhuma permissão especial, confere periodicamente se você continua no servidor e lê o seu apelido, foto, cargos e data de entrada no servidor. Esses dados aparecem no seu perfil e, para a gestão da unidade, na página do servidor.'],
         itens: [
-          { t: 'Identificação.', d: 'Nome de usuário, nome informado no pedido de acesso e a foto que você escolher no perfil.' },
+          { t: 'Identificação.', d: 'ID, nome de usuário, nome de exibição, apelido e foto do Discord, e a foto que você escolher no perfil.' },
         ],
       },
       {
@@ -166,15 +166,16 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '2. Cookies essenciais',
         itens: [
-          { t: 'fast_sessao.', d: 'Mantém você logado depois de entrar com usuário e senha. Protegido (httpOnly, SameSite=Strict): não pode ser lido por scripts nem enviado por outros sites. Dura no máximo 8 horas e é apagado ao sair.' },
+          { t: 'du_oauth.', d: 'Código de segurança temporário do login pelo Discord (impede que outro site inicie um login em seu nome). Protegido (httpOnly), dura no máximo 10 minutos e é apagado ao voltar do Discord.' },
+          { t: 'du_sessao.', d: 'Mantém você logado depois de entrar pelo Discord. Protegido (httpOnly, SameSite=Strict): não pode ser lido por scripts nem enviado por outros sites. Dura no máximo 8 horas e é apagado ao sair.' },
         ],
       },
       {
         titulo: '3. Armazenamento do navegador',
         itens: [
-          { t: 'fast_termos_aceite.', d: 'Lembra que você viu e aceitou estes termos neste navegador (versão e data). Fica até você limpar os dados do site.' },
-          { t: 'fast-music-vol.', d: 'Guarda o volume do player de música da tela de login.' },
-          { t: 'fast:recarga-chunk.', d: 'Recarrega a página uma única vez quando o site é atualizado. Some ao fechar a aba.' },
+          { t: 'du_termos_aceite.', d: 'Lembra que você viu e aceitou estes termos neste navegador (versão e data). Fica até você limpar os dados do site.' },
+          { t: 'du-music-vol.', d: 'Guarda o volume do player de música da tela de login.' },
+          { t: 'du:recarga-chunk.', d: 'Recarrega a página uma única vez quando o site é atualizado. Some ao fechar a aba.' },
         ],
         texto: ['Nenhum dado de login, token ou informação pessoal fica guardado no armazenamento do navegador.'],
       },
@@ -359,7 +360,7 @@ export const DOCUMENTOS: Documento[] = [
       {
         titulo: '3. De cada usuário',
         itens: [
-          { t: 'Proteger a própria conta.', d: 'Usar uma senha forte, não repeti‑la em outros sites e sair do sistema em computadores compartilhados.' },
+          { t: 'Proteger a própria conta.', d: 'Proteger a sua conta do Discord (senha forte e verificação em duas etapas) e sair do sistema em computadores compartilhados.' },
           { t: 'Informar a verdade.', d: 'Responder pelo que registra, envia e publica pelo sistema.' },
           { t: 'Sigilo.', d: 'Não divulgar informações internas da unidade nem detalhes do funcionamento do sistema.' },
           { t: 'Respeitar a propriedade.', d: 'Não copiar, reproduzir nem repassar o sistema (veja a Política de Propriedade Intelectual e a Licença de Uso).' },

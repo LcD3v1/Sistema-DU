@@ -11,7 +11,7 @@ import { conferirArquivos, sincronizarArquivos } from './arquivos'
 import {
   idDaRota, nomeDaConta, investigadoresValidos, registrarAlteracao, camposAlterados, numeroPadrao, basePublica, erroArquivos,
 } from '../registros'
-import type { Conta, FastData, Relatorio } from '../types'
+import type { Conta, DuData, Relatorio } from '../types'
 
 /**
  * Relatórios investigativos: cada investigador cadastra os relatórios das próprias
@@ -32,7 +32,7 @@ const ROTULOS = {
 
 const router = Router()
 
-function contaAtual(req: Request, data: FastData): Conta | undefined {
+function contaAtual(req: Request, data: DuData): Conta | undefined {
   return data.contas.find(c => c.id === req.user!.contaId)
 }
 
@@ -41,13 +41,13 @@ function envolvido(r: Relatorio, conta: Conta): boolean {
   return r.autorContaId === conta.id || (conta.membroId !== undefined && r.investigadores.includes(conta.membroId))
 }
 
-const gestor = (conta: Conta, data: FastData) => canArea(conta, data, 'relatorios_gestao', 'editar')
-const podeVer = (r: Relatorio, conta: Conta, data: FastData) =>
+const gestor = (conta: Conta, data: DuData) => canArea(conta, data, 'relatorios_gestao', 'editar')
+const podeVer = (r: Relatorio, conta: Conta, data: DuData) =>
   !r.sigiloso || envolvido(r, conta) || canArea(conta, data, 'relatorios_gestao', 'ver')
-const podeEditar = (r: Relatorio, conta: Conta, data: FastData) =>
+const podeEditar = (r: Relatorio, conta: Conta, data: DuData) =>
   gestor(conta, data) || (envolvido(r, conta) && canArea(conta, data, 'relatorios', 'editar'))
 
-function publico(r: Relatorio, conta: Conta, data: FastData) {
+function publico(r: Relatorio, conta: Conta, data: DuData) {
   return {
     ...basePublica(r),
     tipo: r.tipo, data: r.data, conteudo: r.conteudo, sigiloso: r.sigiloso,
@@ -57,13 +57,13 @@ function publico(r: Relatorio, conta: Conta, data: FastData) {
 }
 
 /** Vínculos opcionais precisam existir. */
-function vinculosValidos(data: FastData, body: CorpoRelatorio): boolean {
+function vinculosValidos(data: DuData, body: CorpoRelatorio): boolean {
   if (body.inqueritoId && !data.inqueritos.some(i => i.id === body.inqueritoId)) return false
   if (body.boletimId && !data.boletins.some(b => b.id === body.boletimId)) return false
   return true
 }
 
-function avisarInvestigadores(data: FastData, r: Relatorio, exceto: number, titulo: string) {
+function avisarInvestigadores(data: DuData, r: Relatorio, exceto: number, titulo: string) {
   for (const membroId of r.investigadores) {
     const conta = contaDoMembro(data, membroId)
     if (!conta || conta.id === exceto) continue
@@ -124,7 +124,7 @@ router.put('/:id', requireAuth, requireArea('relatorios', 'ver'), validateBody(r
   const investigadores = investigadoresValidos(data, body.investigadores)
   if (!investigadores) { res.status(400).json({ error: 'Investigador inválido.' }); return }
   if (!vinculosValidos(data, body)) { res.status(400).json({ error: 'Inquérito ou boletim vinculado não encontrado.' }); return }
-  const arquivos = await conferirArquivos(body.arquivos, 'relatorios')
+  const arquivos = await conferirArquivos(body.arquivos, 'relatorios', rel.arquivos.map(a => a.id))
   if (!arquivos) { erroArquivos(res); return }
 
   const antes = { ...rel }

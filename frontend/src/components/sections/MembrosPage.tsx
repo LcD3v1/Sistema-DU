@@ -11,13 +11,12 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { RotateCcw, Search, Trash2, UserX, Users, X } from 'lucide-react'
 import { useMembros, useUpdateMembro, useDeleteMembro, useReorderMembros, useMembrosExonerados, useRetirarExoneracao } from '@/hooks/useMembros'
-import { usePatentes, useCargos } from '@/hooks/useConfig'
+import { useOpcoesPerfil } from '@/hooks/useSetagem'
 import { usePerms } from '@/hooks/usePerms'
 import { useAlternarAdv } from '@/hooks/useAlternarAdv'
 import { useUIStore } from '@/store/uiStore'
 import { useDebounce } from '@/hooks/useDebounce'
 import GlowCard from '@/components/ui/GlowCard'
-import HudButton from '@/components/ui/HudButton'
 import StatusBadge from '@/components/ui/StatusBadge'
 import AdvBox from '@/components/ui/AdvBox'
 import DragHandle from '@/components/ui/DragHandle'
@@ -42,7 +41,7 @@ interface InlineCellProps {
   onSave: (val: string) => void
 }
 
-function InlineCell({ field, value, canEdit, type = 'text', options, onSave }: InlineCellProps) {
+function InlineCell({ value, canEdit, type = 'text', options, onSave }: InlineCellProps) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value)
 
@@ -63,7 +62,8 @@ function InlineCell({ field, value, canEdit, type = 'text', options, onSave }: I
       onBlur={() => setEditing(false)}
       className="bg-card2 border border-gold/50 rounded px-1 py-0.5 text-xs font-mono text-txt"
     >
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
+      {val && !options.includes(val) && <option value={val}>{val} (atual)</option>}
+      {options.map(o => <option key={o} value={o}>{o || '— nenhum —'}</option>)}
     </select>
   )
   return (
@@ -85,10 +85,10 @@ interface SortableRowProps {
   onUpdate: (id: number, data: Partial<Membro>) => void
   onDelete: (id: number) => void
   patentes: string[]
-  cargos: string[]
+  setores: string[]
 }
 
-function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: SortableRowProps) {
+function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, setores }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: membro.id })
 
   const style = {
@@ -127,12 +127,12 @@ function SortableRow({ membro, canEdit, onUpdate, onDelete, patentes, cargos }: 
         )}
       </td>
       <td className="px-3 py-2.5">
-        <InlineCell field="patenteNPD" value={membro.patenteNPD} canEdit={canEdit} options={canEdit ? patentes : undefined} onSave={v => onUpdate(membro.id, { patenteNPD: v })} />
+        <InlineCell field="setor" value={membro.setor ?? ''} canEdit={canEdit} options={canEdit ? ['', ...setores] : undefined} onSave={v => onUpdate(membro.id, { setor: v })} />
       </td>
       <td className="px-3 py-2.5">
-        {membro.contaId
-          ? <span className="font-mono text-xs text-gold3" title="Cargo de permissão — altere pelo menu Promoção">{membro.cargoNome ?? '—'}</span>
-          : <InlineCell field="patenteInterna" value={membro.patenteInterna} canEdit={canEdit} options={canEdit ? cargos : undefined} onSave={v => onUpdate(membro.id, { patenteInterna: v })} />}
+        <div title={membro.cargoNome ? `Cargo de permissão no site: ${membro.cargoNome}` : undefined}>
+          <InlineCell field="patenteInterna" value={membro.patenteInterna} canEdit={canEdit} options={canEdit ? patentes : undefined} onSave={v => onUpdate(membro.id, { patenteInterna: v })} />
+        </div>
       </td>
       <td className="px-3 py-2.5">
         {canEdit ? (
@@ -182,8 +182,10 @@ export default function MembrosPage() {
   const { canEdit: can } = usePerms()
   const { addToast } = useUIStore()
   const { data: membros, isLoading } = useMembros()
-  const { data: patentes = [] } = usePatentes()
-  const { data: cargos = [] } = useCargos()
+  // Patentes e setores da setagem (os mesmos do modal do Discord)
+  const { data: opcoes } = useOpcoesPerfil()
+  const patentes = opcoes?.patentes ?? []
+  const setores = opcoes?.setores ?? []
   const updateMembro = useUpdateMembro()
   const deleteMembro = useDeleteMembro()
   const reorderMembros = useReorderMembros()
@@ -280,18 +282,18 @@ export default function MembrosPage() {
   const totalAtivos = membros?.length ?? 0
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8 space-y-6">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8 space-y-6">
       {/* Cabeçalho da página — arte temática da DU */}
       <div className="relative overflow-hidden rounded-2xl border border-bdr">
         <img src="/media/du/membros.webp" alt="" aria-hidden decoding="async" className="absolute inset-0 w-full h-full object-cover object-[center_35%]" />
-        <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-bg via-bg/80 to-bg/10" />
-        <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-transparent" />
+        <div aria-hidden className="absolute inset-0 bg-linear-to-r from-bg via-bg/80 to-bg/10" />
+        <div aria-hidden className="absolute inset-0 bg-linear-to-t from-bg/80 via-transparent to-transparent" />
         <div className="relative flex items-end justify-between gap-4 flex-wrap px-5 sm:px-8 py-8 sm:py-12 min-h-44">
           <div>
             <p className="font-mono text-[10px] text-gold3 tracking-[0.25em] uppercase mb-1">Efetivo da Detective Unit</p>
             <h1 className="text-2xl sm:text-4xl font-bold text-txt">Investigadores</h1>
             <p className="text-sm text-txt2 mt-1 max-w-xl">
-              {totalAtivos} {totalAtivos === 1 ? 'investigador cadastrado' : 'investigadores cadastrados'} — gerencie codinomes, patentes, status, advertências e perfis.
+              {totalAtivos} {totalAtivos === 1 ? 'investigador cadastrado' : 'investigadores cadastrados'} — gerencie codinomes, setores, patentes, status, advertências e perfis.
             </p>
           </div>
           <button type="button" onClick={() => setDirectoryOpen(v => !v)}
@@ -371,13 +373,13 @@ export default function MembrosPage() {
           <div className="overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={orderedMembros.map(m => m.id)} strategy={verticalListSortingStrategy}>
-                <table className="w-full text-sm min-w-[1000px]">
+                <table className="w-full text-sm min-w-250">
                   <thead>
                     <tr className="border-b border-bdr">
                       {[
                         canEdit ? '⠿' : '',
-                        'Badge', 'Passaporte', 'Nome', 'Patente',
-                        'Cargo', 'Status', 'Entrada', 'Promoção', 'Adv.',
+                        'Badge', 'Passaporte', 'Nome', 'Setor',
+                        'Patente', 'Status', 'Entrada', 'Promoção', 'Adv.',
                         canEdit ? '' : '',
                       ].map((h, i) => (
                         <th key={i} className="text-left font-mono text-xs text-txt3 tracking-wider px-3 py-3">{h}</th>
@@ -400,7 +402,7 @@ export default function MembrosPage() {
                           onUpdate={handleUpdate}
                           onDelete={handleDelete}
                           patentes={patentes}
-                          cargos={cargos}
+                          setores={setores}
                         />
                       ))
                     )}
@@ -413,7 +415,7 @@ export default function MembrosPage() {
       ) : (
         <GlowCard>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[760px]">
+            <table className="w-full text-sm min-w-190">
               <thead>
                 <tr className="border-b border-bdr">
                   {['Nome', 'Usuário', 'Data', 'Motivo', 'Ação'].map(h => (
@@ -448,7 +450,7 @@ export default function MembrosPage() {
                         </td>
                         <td className="px-3 py-3 font-mono text-xs text-txt2">{`@${conta.username}`}</td>
                         <td className="px-3 py-3 font-mono text-xs text-txt2">{conta.exoneradoEm ? new Date(conta.exoneradoEm).toLocaleDateString('pt-BR') : '—'}</td>
-                        <td className="px-3 py-3 text-xs text-txt2 max-w-[360px] truncate" title={conta.exoneradoMotivo ?? ''}>{conta.exoneradoMotivo || '—'}</td>
+                        <td className="px-3 py-3 text-xs text-txt2 max-w-90 truncate" title={conta.exoneradoMotivo ?? ''}>{conta.exoneradoMotivo || '—'}</td>
                         <td className="px-3 py-3">
                           <AnimatePresence>
                             {selecionado && (

@@ -36,6 +36,12 @@ const RecrutamentoPage = paginaLazy('/recrutamento')
 const RecrutaCandidatoPage = paginaLazy('/recrutamento/:id')
 const MembrosPage = paginaLazy('/membros')
 const ConfiguracoesPage = paginaLazy('/configuracoes')
+const HierarquiaPage = paginaLazy('/hierarquia')
+const ServidorPage = paginaLazy('/servidor')
+const LogsPage = paginaLazy('/logs')
+const ArvoresPage = paginaLazy('/arvores')
+const ArvoreQuadroPage = paginaLazy('/arvores/:id')
+const SetagemPage = paginaLazy('/setagem')
 
 // Recarregou a página: tenta recuperar a sessão pelo cookie httpOnly (uma vez)
 void useAuthStore.getState().restaurarSessao()
@@ -154,6 +160,24 @@ export default function App() {
             } />
             <Route path="membros" element={
               <ProtectedRoute area="membros"><MembrosPage /></ProtectedRoute>
+            } />
+            <Route path="setagem" element={
+              <ProtectedRoute area="setagem"><SetagemPage /></ProtectedRoute>
+            } />
+            <Route path="arvores" element={
+              <ProtectedRoute area="arvore"><ArvoresPage /></ProtectedRoute>
+            } />
+            <Route path="arvores/:id" element={
+              <ProtectedRoute area="arvore"><ArvoreQuadroPage /></ProtectedRoute>
+            } />
+            <Route path="logs" element={
+              <ProtectedRoute area="logs"><LogsPage /></ProtectedRoute>
+            } />
+            <Route path="servidor" element={
+              <ProtectedRoute area="servidor"><ServidorPage /></ProtectedRoute>
+            } />
+            <Route path="hierarquia" element={
+              <ProtectedRoute area="hierarquia"><HierarquiaPage /></ProtectedRoute>
             } />
             <Route path="configuracoes" element={
               <ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>

@@ -17,6 +17,11 @@ export const PERM_AREAS = [
   { id: 'anuncio',           label: 'Gerar Anúncio' },
   { id: 'protocolo',         label: 'Protocolo' },
   { id: 'carteira',          label: 'Carteirinha da DU' },
+  { id: 'hierarquia',         label: 'Painel de hierarquia (Discord)' },
+  { id: 'servidor',           label: 'Servidor do Discord (Editar = ver a lista de membros)' },
+  { id: 'setagem',            label: 'Setagem (Editar = configurar e aprovar pedidos de set)' },
+  { id: 'arvore',            label: 'Árvore de investigação (Editar = criar e mexer nos quadros)' },
+  { id: 'logs',              label: 'Logs (site e servidor do Discord)' },
   { id: 'configuracoes',     label: 'Configurações' },
 ] as const
 

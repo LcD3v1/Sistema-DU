@@ -83,15 +83,15 @@ export default function MinhasQrus({ ativo }: { ativo: boolean }) {
             )}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-txt break-words">{aberta.qru}</h3>
+                <h3 className="text-lg font-semibold text-txt wrap-break-word">{aberta.qru}</h3>
                 <p className="text-xs text-txt2">{aberta.tipo === 'fechado' ? 'Ação' : 'Apreensão'}</p>
               </div>
               <Resultado q={aberta} />
             </div>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div><dt className="text-txt3 text-[11px] flex items-center gap-1"><CalendarDays size={11} /> Data</dt><dd className="text-txt">{dataBR(aberta.data)}</dd></div>
-              <div><dt className="text-txt3 text-[11px] flex items-center gap-1"><UserRound size={11} /> Comandante</dt><dd className="text-txt break-words">{aberta.comandante || '—'}</dd></div>
-              {aberta.local && <div className="sm:col-span-2"><dt className="text-txt3 text-[11px] flex items-center gap-1"><MapPin size={11} /> Local</dt><dd className="text-txt break-words">{aberta.local}</dd></div>}
+              <div><dt className="text-txt3 text-[11px] flex items-center gap-1"><UserRound size={11} /> Comandante</dt><dd className="text-txt wrap-break-word">{aberta.comandante || '—'}</dd></div>
+              {aberta.local && <div className="sm:col-span-2"><dt className="text-txt3 text-[11px] flex items-center gap-1"><MapPin size={11} /> Local</dt><dd className="text-txt wrap-break-word">{aberta.local}</dd></div>}
             </dl>
             <div>
               <p className="text-txt3 text-[11px] flex items-center gap-1 mb-1.5"><Users size={11} /> Participantes ({aberta.participantes.length})</p>

@@ -16,7 +16,7 @@
 .public-directory__separator { width: 14px; height: 1px; background: rgba(246, 246, 247, .32); }
 
 /* ── Painel ────────────────────────────────────────────────── */
-.paper-panel { --faixa: rgb(167, 139, 250); --faixa-hover: rgb(140, 183, 243); --faixa-lider: rgb(163, 199, 248); --tinta: rgb(8, 9, 10); position: fixed; top: clamp(88px, 12vh, 118px); bottom: 68px; min-width: 0; overflow: hidden; background-color: transparent; color: rgb(245, 245, 243); text-shadow: rgba(0, 0, 0, .75) 0 1px 6px; opacity: 0; visibility: hidden; pointer-events: none; will-change: transform, clip-path, opacity; filter: drop-shadow(rgba(0, 0, 0, .66) 0 24px 46px); transition: clip-path 980ms cubic-bezier(.16, 1, .3, 1), transform 620ms cubic-bezier(.7, 0, .3, 1), opacity 130ms, visibility linear 980ms; }
+.paper-panel { --faixa: rgb(167, 139, 250); --faixa-hover: rgb(196, 181, 253); --faixa-lider: rgb(196, 181, 253); --tinta: rgb(8, 9, 10); position: fixed; top: clamp(88px, 12vh, 118px); bottom: 68px; min-width: 0; overflow: hidden; background-color: transparent; color: rgb(245, 245, 243); text-shadow: rgba(0, 0, 0, .75) 0 1px 6px; opacity: 0; visibility: hidden; pointer-events: none; will-change: transform, clip-path, opacity; filter: drop-shadow(rgba(0, 0, 0, .66) 0 24px 46px); transition: clip-path 980ms cubic-bezier(.16, 1, .3, 1), transform 620ms cubic-bezier(.7, 0, .3, 1), opacity 130ms, visibility linear 980ms; }
 .paper-panel::before { content: ""; position: absolute; top: 0; bottom: 0; z-index: 2; width: 26px; background-color: rgba(139, 92, 246, .55); opacity: 0; pointer-events: none; }
 .paper-panel--ranking { left: 16px; width: clamp(620px, 54vw, 720px); --paper-copy-shift: 18px; padding: 0 30px 0 20px; transform: scaleX(.025) skewX(-2deg); transform-origin: right center; clip-path: polygon(98% 0, 98% 0, 98% 6%, 98% 12%, 98% 18%, 98% 24%, 98% 31%, 98% 38%, 98% 46%, 98% 53%, 98% 61%, 98% 68%, 98% 76%, 98% 84%, 98% 92%, 98% 100%, 98% 100%, 98% 0); }
 .paper-panel--members { right: 16px; width: clamp(340px, 28vw, 440px); --paper-copy-shift: -18px; padding: 0 14px 0 22px; transform: scaleX(.025) skewX(2deg); transform-origin: left center; clip-path: polygon(2% 0, 2% 0, 2% 100%, 2% 100%, 2% 92%, 2% 84%, 2% 76%, 2% 68%, 2% 61%, 2% 53%, 2% 46%, 2% 38%, 2% 31%, 2% 24%, 2% 18%, 2% 12%, 2% 6%, 2% 0); }
@@ -119,7 +119,7 @@
 .directory-member-card:hover, .directory-member-card:focus-visible { background-color: rgba(167, 139, 250, .12); transform: translateX(3px); }
 .directory-member-card:focus-visible { box-shadow: var(--faixa) 0 0 0 1px inset; }
 .directory-member-identity { display: flex; align-items: baseline; justify-self: start; gap: 6px; }
-.directory-member-id { flex: 0 0 auto; color: rgba(8, 9, 10, .58); font: 700 9px/1 var(--mono); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.directory-member-id { flex: 0 0 auto; color: rgb(76, 29, 149); font: 700 9px/1 var(--mono); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
 .directory-member-level { justify-self: end; color: var(--faixa-lider); font: 700 9px/1 var(--mono); letter-spacing: .06em; font-variant-numeric: tabular-nums; }
 .directory-member-avatar { position: relative; overflow: visible; }
 .directory-member-presence { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border: 2px solid rgb(17, 18, 20); border-radius: 50%; background: rgb(116, 118, 126); }

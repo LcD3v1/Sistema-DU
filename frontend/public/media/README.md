@@ -17,5 +17,5 @@ Os arquivos de mídia usados pelo painel ficam nesta pasta.
 >
 > Para comprimir com ffmpeg:
 > ```bash
-> ffmpeg -i entrada.mp4 -vf "scale='min(1920,iw)':-2" -c:v libx264 -preset slow -crf 28 -pix_fmt yuv420p -movflags +faststart -an login-bg.mp4
+> ffmpeg -i entrada.mp4 -vf "scale='min(1920,iw)':-2" -c:v libx264 -preset slow -crf 28 -pix_fmt yuv420p -movflags +DUstart -an login-bg.mp4
 > ```

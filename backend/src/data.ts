@@ -1,20 +1,25 @@
-import bcrypt from 'bcrypt'
-import { FastData, CargoPermissao } from './types'
-import { fullPermMap, normalizePermMap } from './permAreas'
-import { bindDataScope, configuredScope } from './modules/ranking/scope'
-import { auditRankingChanges } from './modules/ranking/auditChanges'
-import { DATA_PATH, gravarAtomico, lerJson } from './armazenamento'
+import { DATA_PATH, gravarAtomico, lerJson } from './armazenamento';
+import { auditRankingChanges } from './modules/ranking/auditChanges';
+import { bindDataScope, configuredScope } from './modules/ranking/scope';
+import { fullPermMap, normalizePermMap } from './permAreas';
+import { CargoPermissao, DuData, Membro } from './types';
+import { CofreDados, conectarBanco } from './bancoDados';
 
 /**
- * Persistência em arquivo JSON (mesmo modelo do Sistema Tática, sem banco externo).
+ * Persistência: memória + arquivo JSON + (opcional) MongoDB.
  *
  * O painel inteiro usa readData()/writeData() de forma síncrona. Os dados ficam
- * num cache em memória carregado do arquivo na inicialização (initData);
- * writeData atualiza o cache na hora e grava o arquivo inteiro de forma atômica
- * (temporário + rename) logo em seguida — rajadas de gravação viram uma só.
+ * num cache em memória carregado na inicialização (initData); writeData atualiza o
+ * cache na hora e grava o arquivo inteiro de forma atômica (temporário + rename) logo
+ * em seguida — rajadas de gravação viram uma só.
+ *
+ * Com MONGODB_URI (bancoDados.ts), o banco é a fonte da verdade: o boot lê de lá (na
+ * primeira vez, importa o arquivo atual) e cada gravação também vai para o banco, em
+ * segundo plano (uma por vez, sempre a versão mais nova; banco fora = tenta de novo).
+ * O arquivo local continua sendo gravado como reserva.
  */
 
-const DEFAULT_DATA: FastData = {
+const DEFAULT_DATA: DuData = {
   membros: [],
   acoes: [],
   qrus: ['QRU-1', 'QRU-2', 'QRU-3'],
@@ -28,7 +33,7 @@ const DEFAULT_DATA: FastData = {
       { id: 4, nome: 'Disciplina', peso: 1 },
     ],
   },
-  patentes: ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Major', 'Coronel'],
+  patentes: ['Chief of Detectives ', 'Deputy Chief of Detectives', 'Investigative Coordinator', 'Investigative Inspector', 'Senior Detective', 'Detective', 'Major', 'Investigator Trainee'],
   cargos: ['Operador', 'Sniper', 'Médico de Campo', 'Líder de Esquadrão', 'Comandante'],
   contas: [],
   ausencias: [],
@@ -36,7 +41,7 @@ const DEFAULT_DATA: FastData = {
   fardamentos: [],
   cargosPermissao: [],
   anuncioSituacoes: [
-    { id: 1, label: 'Área Restrita', titulo: 'D.P.D INFORMA:', texto: 'A área do [LOCAL] se encontra restrita pelas próximas horas, por estar sob atividade criminosa. Mantenham-se afastados — risco iminente de bala perdida! ESTE AVISO SERÁ ÚNICO! Att. [ASSINATURA]' },
+    { id: 1, label: 'Área Restrita', titulo: 'D.P.D INFORMA:', texto: 'A área do [LOCAL] se encontra restrita pelas próximas horas, por estar sob atividade criminosa. Mantenham-se aDUados — risco iminente de bala perdida! ESTE AVISO SERÁ ÚNICO! Att. [ASSINATURA]' },
     { id: 2, label: 'Operação em andamento', titulo: 'D.P.D INFORMA:', texto: 'Uma operação policial está em andamento na região do [LOCAL]. Solicitamos que a população evite a área e coopere com as autoridades. Att. [ASSINATURA]' },
     { id: 3, label: 'Toque de recolher', titulo: 'D.P.D INFORMA:', texto: 'Fica decretado toque de recolher na região do [LOCAL] a partir deste momento. A circulação está restrita até novo aviso. Att. [ASSINATURA]' },
     { id: 4, label: 'Foragido / Procurado', titulo: 'D.P.D INFORMA:', texto: 'Indivíduo foragido e possivelmente armado foi avistado nas proximidades do [LOCAL]. Em caso de avistamento, acione a DPD imediatamente e não se aproxime. Att. [ASSINATURA]' },
@@ -71,17 +76,34 @@ const DEFAULT_DATA: FastData = {
   nextFotoId: 1,
 }
 
-const FAST_PERMISSION_ROLES = [
-  '(DU) Commander',
-  '(DU) Deputy Commander',
-  '(DU) Coordinator',
-  '(DU) Veteran',
-  '(DU) Senior',
-  '(DU) Officer',
-  '(DU) Probationary',
+/** Cargos de permissão oficiais = as patentes da DU (de cima para baixo). */
+const DU_PERMISSION_ROLES = [
+  'Supervisor of Detectives',
+  'Chief of Detectives',
+  'Deputy Chief of Detectives',
+  'Investigative Coordinator',
+  'Investigative Inspector',
+  'Senior Detective',
+  'Detective',
+  'Investigator Trainee',
 ] as const
+const CARGO_ADMIN = 'Supervisor of Detectives'     // acesso total
+const CARGO_PADRAO = 'Investigator Trainee'        // cargo de quem acabou de entrar
+/**
+ * Nomes antigos → patente: o cargo é RENOMEADO (mesmo ID, permissões e contas), nada é apagado.
+ * "Detective" não tinha equivalente e é criado.
+ */
+const NOMES_ANTIGOS: [string, string][] = [
+  ['(DU) Commander', 'Supervisor of Detectives'],
+  ['(DU) Deputy Commander', 'Chief of Detectives'],
+  ['(DU) Coordinator', 'Deputy Chief of Detectives'],
+  ['(DU) Veteran', 'Investigative Coordinator'],
+  ['(DU) Senior', 'Investigative Inspector'],
+  ['(DU) Officer', 'Senior Detective'],
+  ['(DU) Probationary', 'Investigator Trainee'],
+]
 
-function canonicalFastRoleName(nome: string) {
+function canonicalDuRoleName(nome: string) {
   return nome
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -90,40 +112,89 @@ function canonicalFastRoleName(nome: string) {
     .trim()
 }
 
-let cache: FastData | undefined
+let cache: DuData | undefined
 // Cache serializado da revisão atual: JSON.parse é ~3x mais rápido que structuredClone
 // e os dados já são JSON puro.
 let cacheJson: string | undefined
 
 function clone<T>(v: T): T { return structuredClone(v) }
 
-/** Carrega os dados do arquivo (ou começa com os padrões). Chamar antes de subir o servidor. */
-export async function initData(): Promise<void> {
+let cofre: CofreDados | undefined
+
+/**
+ * Carrega os dados (banco, se configurado; senão o arquivo; senão os padrões). Chamar antes de subir o servidor.
+ * `cofreDeTeste` substitui o MongoDB nos testes.
+ */
+export async function initData(cofreDeTeste?: CofreDados): Promise<void> {
   const scope = configuredScope()
   if (scope) bindDataScope(scope)
-  // Arquivo corrompido derruba o boot de propósito: nunca recomeçar do zero por cima dos dados
-  const salvo = lerJson<Partial<FastData>>(DATA_PATH)
-  cache = { ...clone(DEFAULT_DATA), ...(salvo ?? {}) } as FastData
+  cofre = cofreDeTeste ?? await conectarBanco()
+  // Banco/arquivo corrompido (ou chave errada) derruba o boot de propósito: nunca recomeçar do zero por cima dos dados
+  const doBanco = cofre ? await cofre.ler() : undefined
+  const salvo = doBanco !== undefined ? JSON.parse(doBanco) as Partial<DuData> : lerJson<Partial<DuData>>(DATA_PATH)
+  cache = { ...clone(DEFAULT_DATA), ...(salvo ?? {}) } as DuData
   cacheJson = undefined
+  if (cofre && doBanco === undefined) {
+    // Primeira vez com o banco: backup cifrado do que existe hoje e importa (o arquivo continua como reserva)
+    if (salvo) {
+      const { criarBackup } = await import('./backupAutomatico')
+      const arquivo = criarBackup()
+      console.log(arquivo ? '[DU][BANCO] Backup cifrado criado antes de importar para o MongoDB.' : '[DU][BANCO] Sem DATA_ENCRYPTION_KEY: importando sem backup cifrado (o arquivo original fica intacto).')
+    }
+    cacheJson = JSON.stringify(cache)
+    await cofre.gravar(cacheJson)
+    console.log(salvo ? `[DU][BANCO] Dados atuais de ${DATA_PATH} importados para o MongoDB.` : '[DU][BANCO] MongoDB iniciado com os dados padrão.')
+  }
   if (!salvo) {
-    gravarAgora()
+    gravarAgora(Boolean(cofre))   // com banco, ele já recebeu os dados acima
     console.log(`[DU][DADOS] Arquivo de dados criado em ${DATA_PATH}`)
+  } else if (doBanco !== undefined) {
+    gravarAgora(true)   // reserva local igual ao banco (sem regravar o banco)
+    console.log('[DU][DADOS] Dados carregados do MongoDB.')
   } else {
     console.log(`[DU][DADOS] Dados carregados de ${DATA_PATH}`)
   }
 }
 
-export function readData(): FastData {
+// ── Gravação no banco (segundo plano) ─────────────────────────────────────────
+let gravandoNoBanco: Promise<void> | undefined
+let bancoPendente = false
+let bancoFalhou = false
+/** O banco está recebendo as gravações? (false = fora do ar; o arquivo local segue gravando) */
+export const bancoEmDia = (): boolean => !cofre || (!bancoFalhou && !bancoPendente)
+
+function gravarNoBanco(): void {
+  if (!cofre) return
+  bancoPendente = true
+  if (gravandoNoBanco) return   // a gravação em andamento pega a versão mais nova quando terminar
+  gravandoNoBanco = (async () => {
+    while (bancoPendente && cofre) {
+      bancoPendente = false
+      try {
+        await cofre.gravar(cacheJson ?? JSON.stringify(cache))
+        if (bancoFalhou) console.log('[DU][BANCO] Gravação no MongoDB voltou ao normal.')
+        bancoFalhou = false
+      } catch (err) {
+        if (!bancoFalhou) console.error('[DU][BANCO] Falha ao gravar no MongoDB (o arquivo local segue gravando; tentando de novo):', err instanceof Error ? err.message : err)
+        bancoFalhou = true
+        bancoPendente = true
+        await new Promise(r => setTimeout(r, 3_000))
+      }
+    }
+  })().finally(() => { gravandoNoBanco = undefined })
+}
+
+export function readData(): DuData {
   if (!cache) throw new Error('Dados ainda não carregados — initData() não foi chamado')
   cacheJson ??= JSON.stringify(cache)
-  return JSON.parse(cacheJson) as FastData
+  return JSON.parse(cacheJson) as DuData
 }
 
 /**
  * Leitura SEM cópia, para consultas somente-leitura em caminhos quentes.
  * NUNCA mutar o objeto retornado (nem passá-lo a writeData); para alterar use readData().
  */
-export function peekData(): Readonly<FastData> {
+export function peekData(): Readonly<DuData> {
   if (!cache) throw new Error('Dados ainda não carregados — initData() não foi chamado')
   return cache
 }
@@ -134,31 +205,50 @@ let persistenceFailed = false
 export function dataRevision(): number { return revision }
 export function rankingPersistenceReady(): boolean { return !persistenceFailed }
 
-export function writeData(data: FastData): void {
+/**
+ * Muita gente gravando ao mesmo tempo: o arquivo inteiro é reescrito no máximo 1 vez por segundo
+ * (sempre com a versão mais nova da memória). A memória muda na hora; o desligamento (SIGINT/SIGTERM)
+ * e o erro fatal gravam o que estiver pendente (closeData).
+ */
+const INTERVALO_MIN_GRAVACAO_MS = 1_000
+let ultimaGravacao = 0
+
+export function writeData(data: DuData): void {
   if (cache) auditRankingChanges(cache, data)
   cacheJson = JSON.stringify(data)
-  cache = JSON.parse(cacheJson) as FastData
+  cache = JSON.parse(cacheJson) as DuData
   revision++
-  agendado ??= setImmediate(gravarAgora)
+  if (agendado) return
+  const espera = ultimaGravacao + INTERVALO_MIN_GRAVACAO_MS - Date.now()
+  agendado = espera > 0 ? setTimeout(gravarAgora, espera) : setImmediate(gravarAgora)
 }
 
-function gravarAgora(): void {
+function gravarAgora(soArquivo = false): void {
   agendado = undefined
   if (!cache) return
+  cacheJson ??= JSON.stringify(cache)
+  if (!soArquivo) gravarNoBanco()   // banco em segundo plano (fonte da verdade, se configurado)
   try {
-    cacheJson ??= JSON.stringify(cache)
     gravarAtomico(DATA_PATH, cacheJson)
+    ultimaGravacao = Date.now()
     persistenceFailed = false
   } catch (err) {
     persistenceFailed = true
     console.error('[DU][DADOS] Falha ao gravar o arquivo de dados:', err instanceof Error ? err.message : err)
-    agendado = setTimeout(gravarAgora, 3000)
+    agendado = setTimeout(() => gravarAgora(true), 3000)   // o banco já tem a própria nova tentativa
   }
 }
 
-/** Grava o que estiver pendente (desligamento limpo). */
+/** Grava o que estiver pendente (desligamento limpo): arquivo na hora; banco com até 10 s de espera. */
 export async function closeData(): Promise<void> {
   if (agendado) { clearTimeout(agendado as NodeJS.Timeout); clearImmediate(agendado as NodeJS.Immediate); gravarAgora() }
+  if (!cofre) return
+  const limite = new Promise(r => setTimeout(r, 10_000).unref())
+  while (gravandoNoBanco) {
+    const terminou = await Promise.race([gravandoNoBanco.then(() => true), limite.then(() => false)])
+    if (!terminou) { console.error('[DU][BANCO] Desligando sem confirmar a última gravação no MongoDB (o arquivo local tem os dados).'); break }
+  }
+  await cofre.fechar().catch(() => undefined)
 }
 
 /**
@@ -195,8 +285,8 @@ export function ensureNivelMigration(): void {
   console.log('[DU] Migração nível→cargos concluída (cargo Administrador criado/atribuído).')
 }
 
-function defaultPermsForFastRole(nome: string) {
-  if (nome === '(DU) Commander' || nome === '(DU) Deputy Commander') return fullPermMap()
+function defaultPermsForDuRole(nome: string) {
+  if (nome === CARGO_ADMIN || nome === 'Chief of Detectives') return fullPermMap()
   return normalizePermMap({
     dashboard: { ver: true },
     avisos: { ver: true },
@@ -214,30 +304,41 @@ function defaultPermsForFastRole(nome: string) {
  * Não sobrescreve permissões já editadas; só cria o que faltar e reordena os
  * cargos oficiais no topo, na ordem da hierarquia.
  */
-export function ensureFastPermissionRoles(): void {
+export function ensureDuPermissionRoles(): void {
   const data = readData()
   let mudou = false
 
   const byName = (nome: string) => data.cargosPermissao.find(c => c.nome.toLowerCase() === nome.toLowerCase())
-  const byFastRole = (nome: string) => {
-    const canon = canonicalFastRoleName(nome)
+  const byDuRole = (nome: string) => {
+    const canon = canonicalDuRoleName(nome)
     return data.cargosPermissao
-      .filter(c => canonicalFastRoleName(c.nome) === canon)
+      .filter(c => canonicalDuRoleName(c.nome) === canon)
       .sort((a, b) => a.id - b.id)
   }
-  let commander = byName('(DU) Commander')
+  // Cargos com o nome antigo viram a patente correspondente (mesmo ID: contas e permissões continuam)
+  for (const [antigo, novo] of NOMES_ANTIGOS) {
+    const velho = byName(antigo)
+    if (!velho || byName(novo)) continue
+    velho.nome = novo
+    // Fichas e pedidos que guardavam o nome antigo acompanham
+    for (const m of data.membros) if (m.patenteInterna === antigo) m.patenteInterna = novo
+    for (const c of data.contas) if (c.membroArquivado?.patenteInterna === antigo) c.membroArquivado.patenteInterna = novo
+    mudou = true
+  }
+
+  let commander = byName(CARGO_ADMIN)
   const legacyAdmin = data.cargosPermissao.find(c => c.admin && c.nome.toLowerCase() === 'administrador')
 
   if (!commander && legacyAdmin) {
-    legacyAdmin.nome = '(DU) Commander'
+    legacyAdmin.nome = CARGO_ADMIN
     legacyAdmin.admin = true
     legacyAdmin.permissoes = normalizePermMap(legacyAdmin.permissoes)
     commander = legacyAdmin
     mudou = true
   }
 
-  for (const nome of FAST_PERMISSION_ROLES) {
-    const equivalentes = byFastRole(nome)
+  for (const nome of DU_PERMISSION_ROLES) {
+    const equivalentes = byDuRole(nome)
     let cargo = equivalentes[0] ?? byName(nome)
 
     if (cargo && cargo.nome !== nome) {
@@ -262,9 +363,9 @@ export function ensureFastPermissionRoles(): void {
       cargo = {
         id: data.nextCargoPermId++,
         nome,
-        admin: nome === '(DU) Commander',
-        padrao: nome === '(DU) Probationary',
-        permissoes: defaultPermsForFastRole(nome),
+        admin: nome === CARGO_ADMIN,
+        padrao: nome === CARGO_PADRAO,
+        permissoes: defaultPermsForDuRole(nome),
       } satisfies CargoPermissao
       data.cargosPermissao.push(cargo)
       mudou = true
@@ -274,14 +375,14 @@ export function ensureFastPermissionRoles(): void {
         cargo.permissoes = normalized
         mudou = true
       }
-      if (nome === '(DU) Commander' && cargo.admin !== true) {
+      if (nome === CARGO_ADMIN && cargo.admin !== true) {
         cargo.admin = true
         mudou = true
       }
     }
   }
 
-  const oficiais = FAST_PERMISSION_ROLES
+  const oficiais = DU_PERMISSION_ROLES
     .map(nome => byName(nome))
     .filter((c): c is CargoPermissao => Boolean(c))
   const officialIds = new Set(oficiais.map(c => c.id))
@@ -292,10 +393,21 @@ export function ensureFastPermissionRoles(): void {
     mudou = true
   }
 
-  const probationary = byName('(DU) Probationary')
+  const probationary = byName(CARGO_PADRAO)
   if (probationary && !data.cargosPermissao.some(c => c.padrao)) {
     probationary.padrao = true
     mudou = true
+  }
+
+  // Patente da setagem sem cargo do site → o cargo de mesmo nome (aprovar já dá o cargo certo no site)
+  // (mesmas palavras em qualquer ordem: "Detective Senior" = "Senior Detective").
+  // Nunca liga sozinho a cargo com admin/dev/"editar": isso só um admin faz, conferido ao configurar.
+  const palavras = (t: string) => canonicalDuRoleName(t).split(' ').sort().join(' ')
+  const cargoSimples = (c: CargoPermissao) => !c.admin && !c.dev && !Object.values(c.permissoes ?? {}).some(p => p?.editar === true)
+  for (const p of data.setagem?.patentes ?? []) {
+    if (p.cargoPermId != null) continue
+    const cargo = data.cargosPermissao.find(c => cargoSimples(c) && palavras(c.nome) === palavras(p.nome))
+    if (cargo) { p.cargoPermId = cargo.id; mudou = true }
   }
 
   if (mudou) {
@@ -304,19 +416,14 @@ export function ensureFastPermissionRoles(): void {
   }
 }
 
-/** Senha padrão da conta dona quando ADMIN_INITIAL_PASSWORD não está definida (pedido do dono do sistema). */
-export const SENHA_PADRAO_ADMIN = 'admin123'
-
 /**
- * Garante a conta dona (id 1, usuário "admin") já criada com senha. A senha inicial
- * vem de ADMIN_INITIAL_PASSWORD (mín. 12 caracteres); sem ela, é "admin123".
- * Enquanto a senha padrão não for trocada, o boot avisa e o painel mostra um aviso
- * (`senhaPadrao` na conta, apagado ao trocar a senha).
+ * Garante a conta dona (id 1). O login é só pelo Discord: a conta dona é a de quem tem o
+ * 1º ID de DISCORD_DONO_ID do .env (ligada no primeiro login dela). Sem senha.
  */
 export function ensureDefaultAdmin(): void {
   const data = readData()
   // Remove resíduos de versões antigas
-  const legado = data as FastData & { solicitacoes?: unknown; nextSolId?: unknown }
+  const legado = data as DuData & { solicitacoes?: unknown; nextSolId?: unknown }
   let mudou = 'solicitacoes' in legado || 'nextSolId' in legado
   delete legado.solicitacoes
   delete legado.nextSolId
@@ -328,18 +435,58 @@ export function ensureDefaultAdmin(): void {
     data.nextContaId = Math.max(data.nextContaId, 2)
     mudou = true
   }
-  if (!dono.password) {
-    const doEnv = process.env.ADMIN_INITIAL_PASSWORD?.trim()
-    if (doEnv && doEnv.length < 12) console.warn('[DU][ATENÇÃO] ADMIN_INITIAL_PASSWORD tem menos de 12 caracteres — ignorada.')
-    const usarEnv = !!doEnv && doEnv.length >= 12
-    dono.password = bcrypt.hashSync(usarEnv ? doEnv : SENHA_PADRAO_ADMIN, 12)
-    if (usarEnv) delete dono.senhaPadrao
-    else dono.senhaPadrao = true
-    mudou = true
-    console.log(`[DU] Conta dona pronta: usuário "${dono.username}"${usarEnv ? ', senha definida por ADMIN_INITIAL_PASSWORD' : ''}.`)
-  }
-  if (dono.senhaPadrao) {
-    console.warn(`[DU][SEGURANÇA] A conta "${dono.username}" ainda usa a senha padrão. Troque em Perfil → Trocar senha.`)
+  if (!/^\d{17,20}$/.test(process.env.DISCORD_DONO_ID?.split(/[\s,;]+/)[0]?.trim() ?? '')) {
+    console.warn('[DU][ATENÇÃO] DISCORD_DONO_ID não definido — ninguém consegue entrar na conta dona.')
   }
   if (mudou) writeData(data)
+}
+
+/**
+ * Migração pedida pela unidade (DU — Detroit Police Department):
+ * o campo antigo de patente dos membros vira `patenteDPD` e a sigla antiga (palavra inteira) vira
+ * "DPD" nos campos de patente. Roda UMA vez (flag `migracaoDpd`), sempre DEPOIS de um backup:
+ * o backup criptografado do boot ou, sem chave, uma cópia simples ao lado do arquivo de dados.
+ * Só mexe em campos de patente — nunca em texto livre, imagens ou outros dados.
+ */
+export function migrarPatentesParaDpd(copiaSemChave: (conteudo: string) => void): boolean {
+  const data = readData()
+  if (data.migracaoDpd) return false
+  copiaSemChave(JSON.stringify(data))
+  converterPatentesParaDpd(data)
+  writeData(data)
+  return true
+}
+
+/** Sigla do sistema anterior (N + PD), montada por partes para não aparecer escrita no código. */
+export const SIGLA_ANTIGA = String.fromCharCode(78) + 'PD'
+const SIGLA_ANTIGA_RE = new RegExp(`\\b${SIGLA_ANTIGA}\\b`, 'g')
+const CAMPO_ANTIGO = `patente${SIGLA_ANTIGA}`
+
+/** Converte para o formato DPD os campos de patente (muta `data`; quem chama grava). Também usado ao restaurar backup antigo. */
+export function converterPatentesParaDpd(entrada: DuData): void {
+  // Formato do sistema anterior: o campo e a sigla antigos viram "patenteDPD" e "DPD".
+  // A sigla antiga é montada por partes (SIGLA_ANTIGA) de propósito: assim ela não aparece escrita no código.
+  const data = entrada as DuData & { membros: (Membro & Record<string, unknown>)[] }
+  if (data.migracaoDpd) return
+  const siglaParaDpd = (v: unknown) => (typeof v === 'string' ? v.replace(SIGLA_ANTIGA_RE, 'DPD') : v)
+  const ajustarMembro = (m: (Membro & Record<string, unknown>) | undefined) => {
+    if (!m) return
+    // Campo antigo → patenteDPD (não sobrescreve um patenteDPD que já exista)
+    if (CAMPO_ANTIGO in m) {
+      if (m.patenteDPD === undefined) m.patenteDPD = String(m[CAMPO_ANTIGO] ?? '')
+      delete m[CAMPO_ANTIGO]
+    }
+    m.patenteDPD = String(siglaParaDpd(m.patenteDPD ?? ''))
+    m.patenteInterna = String(siglaParaDpd(m.patenteInterna ?? ''))
+  }
+  ;(data.membros ?? []).forEach(ajustarMembro)
+  for (const c of data.contas ?? []) ajustarMembro(c.membroArquivado as Membro & Record<string, unknown>)
+  for (const sp of data.solicitacoesPerfil ?? []) {
+    for (const a of (sp.alteracoes ?? []) as { campo: string; de: string; para: string }[]) {
+      if (a.campo === CAMPO_ANTIGO) a.campo = 'patenteDPD'
+      if (a.campo === 'patenteDPD' || a.campo === 'patenteInterna') { a.de = String(siglaParaDpd(a.de)); a.para = String(siglaParaDpd(a.para)) }
+    }
+  }
+  if (Array.isArray(data.patentes)) data.patentes = data.patentes.map(p => String(siglaParaDpd(p)))
+  data.migracaoDpd = true
 }

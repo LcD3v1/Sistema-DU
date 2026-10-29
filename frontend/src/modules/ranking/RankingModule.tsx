@@ -34,7 +34,7 @@ const RankingCard = memo(function RankingCard({ member, onSelect, podium = false
     className={`ranking-hover relative min-w-0 overflow-hidden rounded-2xl border p-4 sm:p-5 text-center ${index === 0 ? 'border-gold/50 sm:pb-8 shadow-[0_16px_40px_-20px_rgba(139, 92, 246,0.6)]' : 'border-bdr'}`}>
     {banner.img ? <img src={banner.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" /> : <div className="absolute inset-0" style={{ background: banner.css }} />}
     {banner.overlay && <div className="absolute inset-0" style={{ background: banner.overlay }} />}
-    <div className="absolute inset-0 bg-gradient-to-b from-black/35 to-black/95" />
+    <div className="absolute inset-0 bg-linear-to-b from-black/35 to-black/95" />
     <div className="relative flex flex-col items-center gap-2"><MedalIcon size={index === 0 ? 24 : 20} style={{ color: medal }} /><Avatar member={member} large />
       <span style={{ color: medal }}><Position rank={member.rank} /></span><p className="text-txt font-semibold truncate max-w-full">{member.name}</p>
       <p className="text-txt2 text-xs truncate max-w-full">{member.hierarchy}</p><p className="text-3xl font-bold" style={{ color: medal }}>{member.records}</p>
@@ -89,7 +89,7 @@ export default function RankingModule({ publicView = false, mode = 'both' }: { p
   return <MotionConfig reducedMotion="user"><div className="ranking-module min-w-0">
     <div className="flex flex-wrap gap-3 items-center mb-5">
       <div className="flex bg-card2 border border-bdr rounded-lg p-1" aria-label="Período">{periods.map(p => <button key={p.id} aria-pressed={period === p.id} onClick={() => changePeriod(p.id)} className={`px-3 py-2 text-xs rounded-md transition-colors ${period === p.id ? 'bg-gold text-white' : 'text-txt2 hover:text-txt'}`}>{p.label}</button>)}</div>
-      <label className="flex items-center gap-2 bg-card border border-bdr2 rounded-lg px-3 flex-1 min-w-[180px]"><Search size={15} className="text-txt2 shrink-0" /><input aria-label="Pesquisar membros" value={search} maxLength={100} onChange={e => setSearch(e.target.value)} placeholder={publicView ? 'Nome, identificação ou cargo' : 'Nome, Discord ID, ID interno ou cargo'} className="w-full min-w-0 py-2.5 text-xs bg-transparent text-txt outline-none" /></label>
+      <label className="flex items-center gap-2 bg-card border border-bdr2 rounded-lg px-3 flex-1 min-w-45"><Search size={15} className="text-txt2 shrink-0" /><input aria-label="Pesquisar membros" value={search} maxLength={100} onChange={e => setSearch(e.target.value)} placeholder={publicView ? 'Nome, identificação ou cargo' : 'Nome, Discord ID, ID interno ou cargo'} className="w-full min-w-0 py-2.5 text-xs bg-transparent text-txt outline-none" /></label>
       <select aria-label="Filtrar por cargo" value={role} onChange={e => { setRole(e.target.value); setRankPage(1); setMemberPage(1) }} className="max-w-full bg-card border border-bdr2 rounded-lg p-2.5 text-xs text-txt"><option value="">Todos os cargos</option>{roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
       <button disabled={busy} onClick={refresh} aria-label="Atualizar ranking e membros" className="p-2.5 rounded-lg border border-bdr2 text-txt2 hover:text-gold3 disabled:opacity-40"><RefreshCw size={16} /></button>
     </div>

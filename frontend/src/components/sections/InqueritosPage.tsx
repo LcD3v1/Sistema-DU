@@ -55,7 +55,7 @@ function Capa({ inq, className = '' }: { inq: Pick<Inquerito, 'titulo' | 'numero
       </div>
       <div className="relative">
         <p className="font-mono text-[10px] opacity-80 mb-1">{inq.numero || 'IP-DU-…'}</p>
-        <p className="font-semibold text-sm leading-tight line-clamp-4 break-words">{inq.titulo || 'Sem título'}</p>
+        <p className="font-semibold text-sm leading-tight line-clamp-4 wrap-break-word">{inq.titulo || 'Sem título'}</p>
       </div>
       <span className="relative self-start rotate-[-6deg] border-2 rounded px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider"
         style={{ borderColor: status.cor, color: status.cor, background: '#00000055' }}>{status.rotulo}</span>
@@ -120,7 +120,7 @@ export default function InqueritosPage() {
   const relVinc = aberto ? (relatorios ?? []).filter(r => r.inqueritoId === aberto.id) : []
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-3 sm:p-6 lg:px-8">
+    <div className="w-full max-w-450 mx-auto p-3 sm:p-6 lg:px-8">
       <CabecalhoPagina sobretitulo="Investigação" titulo="Arquivo de Inquéritos" icone={FolderArchive}
         descricao="Inquéritos da unidade com documentos, imagens e evidências — anexe links ou arquivos direto do computador.">
         {podeEditar && <BotaoPrimario onClick={() => { setEditId(null); setForm(vazio()) }}><Plus size={15} /> Novo inquérito</BotaoPrimario>}
@@ -171,7 +171,7 @@ export default function InqueritosPage() {
               <div className="rounded-lg overflow-hidden border border-bdr group-hover:border-gold/50 shadow-lg transition-all group-hover:-translate-y-1 motion-reduce:transform-none">
                 <Capa inq={inq} className="w-full aspect-[3/4]" />
               </div>
-              <p className="text-sm font-medium text-txt mt-2 line-clamp-2 break-words">{inq.titulo}</p>
+              <p className="text-sm font-medium text-txt mt-2 line-clamp-2 wrap-break-word">{inq.titulo}</p>
               <p className="text-[11px] text-txt3 truncate">{inq.categoria || inq.numero}</p>
             </motion.button>
           ))}
@@ -192,18 +192,18 @@ export default function InqueritosPage() {
                   <Selo cor={STATUS_INQUERITO[aberto.status].cor}>{STATUS_INQUERITO[aberto.status].rotulo}</Selo>
                   {aberto.categoria && <span className="inline-flex items-center gap-1"><Tag size={11} /> {aberto.categoria}</span>}
                 </div>
-                <h3 className="text-xl font-semibold text-txt break-words">{aberto.titulo}</h3>
+                <h3 className="text-xl font-semibold text-txt wrap-break-word">{aberto.titulo}</h3>
                 <p className="text-xs text-txt3 mt-1">Aberto por {aberto.autorNome} em {dataBR(aberto.criadoEm)}</p>
               </div>
               <Secao titulo="Investigadores" icone={Users}><NomesInvestigadores ids={aberto.investigadores} /></Secao>
               {aberto.descricao && (
                 <Secao titulo="Descrição" icone={FileText}>
-                  <div className="rounded-lg border border-bdr bg-card2/60 p-4 text-sm text-txt whitespace-pre-line break-words leading-relaxed">{aberto.descricao}</div>
+                  <div className="rounded-lg border border-bdr bg-card2/60 p-4 text-sm text-txt whitespace-pre-line wrap-break-word leading-relaxed">{aberto.descricao}</div>
                 </Secao>
               )}
               {aberto.envolvidos && (
                 <Secao titulo="Envolvidos (suspeitos, vítimas, testemunhas)" icone={UserX}>
-                  <p className="text-sm text-txt2 whitespace-pre-line break-words">{aberto.envolvidos}</p>
+                  <p className="text-sm text-txt2 whitespace-pre-line wrap-break-word">{aberto.envolvidos}</p>
                 </Secao>
               )}
               {aberto.arquivos.length > 0 && <Secao titulo={`Documentos e arquivos (${aberto.arquivos.length})`} icone={Paperclip}><ListaArquivos arquivos={aberto.arquivos} /></Secao>}

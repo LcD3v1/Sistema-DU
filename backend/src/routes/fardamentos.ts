@@ -3,7 +3,8 @@ import { requireAuth } from '../middleware/auth'
 import { requireArea } from '../middleware/roles'
 import { validateBody, fardamentoSchema, fardamentoUpdateSchema } from '../middleware/validate'
 import { audit } from '../security/audit'
-import { readData, writeData } from '../data'
+import { readData, writeData, peekData } from '../data'
+import { nomeDaConta } from '../registros'
 import { notificarArea } from '../notificacoes'
 import { Fardamento } from '../types'
 
@@ -31,7 +32,7 @@ router.post('/', requireAuth, requireArea('fardamento', 'editar'), validateBody(
   data.fardamentos.push(novo)
   data.nextFardId++
   notificarArea(data, 'fardamento', [req.user!.contaId], 'fardamento', 'Novo fardamento',
-    `Fardamento de ${novo.patente}${novo.titulo ? ` (${novo.titulo})` : ''} adicionado por ${req.user!.username}.`, '/fardamento')
+    `Fardamento de ${novo.patente}${novo.titulo ? ` (${novo.titulo})` : ''} adicionado por ${nomeDaConta(peekData(), req.user!.contaId)}.`, '/fardamento')
   writeData(data)
   audit('CONFIG_UPDATED', req, `Fardamento criado: ${novo.patente}`)
   res.status(201).json(novo)
