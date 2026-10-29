@@ -557,7 +557,7 @@ console.log('\n[15] Discord só para login, verificação de membro e painel de 
       'cadastro inicial não deixa escolher a patente; retirar exoneração só admin', 'patente escolhida no cadastro ou readmissão sem ser admin')
     const publicTs = ler('src/routes/public.ts'), fotoTs = ler('src/fotoPublica.ts')
     check(/avatar: fotoSemIds\(m\.id, safeAvatar/.test(ler('src/modules/ranking/service.ts')) && /avatarAtual: fotoSemIds\(m\.id, avatarAtual\(conta\)\)/.test(membrosTs)
-      && /ehDoDiscord\(url\) \? `\/api\/public\/foto\/\$\{chaveDaFoto\(membroId\)\}`/.test(fotoTs) && /createHmac\('sha256', env\.JWT_SECRET\)/.test(fotoTs)
+      && /ehDoDiscord\(url\) \? `\/api\/public\/foto\/\$\{chaveDaFoto\(membroId\)\}`/.test(fotoTs) && /createHmac\('sha256', segredoFoto\(\)\)/.test(fotoTs) && /\.env\.JWT_SECRET\)/.test(fotoTs)
       && /router\.get\('\/foto\/:chave'[\s\S]{0,200}\/\^\[A-Za-z0-9_-\]\{22\}\$\//.test(publicTs),
       'foto do Discord sai como link opaco do site (sem ID do servidor/pessoa)', 'URL do CDN do Discord (com IDs) exposta')
   }

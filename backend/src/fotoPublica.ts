@@ -7,15 +7,22 @@
  * Foto enviada no site (data URL) ou link de terceiros segue como está (não leva ID do Discord).
  */
 import crypto from 'crypto'
-import { env } from './config/env'
 import { peekData, dataRevision } from './data'
 import { avatarAtual } from './identidadeMembro'
 import { DuData } from './types'
 
 const ehDoDiscord = (url: string) => url.startsWith('https://cdn.discordapp.com/')
 
+// Segredo lido no PRIMEIRO uso (não ao carregar o módulo): quem só importa o ranking — testes,
+// scripts — não precisa do .env carregado antes
+let segredo: string | undefined
+function segredoFoto(): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return (segredo ??= (require('./config/env') as typeof import('./config/env')).env.JWT_SECRET)
+}
+
 export function chaveDaFoto(membroId: number): string {
-  return crypto.createHmac('sha256', env.JWT_SECRET).update(`foto-membro:${membroId}`).digest('base64url').slice(0, 22)
+  return crypto.createHmac('sha256', segredoFoto()).update(`foto-membro:${membroId}`).digest('base64url').slice(0, 22)
 }
 
 /** Link seguro para a foto do membro (null sem foto). */
