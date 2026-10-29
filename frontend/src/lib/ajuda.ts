@@ -34,6 +34,30 @@ const AJUDA: Record<string, TextoAjuda> = {
     titulo: 'Arquivo de Inquéritos',
     passos: ['Abra um inquérito para ver documentos, imagens e evidências.', 'Anexe links ou arquivos direto do computador.', 'Use a busca para achar um inquérito pelo nome.'],
   },
+  '/investigacoes': {
+    titulo: 'Registro de Investigação',
+    passos: [
+      'Clique em "Solicitar investigação" e dê um nome e a data.',
+      'Marque cada investigador com @ (codinome ou ID) — você já entra na lista e pode se tirar ou se incluir.',
+      'Escolha o motivo (investigação, coleta de info, info ou outro) e o local: Capital, Detroit ou as duas.',
+      'O pedido aguarda quem aprova autorizar ou negar; os marcados recebem um aviso no sino.',
+      'Autorizada, ela já fica "em andamento" e ganha uma árvore de investigação só dos envolvidos — use "Abrir árvore" para montar as ligações.',
+      'O responsável e os participantes atualizam o andamento (pausada, concluída, cancelada…).',
+    ],
+    dicas: [
+      'As investigações são privadas: você só vê as que solicitou ou em que foi marcado.',
+      'Ver todas só com acesso total ou com a permissão "Registro de Investigação — gestão".',
+    ],
+  },
+  '/investigacoes/aprovacoes': {
+    titulo: 'Aprovar investigações',
+    passos: [
+      'Em "Pendentes" estão os pedidos esperando decisão, com responsável, participantes, motivo e local.',
+      'Autorizar: a investigação já começa "em andamento" e é criada a árvore de investigação do responsável e dos participantes.',
+      'Negar: escreva o motivo (opcional) — todos os envolvidos são avisados.',
+    ],
+    dicas: ['Só aparece para quem tem "Registro de Investigação — gestão → Editar".'],
+  },
   '/galeria': {
     titulo: 'Galeria da DU',
     passos: ['Veja as fotos de operações e atividades da unidade.', 'Quem tem permissão envia fotos novas pelo botão da página.'],

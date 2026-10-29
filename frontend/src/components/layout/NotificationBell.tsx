@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, Send, CheckCircle2, XCircle, Hourglass, ChevronsUp, ChevronsDown,
-  AlertTriangle, CalendarDays, UserCheck, X, CheckCheck, Megaphone, Shirt, UserPlus, ClipboardCheck, UserX, Users, BookOpen,
+  AlertTriangle, CalendarDays, UserCheck, X, CheckCheck, Megaphone, Shirt, UserPlus, ClipboardCheck, ClipboardList, UserX, Users, BookOpen,
   FileSearch, ScrollText, FolderArchive, Images, ShieldAlert,
 } from 'lucide-react'
 import {
@@ -31,6 +31,7 @@ const ICONE: Record<TipoNotificacao, { icon: typeof Bell; cor: string }> = {
   relatorio:          { icon: FileSearch,    cor: '#8b5cf6' },
   boletim:            { icon: ScrollText,    cor: '#8b5cf6' },
   inquerito:          { icon: FolderArchive, cor: '#8b5cf6' },
+  investigacao:       { icon: ClipboardList, cor: '#8b5cf6' },
   galeria:            { icon: Images,        cor: '#8b5cf6' },
   seguranca:          { icon: ShieldAlert,   cor: '#e74c3c' },
 }

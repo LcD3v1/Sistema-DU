@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test:ranking": "npm run build && node --test tests/ranking.test.cjs",
-    "test:du": "npm run build && node --test tests/du.test.cjs tests/dados.test.cjs tests/login.test.cjs tests/hierarquia.test.cjs tests/servidor.test.cjs tests/setagem.test.cjs tests/carteira.test.cjs tests/setores.test.cjs tests/logs.test.cjs tests/arvores.test.cjs tests/protocolo.test.cjs tests/auditoria.test.cjs tests/banco.test.cjs",
+    "test:du": "npm run build && node --test tests/du.test.cjs tests/dados.test.cjs tests/login.test.cjs tests/hierarquia.test.cjs tests/servidor.test.cjs tests/setagem.test.cjs tests/carteira.test.cjs tests/setores.test.cjs tests/logs.test.cjs tests/arvores.test.cjs tests/protocolo.test.cjs tests/auditoria.test.cjs tests/banco.test.cjs tests/investigacoes.test.cjs tests/notificacoes.test.cjs",
     "test:ranking:browser": "node tests/ranking-browser.cjs",
     "test:perfil:browser": "node tests/perfil-browser.cjs",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",

@@ -1,6 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import {
-  LayoutGrid, FilePlus2, FileSearch, FolderArchive, Images, GitBranch,
+  LayoutGrid, FilePlus2, FileSearch, FolderArchive, Images, GitBranch, ClipboardList, ShieldCheck,
   Users, CalendarPlus, CalendarDays, UserPlus,
   Megaphone, GraduationCap, ScrollText, BookOpen, CreditCard, Shirt,
   Settings, ArrowUpRight, Code2, Bell, X, Network, Server, ClipboardCheck,
@@ -45,6 +45,8 @@ const GROUPS: NavGroup[] = [
       { to: '/relatorios/novo', icon: FilePlus2,     label: 'Cadastrar relatório',  minNivel: 'membro', area: 'relatorios', editOnly: true },
       { to: '/relatorios',      icon: FileSearch,    label: 'Relatórios',           minNivel: 'membro', area: 'relatorios' },
       { to: '/boletins',        icon: ScrollText,    label: 'Boletins',             minNivel: 'membro', area: 'boletins' },
+      { to: '/investigacoes',   icon: ClipboardList, label: 'Registro de Investigação', minNivel: 'membro', area: 'investigacoes' },
+      { to: '/investigacoes/aprovacoes', icon: ShieldCheck, label: 'Aprovar investigações', minNivel: 'membro', area: 'investigacoes_gestao', editOnly: true },
       { to: '/inqueritos',      icon: FolderArchive, label: 'Arquivo de Inquéritos', minNivel: 'membro', area: 'inqueritos' },
       { to: '/galeria',         icon: Images,        label: 'Galeria da DU',        minNivel: 'membro', area: 'galeria' },
       { to: '/arvores',         icon: GitBranch,     label: 'Árvore de investigação', minNivel: 'membro', area: 'arvore' },
@@ -213,7 +215,7 @@ export default function Sidebar({ aberto = false, onFechar }: SidebarProps) {
         <div className="leading-tight">
           <p className="font-mono text-[8px] text-txt3 tracking-[0.22em] uppercase">Desenvolvido por</p>
           <p className="text-[12px] font-semibold text-txt tracking-wide">
-            LC<span className="text-gold3"> Dev</span>
+            LC<span className="text-gold3"> Dev</span> e <span className="text-gold3">Nextech</span>
           </p>
         </div>
       </div>

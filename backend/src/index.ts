@@ -38,6 +38,7 @@ import arquivosRoutes from './routes/arquivos'
 import relatoriosRoutes from './routes/relatorios'
 import boletinsRoutes from './routes/boletins'
 import inqueritosRoutes from './routes/inqueritos'
+import investigacoesRoutes from './routes/investigacoes'
 import arvoresRoutes from './routes/arvores'
 import galeriaRoutes from './routes/galeria'
 import hierarquiaRoutes from './routes/hierarquia'
@@ -127,6 +128,7 @@ app.use('/api/arquivos', arquivosRoutes)
 app.use('/api/relatorios', relatoriosRoutes)
 app.use('/api/boletins', boletinsRoutes)
 app.use('/api/inqueritos', inqueritosRoutes)
+app.use('/api/investigacoes', investigacoesRoutes)
 app.use('/api/arvores', arvoresRoutes)
 app.use('/api/galeria', galeriaRoutes)
 app.use('/api/hierarquia', hierarquiaRoutes)

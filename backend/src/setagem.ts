@@ -22,7 +22,7 @@ import {
 } from './discord'
 import { imagemEnviada, rodapeV2, galeriasDoPainel } from './hierarquia'
 import { emojiDoRodape } from './rodapeDiscord'
-import { notificar, notificarArea } from './notificacoes'
+import { notificar, notificarArea, notificarQuemAprova } from './notificacoes'
 import { audit } from './security/audit'
 import { CargoPermissao, Conta, DuData, Membro, PatenteSetagem, Setagem, SetorSetagem, SolicitacaoAcesso } from './types'
 import { nomeDaConta } from './registros'
@@ -440,7 +440,7 @@ async function tratarPedido(cfg: DiscordConfig, i: Interacao): Promise<void> {
     atual.solicitacoesAcesso.push({ id: solId, discordId: i.usuario.id, username: i.usuario.username, nome: pedido.apelido,
       ...(i.usuario.avatar ? { avatar: i.usuario.avatar } : {}), criadoEm: new Date().toISOString(), setagem })
   }
-  notificarArea(atual, 'setagem', [], 'pendente_aprovacao', editando ? 'Pedido de set atualizado' : 'Pedido de set',
+  notificarQuemAprova(atual, 'setagem', [], 'pendente_aprovacao', editando ? 'Pedido de set atualizado' : 'Pedido de set',
     `${pedido.apelido} (@${i.usuario.username}) ${editando ? 'atualizou o pedido' : 'pediu a patente'} ${pedido.patente.nome}${pedido.setor ? ` · setor ${pedido.setor.nome}` : ''}.`, '/setagem')
   // A espera de 30 s só conta depois de um envio ACEITO (errar o passaporte e corrigir não trava a pessoa)
   ultimoEnvio.set(i.usuario.id, agora)
@@ -749,7 +749,7 @@ function avisarCargosManuais(contaId: number, cargos: string[]): void {
   const data = readData()
   const conta = data.contas.find(c => c.id === contaId)
   const nome = conta ? nomeDaConta(data, conta.id) : `conta #${contaId}`
-  notificarArea(data, 'setagem', [], 'pendente_aprovacao', 'Cargo para dar à mão no Discord',
+  notificarQuemAprova(data, 'setagem', [], 'pendente_aprovacao', 'Cargo para dar à mão no Discord',
     `${nome}: dê ${cargos.map(c => `@${c}`).join(', ')} no Discord (cargo com moderação/administração — o bot não entrega).`, '/setagem')
   writeData(data)
   audit('CONFIG_UPDATED', undefined, `Discord: cargos para dar à mão a #${contaId}: ${cargos.join(', ')}`)

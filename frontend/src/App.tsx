@@ -22,6 +22,8 @@ const DashboardPage = paginaLazy('/dashboard')
 const RelatoriosPage = paginaLazy('/relatorios')
 const BoletinsPage = paginaLazy('/boletins')
 const InqueritosPage = paginaLazy('/inqueritos')
+const RegistroInvestigacaoPage = paginaLazy('/investigacoes')
+const AprovarInvestigacoesPage = paginaLazy('/investigacoes/aprovacoes')
 const GaleriaPage = paginaLazy('/galeria')
 const AvisosPage = paginaLazy('/avisos')
 const ProfilePage = paginaLazy('/perfil')
@@ -127,6 +129,12 @@ export default function App() {
             } />
             <Route path="inqueritos" element={
               <ProtectedRoute area="inqueritos"><InqueritosPage /></ProtectedRoute>
+            } />
+            <Route path="investigacoes" element={
+              <ProtectedRoute area="investigacoes"><RegistroInvestigacaoPage /></ProtectedRoute>
+            } />
+            <Route path="investigacoes/aprovacoes" element={
+              <ProtectedRoute area="investigacoes_gestao"><AprovarInvestigacoesPage /></ProtectedRoute>
             } />
             <Route path="galeria" element={
               <ProtectedRoute area="galeria"><GaleriaPage /></ProtectedRoute>

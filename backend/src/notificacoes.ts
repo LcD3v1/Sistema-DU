@@ -33,14 +33,44 @@ export function notificarAprovadores(
 ): void {
   const alvo = membroId ? data.contas.find(c => c.membroId === membroId) : undefined
   const nivelAlvo = nivelHierarquia(data, alvo?.cargoPermId)
+  let avisados = 0
   for (const c of data.contas) {
-    if (c.id === excetoContaId || c.id === alvo?.id || !c.ativo || c.exonerado) continue
+    if (c.id === excetoContaId || c.id === alvo?.id || !recebeAvisos(c, data)) continue
     const admin = isAdmin(c, data)
     if (!admin && !canArea(c, data, area, 'editar')) continue
     if (!admin && alvo && nivelHierarquia(data, c.cargoPermId) >= nivelAlvo) continue
-    if (c.id === PROTECTED_OWNER_ID && !c.discordId) continue   // dona ainda não vinculada
     notificar(data, c.id, tipo, titulo, mensagem, link)
+    avisados++
   }
+  // Ninguém acima na hierarquia: o pedido não pode ficar sem ninguém sabendo — avisa os admins
+  if (avisados === 0) notificarAdmins(data, excetoContaId, tipo, titulo, mensagem, link)
+}
+
+/**
+ * Avisa quem pode APROVAR um pedido da área: contas ativas com "editar" nela (admins sempre).
+ * Use para pedidos que esperam decisão (setagem, investigação…) — "ver" não basta para aprovar.
+ * Ninguém com a permissão: avisa os admins.
+ */
+export function notificarQuemAprova(
+  data: DuData, area: AreaId, excetoContaIds: (number | undefined)[],
+  tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
+): void {
+  const excluir = new Set(excetoContaIds.filter((x): x is number => typeof x === 'number'))
+  let avisados = 0
+  for (const c of data.contas) {
+    if (excluir.has(c.id) || !recebeAvisos(c, data)) continue
+    if (!canArea(c, data, area, 'editar')) continue   // canArea já inclui admins
+    notificar(data, c.id, tipo, titulo, mensagem, link)
+    avisados++
+  }
+  if (avisados === 0) notificarAdmins(data, [...excluir][0], tipo, titulo, mensagem, link)
+}
+
+/** Conta que pode receber avisos: ativa, não exonerada; a dona só depois de vincular o Discord. */
+function recebeAvisos(c: DuData['contas'][number], data: DuData): boolean {
+  if (c.ativo === false || c.exonerado) return false
+  if (c.id === PROTECTED_OWNER_ID && !c.discordId) return false
+  return isAdmin(c, data) || Boolean(c.cargoPermId)
 }
 
 /**
@@ -53,11 +83,8 @@ export function notificarArea(
 ): void {
   const excluir = new Set(excetoContaIds.filter((x): x is number => typeof x === 'number'))
   for (const c of data.contas) {
-    if (excluir.has(c.id) || !c.ativo || c.exonerado) continue
-    if (c.id === PROTECTED_OWNER_ID && !c.discordId) continue
-    const admin = isAdmin(c, data)
-    if (!admin && !c.cargoPermId) continue
-    if (!admin && area && !canArea(c, data, area, 'ver')) continue
+    if (excluir.has(c.id) || !recebeAvisos(c, data)) continue
+    if (area && !canArea(c, data, area, 'ver')) continue
     notificar(data, c.id, tipo, titulo, mensagem, link)
   }
 }
@@ -67,8 +94,7 @@ export function notificarAdmins(
   data: DuData, excetoContaId: number | undefined, tipo: TipoNotificacao, titulo: string, mensagem: string, link?: string,
 ): void {
   for (const c of data.contas) {
-    if (c.id === excetoContaId || !c.ativo || c.exonerado || !isAdmin(c, data)) continue
-    if (c.id === PROTECTED_OWNER_ID && !c.discordId) continue
+    if (c.id === excetoContaId || !isAdmin(c, data) || !recebeAvisos(c, data)) continue
     notificar(data, c.id, tipo, titulo, mensagem, link)
   }
 }

@@ -15,6 +15,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/relatorios/novo':  'Cadastrar relatório',
   '/boletins':         'Boletins',
   '/inqueritos':       'Arquivo de Inquéritos',
+  '/investigacoes':    'Registro de Investigação',
+  '/investigacoes/aprovacoes': 'Aprovar investigações',
   '/galeria':          'Galeria da DU',
   '/membros':          'Membros da unidade',
   '/logs':             'Logs',

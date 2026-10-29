@@ -253,6 +253,26 @@ export const inqueritoSchema = z.object({
   arquivos:       idsArquivos.default([]),
 }).strict()
 
+export const registroInvestigacaoSchema = z.object({
+  nome:          safeStr(1, 120),
+  data:          dataDia,
+  hora:          z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido (use HH:MM)'),
+  participantes: z.array(z.number().int().positive()).min(1, 'Marque ao menos um participante').max(30, 'No máximo 30 participantes'),
+  motivo:        z.enum(['investigacao', 'coleta_info', 'info', 'outro']),
+  detalhes:      safeStrOpt(2_000).default(''),
+  local:         z.enum(['capital', 'detroit', 'ambas']),
+}).strict()
+
+export const aprovacaoInvestigacaoSchema = z.object({
+  aprovacao:  z.enum(['autorizada', 'negada']),
+  observacao: safeStrOpt(500).default(''),
+}).strict()
+
+export const andamentoInvestigacaoSchema = z.object({
+  andamento: z.enum(['aguardando', 'em_andamento', 'pausada', 'concluida', 'cancelada']),
+  nota:      safeStrOpt(500).default(''),
+}).strict()
+
 export const fotoGaleriaSchema = z.object({
   imagem:    z.string().max(MAX_URL_IMAGEM).transform(s => s.trim()).refine(s => s === '' || ehLinkImagem(s), 'Imagem deve ser um link http/https').default(''),
   arquivo:   z.string().regex(/^[A-Za-z0-9_-]{24}$/, 'Arquivo inválido').or(z.literal('')).default(''),

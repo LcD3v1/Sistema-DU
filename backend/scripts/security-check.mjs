@@ -584,6 +584,31 @@ console.log('\n[15] Discord só para login, verificação de membro e painel de 
     && ler('src/middleware/validate.ts').includes('export const FLIPBOOK_HEYZINE = /^https:\\/\\/heyzine\\.com\\/flip-book\\/[A-Za-z0-9_-]{3,80}(\\.html)?$/')
     && /frameSrc:\s+\["'self'", 'https:\/\/heyzine\.com'\]/.test(ler('src/middleware/securityHeaders.ts')),
     'protocolo: trocar o livro exige editar; só flipbook https do Heyzine (CSP sem outros frames)', 'protocolo aceita outro site no iframe ou sem permissão')
+  // Notificações: pedidos que esperam decisão vão para quem APROVA (editar/admin) e nunca ficam sem ninguém avisado
+  const notifTs = ler('src/notificacoes.ts')
+  check(/export function notificarQuemAprova\(/.test(notifTs) && /if \(avisados === 0\) notificarAdmins\(/.test(notifTs)
+    && /if \(c\.ativo === false \|\| c\.exonerado\) return false/.test(notifTs)
+    && /notificarQuemAprova\(data, 'investigacoes_gestao'/.test(ler('src/routes/investigacoes.ts'))
+    && /notificarQuemAprova\(atual, 'setagem'/.test(ler('src/setagem.ts')),
+    'notificações: pedidos vão para quem aprova (sem ninguém → admins); exonerado não recebe', 'pedido sem aviso para quem aprova')
+  // Registro de Investigação (privado): cada um vê só os seus/em que participa (todos = gestão/ver ou admin);
+  // registrar com "editar"; aprovar/excluir só gestão; andamento só responsável/participantes; saída sem autorContaId
+  const invRotas = ler('src/routes/investigacoes.ts')
+  check([...invRotas.matchAll(/router\.(get|post|put|patch|delete)\([^\n]*/g)].every(m => /requireAuth, requireArea\('investigacoes(_gestao)?', '(ver|editar)'\)/.test(m[0]))
+    && /router\.post\('\/', requireAuth, requireArea\('investigacoes', 'editar'\), validateBody\(registroInvestigacaoSchema\)/.test(invRotas)
+    && /router\.put\('\/:id\/aprovacao', requireAuth, requireArea\('investigacoes_gestao', 'editar'\), validateBody\(aprovacaoInvestigacaoSchema\)/.test(invRotas)
+    && /router\.put\('\/:id\/andamento', requireAuth, requireArea\('investigacoes', 'editar'\), validateBody\(andamentoInvestigacaoSchema\)/.test(invRotas)
+    && /if \(!ehResponsavel\(conta, reg\) && !ehParticipante\(conta, reg\)\) \{ res\.status\(403\)/.test(invRotas)
+    && /router\.delete\('\/:id', requireAuth, requireArea\('investigacoes_gestao', 'editar'\)/.test(invRotas)
+    && /router\.get\('\/aprovacoes', requireAuth, requireArea\('investigacoes_gestao', 'editar'\)/.test(invRotas)
+    // Árvore criada na aprovação: privada (responsável + participantes); o ID só sai para quem está nela ou admin
+    && /participantes: \[\.\.\.new Set\(contas\)\], criadoPorId: reg\.autorContaId/.test(invRotas)
+    && /arvoreId: r\.arvoreId && \(isAdmin\(conta, data\) \|\| ehResponsavel\(conta, r\) \|\| ehParticipante\(conta, r\)\)/.test(invRotas)
+    && /const podeVer = \(conta: Conta, data: DuData, r: RegistroInvestigacao\) => veTodos\(conta, data\) \|\| ehResponsavel\(conta, r\) \|\| ehParticipante\(conta, r\)/.test(invRotas)
+    && /const veTodos = \(conta: Conta, data: DuData\) => canArea\(conta, data, 'investigacoes_gestao', 'ver'\)/.test(invRotas)
+    && /\.filter\(r => podeVer\(conta, data, r\)\)/.test(invRotas) && /!podeVer\(conta, data, reg\)\) \{ res\.status\(404\)/.test(invRotas)
+    && /investigadoresValidos\(data, body\.participantes\)/.test(invRotas) && !/autorContaId: r\.autorContaId/.test(invRotas) && /nomeDoMembro\(data, m\)/.test(invRotas),
+    'registro de investigação: privado (só os seus/participante; todos = gestão), andamento só responsável/participantes, aprovação só gestão', 'registro de investigação sem permissão/privacidade')
   // Imagens soltas nos painéis: até 4, posição conhecida, upload conferido pelos bytes ou link http/https (nas duas rotas)
   check(/if \(imagens\.some\(i => !\(i\.url\.startsWith\('data:'\) \? imagemEnviada\(i\.url\) : ehLinkImagem\(i\.url\)\)\)\)/.test(hierTs)
     && /export const MAX_IMAGENS_PAINEL = 4/.test(hierTs) && /imagens\.slice\(0, MAX_IMAGENS_PAINEL\)/.test(hierTs)

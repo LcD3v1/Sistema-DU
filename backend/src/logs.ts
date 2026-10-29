@@ -99,6 +99,7 @@ const EVENTOS: Partial<Record<AuditEvent, [string, string]>> = {
   RELATORIO_CREATED: ['Investigação', 'Criou relatório'], RELATORIO_UPDATED: ['Investigação', 'Editou relatório'], RELATORIO_DELETED: ['Investigação', 'Excluiu relatório'],
   BOLETIM_CREATED: ['Investigação', 'Criou boletim'], BOLETIM_UPDATED: ['Investigação', 'Editou boletim'], BOLETIM_DELETED: ['Investigação', 'Excluiu boletim'],
   INQUERITO_CREATED: ['Investigação', 'Criou inquérito'], INQUERITO_UPDATED: ['Investigação', 'Editou inquérito'], INQUERITO_DELETED: ['Investigação', 'Excluiu inquérito'],
+  INVESTIGACAO_REGISTRADA: ['Investigação', 'Registrou pedido de investigação'], INVESTIGACAO_STATUS: ['Investigação', 'Decidiu pedido de investigação'], INVESTIGACAO_EXCLUIDA: ['Investigação', 'Excluiu pedido de investigação'],
   ARQUIVO_ENVIADO: ['Investigação', 'Enviou arquivo'], ACAO_CREATED: ['Investigação', 'Registrou ação'], ACAO_DELETED: ['Investigação', 'Excluiu ação'], ACAO_APPROVED: ['Investigação', 'Aprovou ação'],
   ARVORE_CREATED: ['Árvores', 'Criou árvore de investigação'], ARVORE_UPDATED: ['Árvores', 'Alterou árvore de investigação'], ARVORE_DELETED: ['Árvores', 'Apagou árvore de investigação'],
   FOTO_CREATED: ['Galeria', 'Publicou foto'], FOTO_UPDATED: ['Galeria', 'Editou foto'], FOTO_DELETED: ['Galeria', 'Excluiu foto'],

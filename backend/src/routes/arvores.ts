@@ -8,6 +8,7 @@ import { readData, writeData, peekData } from '../data'
 import { audit } from '../security/audit'
 import { canArea, isAdmin } from '../access'
 import { idDaRota, nomeDaConta } from '../registros'
+import { notificar } from '../notificacoes'
 import { conferirArquivos, sincronizarArquivos } from './arquivos'
 import type { AnexoArvore, Arvore, ArquivoRef, DuData, FotoArvore, LigacaoArvore, NoArvore } from '../types'
 
@@ -182,6 +183,9 @@ router.post('/', requireAuth, requireArea('arvore', 'editar'), validateBody(arvo
   }
   data.nextArvoreId = arvore.id + 1
   lista(data).push(arvore)
+  for (const id of participantes) {
+    if (id !== req.user!.contaId) notificar(data, id, 'investigacao', 'Você entrou numa árvore de investigação', `${autor} colocou você na árvore "${arvore.nome}".`, `/arvores/${arvore.id}`)
+  }
   writeData(data)
   audit('ARVORE_CREATED', req, `${arvore.nome} (#${arvore.id})`)
   res.status(201).json(completo(data, arvore, req.user!.contaId))
@@ -205,7 +209,12 @@ router.put('/:id', requireAuth, requireArea('arvore', 'editar'), validateBody(ar
     if (!podeGerenciar(data, req.user!.contaId, arvore)) { res.status(403).json({ error: 'Só quem criou a árvore ou um admin escolhe as pessoas.' }); return }
     const p = participantesValidos(data, body.participantes, arvore.criadoPorId)
     if (!p) { res.status(400).json({ error: 'Pessoa escolhida não encontrada ou sem acesso.' }); return }
+    const novos = p.filter(id => !(arvore.participantes ?? []).includes(id) && id !== req.user!.contaId)
     arvore.participantes = p
+    for (const id of novos) {
+      notificar(data, id, 'investigacao', 'Você entrou numa árvore de investigação',
+        `${nomeDaConta(data, req.user!.contaId)} colocou você na árvore "${arvore.nome}".`, `/arvores/${arvore.id}`)
+    }
   }
   Object.assign(arvore, { nome: body.nome, descricao: body.descricao, inqueritoId: body.inqueritoId })
   tocar(data, arvore, req)

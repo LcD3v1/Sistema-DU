@@ -165,6 +165,7 @@ export interface Arvore {
   mensagens: MensagemArvore[]; nextMensagemId: number
   versao: number                      // sobe a cada mudança (o quadro dos outros atualiza)
   participantes?: number[]            // contas que veem a árvore (sem o campo = árvore antiga, aberta); admins veem todas
+  investigacaoId?: number             // pedido do Registro de Investigação que gerou a árvore
   criadoPorId?: number
   criadoPor: string; criadoEm: string; atualizadoPor: string; atualizadoEm: string
 }
@@ -361,7 +362,7 @@ export type TipoNotificacao =
   | 'solicitacao' | 'aprovada' | 'recusada' | 'pendente_aprovacao'
   | 'promocao' | 'rebaixamento' | 'advertencia' | 'ausencia' | 'cadastro'
   | 'aviso' | 'fardamento' | 'recrutamento' | 'apreensao' | 'exoneracao' | 'membro' | 'curso'
-  | 'relatorio' | 'boletim' | 'inquerito' | 'galeria' | 'seguranca'
+  | 'relatorio' | 'boletim' | 'inquerito' | 'galeria' | 'seguranca' | 'investigacao'
 
 export interface Notificacao {
   id: number
@@ -462,6 +463,8 @@ export interface DuData {
   inqueritos: Inquerito[]
   arvores?: Arvore[]               // árvores de investigação (quadro de vínculos)
   nextArvoreId?: number
+  registrosInvestigacao?: RegistroInvestigacao[]   // pedidos do módulo Registro de Investigação
+  nextRegistroInvestigacaoId?: number
   galeria: FotoGaleria[]
   nextRelatorioId: number
   nextBoletimId: number
@@ -475,6 +478,40 @@ export interface DuData {
   hierarquiasExtras?: Hierarquia[]       // painéis a mais, cada um com id ≥ 1
   nextHierarquiaId?: number
   setagem?: Setagem
+}
+
+export type MotivoInvestigacao = 'investigacao' | 'coleta_info' | 'info' | 'outro'
+export type LocalInvestigacao = 'capital' | 'detroit' | 'ambas'
+export type AprovacaoInvestigacao = 'pendente' | 'autorizada' | 'negada'
+export type AndamentoInvestigacao = 'aguardando' | 'em_andamento' | 'pausada' | 'concluida' | 'cancelada'
+
+/** Mudança de andamento feita pelo responsável ou por um participante. */
+export interface MudancaAndamento { em: string; por: string; de: AndamentoInvestigacao; para: AndamentoInvestigacao; nota?: string }
+
+/**
+ * Pedido de investigação (privado): quem registra é o responsável e marca os participantes
+ * (membros da unidade, inclusive ele mesmo). A gestão decide a aprovação; o andamento só o
+ * responsável e os participantes mudam.
+ */
+export interface RegistroInvestigacao {
+  id: number
+  nome: string
+  data: string                        // YYYY-MM-DD
+  hora?: string                       // HH:MM (pedidos antigos podem não ter)
+  participantes: number[]             // IDs de membros
+  motivo: MotivoInvestigacao
+  detalhes: string
+  local: LocalInvestigacao
+  aprovacao: AprovacaoInvestigacao
+  andamento: AndamentoInvestigacao
+  autorContaId: number
+  autorNome: string
+  criadoEm: string
+  decididoPor?: string
+  decididoEm?: string
+  observacao?: string                 // nota da decisão (ex.: por que foi negada)
+  arvoreId?: number                   // árvore de investigação criada na aprovação (responsável + participantes)
+  historico: MudancaAndamento[]
 }
 
 /** Livro do módulo Protocolo: flipbook do Heyzine (único embed permitido pela CSP) + capítulos mostrados acima. */

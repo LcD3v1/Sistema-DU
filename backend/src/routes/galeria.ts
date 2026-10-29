@@ -7,6 +7,7 @@ import { readData, writeData } from '../data'
 import { isAdmin } from '../access'
 import { conferirArquivos, sincronizarArquivos } from './arquivos'
 import { idDaRota, nomeDaConta, erroArquivos } from '../registros'
+import { notificarArea } from '../notificacoes'
 import type { DuData, FotoGaleria } from '../types'
 
 /**
@@ -48,6 +49,7 @@ router.post('/', requireAuth, requireArea('galeria', 'editar'), validateBody(fot
     autorContaId: req.user!.contaId, autorNome: nomeDaConta(data, req.user!.contaId), criadoEm: new Date().toISOString(),
   }
   data.galeria.push(nova)
+  notificarArea(data, 'galeria', [req.user!.contaId], 'galeria', 'Nova foto na Galeria da DU', `${nova.autorNome} publicou "${nova.titulo}".`, '/galeria')
   data.nextFotoId = id + 1
   writeData(data)
   await sincronizarArquivos([], arquivos)
