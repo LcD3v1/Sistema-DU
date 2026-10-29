@@ -6,12 +6,12 @@
     "build": "npm run install:all && cd frontend && npm run build && cd ../backend && npm run build",
     "start": "npm run build && cd backend && npm run local",
     "local": "npm run build && cd backend && npm run local",
-    "start:shardcloud": "npm run build && cd backend && npm run start:shardcloud",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "security": "cd backend && npm run security && cd ../frontend && npm audit --audit-level=high",
     "audit": "cd backend && npm audit && cd ../frontend && npm audit",
-    "start:discloud": "npm run build && cd backend && npm run start:discloud"
+    "start:discloud": "npm run build:deploy && cd backend && npm run start:discloud",
+    "build:deploy": "npm run install:all && cd frontend && npm run build:deploy && cd ../backend && npm run build:deploy"
   }
 }

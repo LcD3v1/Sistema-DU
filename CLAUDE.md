@@ -63,7 +63,7 @@ Detalhes: `docs/SECURITY.md`.
 ## Dados
 - Não altere a semântica de `backend/src/data.ts` nem migre dados sem backup e pedido explícito.
 - Criptografia de campos: use `security/crypto.ts` (AES‑256‑GCM) seguindo o plano em `docs/SECURITY.md`.
-- Nunca conecte à produção (`duunit.discloud.app`; antes `DUunit.shardweb.app`).
+- Nunca conecte à produção (`duunit.discloud.dev`).
 - Dados: memória (`data.ts`) + arquivo JSON (`DATA_PATH`, reserva) + **MongoDB opcional** (`MONGODB_URI`, Discloud/Atlas — pedido do usuário em 2026-10-29), só em `backend/src/bancoDados.ts`: documento compactado e **cifrado** (DATA_ENCRYPTION_KEY), TLS + usuário/senha em produção. Não leve o driver para outros arquivos nem guarde dados sem cifra no banco.
 
 ## Antes de terminar

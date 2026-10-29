@@ -56,7 +56,7 @@ import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPubl
 const app = express()
 const PROD = env.PROD
 
-// Exatamente 1 proxy (proxy da hospedagem: Discloud/ShardCloud/cloudflared) → req.ip = IP real do cliente.
+// Exatamente 1 proxy (proxy da hospedagem: Discloud/cloudflared) → req.ip = IP real do cliente.
 // Deve vir antes de firewall e rate limit (ambos usam req.ip).
 app.set('trust proxy', 1)
 app.disable('x-powered-by')
@@ -221,7 +221,7 @@ app.use((err: Error & { type?: string; status?: number }, req: Request, res: Res
   res.status(500).json({ error: 'Erro interno do servidor' })
 })
 
-// A hospedagem (Shard Cloud) injeta PORT; em produção sem PORT, usa 80
+// A hospedagem define PORT (Discloud: 8080, em start:discloud); em produção sem PORT, usa 80
 const PORT = parseInt(process.env.PORT || (PROD ? '80' : '3001'), 10)
 
 async function iniciar(): Promise<void> {

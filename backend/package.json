@@ -12,13 +12,13 @@
     "build": "tsc",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "local": "node dist/index.js",
-    "start:shardcloud": "cross-env NODE_ENV=production node dist/index.js",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-check.mjs",
     "audit": "npm audit --omit=dev --audit-level=high",
     "audit:fix": "npm audit fix",
     "security": "npm run security:check && npm run audit && npm run typecheck",
-    "start:discloud": "cross-env NODE_ENV=production PORT=8080 PUBLIC_URL=https://duunit.discloud.app DISCORD_REDIRECT_URI=https://duunit.discloud.app/api/auth/discord/callback node dist/index.js"
+    "start:discloud": "cross-env NODE_ENV=production PORT=8080 PUBLIC_URL=https://duunit.discloud.dev DISCORD_REDIRECT_URI=https://duunit.discloud.dev/api/auth/discord/callback node dist/index.js",
+    "build:deploy": "tsc --noCheck"
   },
   "keywords": [],
   "author": "",
