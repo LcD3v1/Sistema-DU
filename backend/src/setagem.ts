@@ -28,7 +28,7 @@ import { audit } from './security/audit'
 import { CampoPerfil, CargoPermissao, Conta, DuData, Membro, PatenteSetagem, Setagem, SetorSetagem, SolicitacaoAcesso } from './types'
 import { nomeDaConta } from './registros'
 import { hoje as hojeSP } from './efetivo'
-import { cargoConcedeEditar, podeAtribuirCargo } from './access'
+import { cargoConcedeEditar, podeAtribuirCargo, PROTECTED_OWNER_ID } from './access'
 
 export const MODELO_PADRAO = '{prefixo} {codinome} | {id}'
 const ID_BOTAO = 'du:setagem:abrir'
@@ -374,8 +374,30 @@ export async function tratarInteracao(i: Interacao): Promise<void> {
 function bloqueioDoPedido(data: DuData, cfg: DiscordConfig, discordId: string): string | undefined {
   const conta = contaDoDiscord(data, cfg, discordId)
   if (conta?.exonerado) return 'Você foi exonerado da unidade. Para voltar, fale com o comando.'
-  if (conta) return `Você já possui cadastro. Para trocar patente, setor, codinome ou passaporte, peça pela dashboard (Meu perfil → Solicitar alteração)${urlDoSite() ? `: ${urlDoSite()}/perfil` : '.'} — vale depois da aprovação.`
+  if (conta) return `Você já possui cadastro${contaAprovada(conta) ? ' — os cargos da sua patente atual foram conferidos no Discord' : ''}. Para trocar patente, setor, codinome ou passaporte, peça pela dashboard (Meu perfil → Solicitar alteração)${urlDoSite() ? `: ${urlDoSite()}/perfil` : '.'} — vale depois da aprovação.`
   return undefined
+}
+
+/** Conta liberada no site (dona ou com cargo de permissão). Antes disso o Discord não recebe cargo. */
+export const contaAprovada = (conta: Pick<Conta, 'id' | 'cargoPermId'>): boolean => conta.id === PROTECTED_OWNER_ID || Boolean(conta.cargoPermId)
+
+/** Última conferência de cargos por Discord (o botão não vira forma de martelar a API). */
+const ultimaConferencia = new Map<string, number>()
+const INTERVALO_CONFERENCIA_MS = 60_000
+
+/**
+ * Quem já tem cadastro APROVADO e clica em "Solicitar set": reaplica no Discord os cargos/apelido da
+ * ficha aprovada (ex.: conta aprovada pelo site, que nunca recebeu o cargo da patente).
+ * Só entrega o que a ficha já tem — não muda patente nem nada no site.
+ */
+function conferirCargosDaConta(data: DuData, cfg: DiscordConfig, discordId: string): void {
+  const conta = contaDoDiscord(data, cfg, discordId)
+  if (!conta || conta.exonerado || !conta.ativo || !conta.membroId || !contaAprovada(conta)) return
+  const agora = Date.now()
+  if ((ultimaConferencia.get(discordId) ?? 0) > agora - INTERVALO_CONFERENCIA_MS) return
+  if (ultimaConferencia.size >= 5_000) ultimaConferencia.clear()
+  ultimaConferencia.set(discordId, agora)
+  void aplicarPerfilNoDiscord(conta.membroId, {})
 }
 
 async function tratarPedido(cfg: DiscordConfig, i: Interacao): Promise<void> {
@@ -385,7 +407,7 @@ async function tratarPedido(cfg: DiscordConfig, i: Interacao): Promise<void> {
   if (i.tipo === 3 && i.customId === ID_BOTAO) {
     if (!s.patentes.length) { await responderInteracao(i, efemera('A setagem ainda não está configurada. Avise o comando.')); return }
     const bloqueio = bloqueioDoPedido(data, cfg, i.usuario.id)
-    if (bloqueio) { await responderInteracao(i, efemera(bloqueio)); return }
+    if (bloqueio) { await responderInteracao(i, efemera(bloqueio)); conferirCargosDaConta(data, cfg, i.usuario.id); return }
     // Já tem pedido aguardando: abre o modal preenchido (modo editar pedido)
     const atual = data.solicitacoesAcesso.find(x => x.discordId === i.usuario.id && x.setagem)?.setagem
     await responderInteracao(i, {
@@ -716,7 +738,7 @@ async function cargosPerigosos(cfg: DiscordConfig): Promise<Map<string, string>>
   return new Map((info?.todosCargos ?? []).filter(r => r.perigoso || r.integracao).map(r => [r.id, r.nome]))
 }
 
-export interface AntesDoPerfil { patente?: string; setor?: string }
+export interface AntesDoPerfil { patente?: string; setor?: string; cargoPermId?: number }
 
 /**
  * Aplica no Discord o perfil APROVADO do membro: tira os cargos da patente/setor antigos, dá os da
@@ -731,7 +753,13 @@ export async function aplicarPerfilNoDiscord(membroId: number, antes: AntesDoPer
   if (!cfg || !membro || !conta?.discordId) return 'sem_discord'
   const s = setagemAtual(data)
   const porNome = <T extends { nome: string }>(lista: T[], nome?: string) => nome ? lista.find(x => x.nome.toLowerCase() === nome.trim().toLowerCase()) : undefined
-  const patNova = porNome(s.patentes, membro.patenteInterna), patVelha = porNome(s.patentes, antes.patente)
+  // Patente pelo nome; senão pela ligação patente ↔ cargo do site (promoção usa o nome do cargo do site)
+  const porCargo = (cargoPermId?: number) => {
+    const achadas = cargoPermId ? s.patentes.filter(p => p.cargoPermId === cargoPermId) : []
+    return achadas.length === 1 ? achadas[0] : undefined
+  }
+  const patNova = porNome(s.patentes, membro.patenteInterna) ?? porCargo(conta.cargoPermId)
+  const patVelha = porNome(s.patentes, antes.patente) ?? porCargo(antes.cargoPermId)
   const setNovo = porNome(s.setores ?? [], membro.setor), setVelho = porNome(s.setores ?? [], antes.setor)
   const manter = new Set([...(patNova?.roleIds ?? []), ...(setNovo?.roleIds ?? [])])
   const tirar = [...(patVelha?.roleIds ?? []), ...(setVelho?.roleIds ?? [])].filter(r => !manter.has(r))

@@ -20,7 +20,7 @@ import { tipoDoQru, definirTipoQru } from '../qrus'
 import { normalizePermMap } from '../permAreas'
 import { isDev, podeAtribuirCargo, PROTECTED_OWNER_ID } from '../access'
 import { notificar } from '../notificacoes'
-import { criarContaDeSolicitacao, aprovarPedido, reprovarPedido, solicitarCorrecao, setagemAtual, registrarNoForum, COR_REGISTRO } from '../setagem'
+import { criarContaDeSolicitacao, aprovarPedido, reprovarPedido, solicitarCorrecao, setagemAtual, registrarNoForum, aplicarPerfilNoDiscord, COR_REGISTRO } from '../setagem'
 import { imagemEnviada } from '../hierarquia'
 
 import { nomeDaConta } from '../registros'
@@ -280,6 +280,8 @@ router.put('/contas/:id', requireAuth, adminOnly, validateBody(updateContaSchema
 
   writeData(data)
   audit('ACCOUNT_UPDATED', req, `ID: ${id} | ${changes.join(', ')}`)
+  // Aprovada agora, com cadastro já preenchido: o Discord recebe os cargos da patente da ficha
+  if (aprovadoCom && conta.membroId && conta.onboarded !== false && !conta.exonerado && conta.ativo) void aplicarPerfilNoDiscord(conta.membroId, {})
   res.json(contaPublica(conta))
 })
 

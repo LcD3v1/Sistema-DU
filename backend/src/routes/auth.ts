@@ -328,6 +328,8 @@ router.post('/onboarding', requireAuth, validateBody(onboardingSchema), (req: Re
     campos: [['Nome', membro.policial], ['Codinome', membro.codinome ?? ''], ['ID do jogador', membro.passaporte], ['Distintivo', membro.badge],
       ['Patente DPD', membro.patenteDPD], ['Patente interna', membro.patenteInterna], ['Nível', String(membro.nivel ?? '')]],
   })
+  // Conta já aprovada: o Discord recebe os cargos da patente da ficha (conta aprovada pelo site não passava pela setagem)
+  if (aprovado) void aplicarPerfilNoDiscord(membro.id, {})
   res.json({ ok: true, membroId: membro.id })
 })
 

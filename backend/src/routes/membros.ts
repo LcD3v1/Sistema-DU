@@ -182,6 +182,7 @@ router.post('/:id/promover', requireAuth, requireArea('promocoes', 'editar'), va
   const tipo = nivelHierarquia(data, cargoPermId) < nivelHierarquia(data, cargoAtualId) ? 'promocao' : 'rebaixamento'
   const de = nomeCargoAtual(data, membro)
 
+  const antesDoPerfil = { patente: membro.patenteInterna, setor: membro.setor, cargoPermId: conta?.cargoPermId }
   if (conta) conta.cargoPermId = cargoPermId
   membro.patenteInterna = destino.nome
   membro.promocao = hoje()
@@ -199,6 +200,8 @@ router.post('/:id/promover', requireAuth, requireArea('promocoes', 'editar'), va
   audit(tipo === 'promocao' ? 'MEMBRO_PROMOVIDO' : 'MEMBRO_REBAIXADO', req, `${nomeDoMembro(data, membro)} (#${membro.id}): ${de} → ${destino.nome}`)
   void registrarNoForum(conta?.id, { titulo: tipo === 'promocao' ? 'PROMOÇÃO' : 'REBAIXAMENTO', emoji: tipo === 'promocao' ? '⬆️' : '⬇️',
     cor: tipo === 'promocao' ? COR_REGISTRO.aprovado : COR_REGISTRO.recusado, campos: [['Patente', `${de || '—'} → ${destino.nome}`]], ...(motivo ? { motivo } : {}), por })
+  // Promoção/rebaixamento: tira os cargos da patente antiga e dá os da nova no Discord
+  void aplicarPerfilNoDiscord(membro.id, antesDoPerfil)
   res.json({ tipo, de, para: destino.nome, membro: comVinculo(data, membro) })
 })
 
