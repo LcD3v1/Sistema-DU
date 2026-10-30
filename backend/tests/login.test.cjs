@@ -253,6 +253,11 @@ test('donos: só 2 IDs entram fora do servidor; o 2º ganha conta própria com c
   assert.equal(data.contas.filter(c => c.discordId === DONO2).length, 1)
   await entrar(DONO2)
   assert.equal(data.contas.filter(c => c.discordId === DONO2).length, 1)           // não duplica
+  // Conta que já existia sem cargo (ex.: pedido de acesso antigo): no login ganha o cargo dev
+  delete data.contas.find(c => c.discordId === DONO2).cargoPermId
+  const deNovo = await entrar(DONO2)
+  assert.equal(data.cargosPermissao.find(c => c.id === data.contas.find(x => x.discordId === DONO2).cargoPermId)?.dev, true)
+  assert.equal((await req('GET', '/api/auth/me', deNovo.token)).body.admin, true)
   await require('../dist/discord').verificarSaidasDoServidor()
   assert.notEqual(data.contas.find(c => c.discordId === DONO2).exonerado, true)
   // Mais de 2 IDs: o servidor não sobe

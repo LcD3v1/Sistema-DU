@@ -119,6 +119,15 @@ router.get('/discord/callback', discordLoginLimiter, async (req: Request, res: R
     data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.discordId !== discordId)
     audit('DISCORD_ACCOUNT_CREATED', req, `Segundo dono: conta #${conta.id} (cargo dev)`)
   }
+  // Segundo dono que já tinha conta (ex.: pedido de acesso antigo, sem cargo): ganha o cargo dev,
+  // senão ficava "aguardando aprovação" para sempre
+  if (conta && ehSegundoDono(cfg, discordId) && !conta.exonerado
+    && data.cargosPermissao.find(c => c.id === conta!.cargoPermId)?.dev !== true) {
+    conta.cargoPermId = cargoDev(data).id
+    conta.nivel = 'admin'
+    data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.discordId !== discordId)
+    audit('ACCOUNT_UPDATED', req, `Segundo dono: conta #${conta.id} recebeu o cargo dev`)
+  }
 
   if (!conta) {
     if (situacao?.status === 'fora') { audit('DISCORD_LOGIN_DENIED', req, 'fora do servidor, sem conta'); voltarLogin(res, 'fora_do_servidor'); return }
