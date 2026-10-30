@@ -9,6 +9,10 @@ protectConsole()
 // Nunca permitir que uma variável herdada desabilite a validação TLS.
 delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
 
+// Endereço padrão do site em produção (Discloud). O .env da hospedagem ainda pode trocar.
+export const PUBLIC_URL_PADRAO = 'https://duunit.discloud.dev'
+if (process.env.NODE_ENV === 'production' && !process.env.PUBLIC_URL?.trim()) process.env.PUBLIC_URL = PUBLIC_URL_PADRAO
+
 /**
  * Validação com parada imediata das variáveis de ambiente.
  * Importado no topo de index.ts — o processo NÃO sobe se um segredo crítico
