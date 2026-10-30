@@ -15,6 +15,7 @@ import net from 'net'
 import { Request, Response, NextFunction } from 'express'
 import { audit } from './audit'
 import { alertar } from './alertas'
+import { contaDaRequisicao } from './contaDaRequisicao'
 
 const PROD = process.env.NODE_ENV === 'production'
 
@@ -223,16 +224,20 @@ export function firewall(req: Request, res: Response, next: NextFunction): void 
   if (!ehPerfil && SCANNER.test(caminho)) { registrarInfracao(req, 'scanner', PONTOS.SCANNER); negar(res, 404); return }
   if (ASSINATURAS.some(r => r.test(decodificada))) { registrarInfracao(req, 'assinatura', PONTOS.ASSINATURA); negar(res, 400); return }
 
-  // Rotas JSON: corpo precisa ser application/json
+  // Rotas JSON: corpo precisa ser application/json — exceto o envio de arquivo (POST /api/arquivos),
+  // que manda os bytes crus (application/octet-stream) e tem parser e conferência próprios
   if (req.path.startsWith('/api/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && temCorpo(req)) {
     const tipo = String(req.headers['content-type'] ?? '').toLowerCase()
-    if (!/^application\/json\s*(;|$)/.test(tipo)) {
+    const envioDeArquivo = req.method === 'POST' && req.path === '/api/arquivos' && /^application\/octet-stream\s*(;|$)/.test(tipo)
+    if (!envioDeArquivo && !/^application\/json\s*(;|$)/.test(tipo)) {
       registrarInfracao(req, 'content_type', PONTOS.CONTENT_TYPE); negar(res, 415); return
     }
   }
 
-  // Pontua respostas de erro (rajadas de 401/403/404 = varredura / força bruta)
+  // Pontua respostas de erro (rajadas de 401/403/404 = varredura / força bruta).
+  // Conta logada não acumula: quem usa o painel e erra/clica demais leva no máximo a espera do anti-flood
   res.once('finish', () => {
+    if (contaDaRequisicao(req) !== undefined) return
     const s = res.statusCode
     if (s === 401) registrarInfracao(req, 'status_401', PONTOS.STATUS_401)
     else if (s === 403) registrarInfracao(req, 'status_403', PONTOS.STATUS_403)

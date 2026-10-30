@@ -1,5 +1,9 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
+import { useUIStore } from '@/store/uiStore'
+
+// Aviso de "muitas ações seguidas" (anti-flood / limites): um só a cada 4 s, mesmo com vários cliques
+let ultimoAvisoLimite = 0
 
 const api = axios.create({
   baseURL: (import.meta.env.VITE_API_URL || '') + '/api',
@@ -17,6 +21,11 @@ api.interceptors.request.use(cfg => {
 api.interceptors.response.use(
   r => r,
   err => {
+    if (err.response?.status === 429 && Date.now() - ultimoAvisoLimite > 4000) {
+      ultimoAvisoLimite = Date.now()
+      const msg = typeof err.response?.data?.error === 'string' ? err.response.data.error : 'Muitas ações seguidas. Espere alguns segundos.'
+      useUIStore.getState().addToast('error', msg)
+    }
     if (err.response?.status === 401) {
       useAuthStore.getState().clearAuth()
       const body = err.response?.data ?? {}

@@ -435,8 +435,7 @@ export default function ArvoreQuadroPage() {
             <button key={cor} type="button" aria-label={`Cor ${cor}`} onClick={() => atualizarLigacao.mutate({ id: ligSel.id, cor })}
               className={`w-5 h-5 rounded-full ring-2 ${ligSel.cor.toLowerCase() === cor ? 'ring-gold3' : 'ring-transparent'}`} style={{ background: cor }} />
           ))}
-          <input type="color" value={ligSel.cor} aria-label="Outra cor" onChange={e => atualizarLigacao.mutate({ id: ligSel.id, cor: e.target.value })}
-            className="w-6 h-6 rounded bg-transparent cursor-pointer" />
+          <CorLivre key={ligSel.id} cor={ligSel.cor} onEscolher={cor => atualizarLigacao.mutate({ id: ligSel.id, cor })} />
           <input value={rotulo} onChange={e => setRotulo(e.target.value)} maxLength={40} placeholder="Rótulo (ex.: irmão)" aria-label="Rótulo da linha"
             onBlur={() => rotulo !== ligSel.rotulo && atualizarLigacao.mutate({ id: ligSel.id, rotulo })}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
@@ -458,5 +457,25 @@ export default function ArvoreQuadroPage() {
         <PainelArvore arvore={arvore} aba={painel} setAba={setPainel} onFechar={() => setPainel(null)} onAbrirNo={n => { setEditor(n.id); setPainel(null) }} />
       )}
     </div>
+  )
+}
+
+/**
+ * Seletor de cor livre da linha: o navegador dispara "mudou" a cada movimento do mouse no seletor —
+ * a cor muda na hora na tela, mas só é GRAVADA quando a pessoa para de mexer (sem flood no servidor).
+ */
+function CorLivre({ cor, onEscolher }: { cor: string; onEscolher: (cor: string) => void }) {
+  const [valor, setValor] = useState(cor)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  return (
+    <input type="color" value={valor} aria-label="Outra cor"
+      onChange={e => {
+        const nova = e.target.value
+        setValor(nova)
+        clearTimeout(timer.current)
+        timer.current = setTimeout(() => { if (nova.toLowerCase() !== cor.toLowerCase()) onEscolher(nova) }, 500)
+      }}
+      className="w-6 h-6 rounded bg-transparent cursor-pointer" />
   )
 }

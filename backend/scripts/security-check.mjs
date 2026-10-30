@@ -127,8 +127,28 @@ const index = ler('src/index.ts')
 const fwSrc = ler('src/security/firewall.ts')
 check(fwSrc.length > 0, 'security/firewall.ts presente', 'ausente: src/security/firewall.ts')
 check(idx(index, 'app.use(firewall)') > 0, 'firewall montado', 'firewall NÃO montado em index.ts')
-check(idx(index, "app.set('trust proxy', 1)") > 0 && idx(index, "app.set('trust proxy', 1)") < idx(index, 'app.use(firewall)'),
-  'trust proxy (1) definido antes do firewall', 'trust proxy ausente ou depois do firewall')
+check(idx(index, "app.set('trust proxy', proxyConfiavel)") > 0 && idx(index, "app.set('trust proxy', proxyConfiavel)") < idx(index, 'app.use(firewall)'),
+  'trust proxy definido antes do firewall', 'trust proxy ausente ou depois do firewall')
+// Anti-flood por conta (10 s de espera, sem banir) montado na API; corpo cru (octet-stream) só no POST /api/arquivos;
+// "está logado" só pela assinatura do token + lista de revogados (security/jwt.ts), nunca confiando no corpo
+{
+  const fw = ler('src/security/firewall.ts'), af = ler('src/middleware/antiFlood.ts'), cr = ler('src/security/contaDaRequisicao.ts')
+  check(index.includes('antiFlood(req, res, next)') && idx(index, 'antiFlood(req, res, next)') < idx(index, 'apiLimiter(req, res, next)')
+    && af.includes('export const ESPERA_MS = 10_000') && af.includes('MAX_CHAVES') && !af.includes('registrarInfracao'),
+    'anti-flood por conta: espera de 10 s, memória com teto e sem banir', 'anti-flood ausente, sem teto ou banindo')
+  check(fw.includes("const envioDeArquivo = req.method === 'POST' && req.path === '/api/arquivos' && /^application\\/octet-stream\\s*(;|$)/.test(tipo)")
+    && fw.includes('if (!envioDeArquivo && !/^application\\/json\\s*(;|$)/.test(tipo))'),
+    'firewall: corpo não-JSON só no envio de arquivo (POST /api/arquivos)', 'firewall aceita corpo não-JSON fora do envio de arquivo')
+  check(cr.includes("from './jwt'") && cr.includes('verificarToken') && cr.includes('!isRevoked(p.jti)') && !/jwt\.(verify|decode)\(/.test(cr),
+    'conta da requisição só pelo token assinado e não revogado', 'conta da requisição sem verificar assinatura/revogação')
+}
+// IP real atrás da Cloudflare: além do proxy direto (hop 0), só confia em Cloudflare e rede interna — nunca em qualquer IP
+{
+  const proxyTs = ler('src/security/proxyConfiavel.ts')
+  check(proxyTs.includes('return hop === 0 || ipDeProxy(ip)') && proxyTs.includes("'104.16.0.0/13'")
+    && !proxyTs.includes("'0.0.0.0/0'") && !proxyTs.includes("'::/0'"),
+    'trust proxy: só o proxy da hospedagem, Cloudflare e rede interna', 'trust proxy confia em IPs demais (X-Forwarded-For forjável)')
+}
 check(idx(index, 'app.use(firewall)') < idx(index, 'express.json('), 'firewall antes do parser de corpo', 'firewall depois do parser de corpo')
 check(idx(index, 'app.use(firewall)') < idx(index, 'app.use(securityHeaders)'), 'firewall antes dos headers/rotas', 'firewall fora de ordem')
 for (const sig of ['SCANNER', 'ASSINATURAS', 'METODOS', 'MAX_URL', 'MAX_HEADERS_BYTES', 'maxIps', 'limparFirewall', "'content_type'"]) {

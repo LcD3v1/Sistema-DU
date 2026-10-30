@@ -45,6 +45,9 @@ Detalhes: `docs/SECURITY.md`.
   localStorage/sessionStorage; o logout apaga o cookie e revoga o `jti`.
 - Rate limit: use `limitador()` de `middleware/rateLimiter.ts` (armazenamento com teto de chaves). Polling leve
   (`/api/public/revisao`) tem limite próprio — não pontue uso legítimo (várias abas, CGNAT) no firewall.
+- Flood de quem está logado: `middleware/antiFlood.ts` (por conta e parte do sistema → 10 s de espera, sem banir).
+  Conta logada (`security/contaDaRequisicao.ts`) não acumula pontos de ban no firewall; visitante continua acumulando.
+- IP real: `trust proxy` = `security/proxyConfiavel.ts` (proxy da hospedagem + Cloudflare + rede interna, nada mais).
 
 ## Logs e auditoria
 - Use `audit()` (`security/audit.ts`) para eventos de segurança; o console já passa por `redact()`.

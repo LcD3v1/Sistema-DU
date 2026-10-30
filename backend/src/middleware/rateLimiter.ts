@@ -2,6 +2,7 @@ import rateLimit, { Options, Store, IncrementResponse } from 'express-rate-limit
 import { Request, Response, NextFunction } from 'express'
 import { audit } from '../security/audit'
 import { registrarInfracao, PONTOS } from '../security/firewall'
+import { contaDaRequisicao } from '../security/contaDaRequisicao'
 
 const P = PONTOS.RATE_LIMIT // 15
 
@@ -60,7 +61,8 @@ function limitador(nome: string, windowMs: number, limit: number, msg: string, p
     store: new LojaLimitada(),
     ...extra,
     handler(req: Request, res: Response, _next: NextFunction, options: Options) {
-      registrarInfracao(req, `rate_limit_${nome}`, pontos)
+      // Logado: só a resposta 429 (o anti-flood por conta segura o abuso); visitante: pontua no firewall
+      if (contaDaRequisicao(req) === undefined) registrarInfracao(req, `rate_limit_${nome}`, pontos)
       const chave = `${nome}|${req.ip}`
       const agora = Date.now()
       if (agora - (ultimoLog.get(chave) ?? 0) > 60_000 && ultimoLog.size < 50_000) {

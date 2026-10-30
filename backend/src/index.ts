@@ -13,6 +13,9 @@ import {
 import { sanitizeBody } from './middleware/sanitize'
 import { audit } from './security/audit'
 import { firewall, registrarInfracao, PONTOS } from './security/firewall'
+import { proxyConfiavel } from './security/proxyConfiavel'
+import { contaDaRequisicao } from './security/contaDaRequisicao'
+import { antiFlood } from './middleware/antiFlood'
 import { iniciarPersistenciaRevogacoes, encerrarPersistenciaRevogacoes } from './security/tokenBlacklist'
 import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureDuPermissionRoles, migrarPatentesParaDpd } from './data'
 import { criptografiaDisponivel } from './security/crypto'
@@ -56,9 +59,9 @@ import { uploadRouter as anuncioImagemUpload, publicoRouter as anuncioImagemPubl
 const app = express()
 const PROD = env.PROD
 
-// Exatamente 1 proxy (proxy da hospedagem: Discloud/cloudflared) → req.ip = IP real do cliente.
+// Proxy da hospedagem + Cloudflare/rede interna (security/proxyConfiavel.ts) → req.ip = IP real do visitante.
 // Deve vir antes de firewall e rate limit (ambos usam req.ip).
-app.set('trust proxy', 1)
+app.set('trust proxy', proxyConfiavel)
 app.disable('x-powered-by')
 app.set('etag', false) // sem ETag nas respostas dinâmicas (estáticos têm o próprio)
 app.set('query parser', 'simple') // sem objetos aninhados na query (?a[$ne]=1)
@@ -102,6 +105,8 @@ const ehRevisao = (req: Request) => req.method === 'GET' && req.originalUrl.spli
 // Fotos dos membros (link opaco): limite próprio, fora dos limites geral/público (listas com muitas fotos)
 const ehFoto = (req: Request) => req.method === 'GET' && /^\/api\/public\/foto\/[A-Za-z0-9_-]{22}$/.test(req.originalUrl.split('?')[0])
 app.use((req, res, next) => (ehRevisao(req) ? revisaoLimiter(req, res, next) : ehFoto(req) ? fotoLimiter(req, res, next) : next()))
+// Anti-flood por conta: ações demais em poucos segundos → aquela ação espera 10 s (sem banir ninguém)
+app.use('/api', (req, res, next) => (ehRevisao(req) || ehFoto(req) ? next() : antiFlood(req, res, next)))
 app.use('/api', (req, res, next) => (ehRevisao(req) || ehFoto(req) ? next() : apiLimiter(req, res, next)))
 app.use('/api', mutationLimiter) // só POST/PUT/PATCH/DELETE
 app.use((req, res, next) => (ROTAS_UPLOAD.test(req.path) ? uploadLimiter(req, res, next) : next()))
@@ -209,7 +214,7 @@ app.use((err: Error & { type?: string; status?: number }, req: Request, res: Res
   const corpo = typeof err?.type === 'string' ? ERROS_CORPO[err.type] : undefined
   if (corpo) {
     // Só o tipo do erro é registrado (nunca a mensagem)
-    try { registrarInfracao(req, `corpo_${err.type}`, PONTOS.CORPO_INVALIDO) } catch { /* noop */ }
+    try { if (contaDaRequisicao(req) === undefined) registrarInfracao(req, `corpo_${err.type}`, PONTOS.CORPO_INVALIDO) } catch { /* noop */ }
     if (!res.headersSent) res.status(corpo[0]).json({ error: corpo[1] })
     return
   }
