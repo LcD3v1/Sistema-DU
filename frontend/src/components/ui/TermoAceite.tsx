@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMutation } from '@tanstack/react-query'
@@ -22,6 +22,16 @@ function aceitoNoNavegador(): boolean {
 function marcarNoNavegador(): void {
   try { localStorage.setItem(KEY, JSON.stringify({ versao: TERMOS.versao, em: new Date().toISOString() })) } catch { /* storage bloqueado */ }
 }
+// Aceitou na tela de login há pouco (antes de entrar): vale para a conta que acabou de entrar
+const JANELA_LOGIN_MS = 30 * 60_000
+function aceitoAgoraNoNavegador(): boolean {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { versao?: string; em?: string } | null
+    return v?.versao === TERMOS.versao && Date.now() - Date.parse(v.em ?? '') < JANELA_LOGIN_MS
+  } catch { return false }
+}
+const erroApi = (e: unknown) =>
+  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Não foi possível registrar o aceite. Tente novamente.'
 
 /**
  * Aceite dos documentos legais (Termos de Uso, Privacidade, Cookies, Propriedade
@@ -41,10 +51,22 @@ export default function TermoAceite() {
 
   const aceitar = useMutation({
     mutationFn: () => api.post('/auth/me/termos', { versao: TERMOS.versao }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+    // Fecha na hora (sem esperar o /me de novo) e depois confirma com o servidor
+    onSuccess: () => {
+      queryClient.setQueryData<typeof me>(['me'], old => old && { ...old, termos: { atual: TERMOS.versao, aceita: TERMOS.versao } })
+      void queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
   })
 
   const pendenteConta = !!token && !!me && me.termos?.aceita !== TERMOS.versao
+
+  // Aceitou como visitante (tela de login) e entrou logo depois: registra na conta sem pedir de novo
+  const levouAceite = useRef(false)
+  useEffect(() => {
+    if (!pendenteConta || levouAceite.current || !aceitoAgoraNoNavegador()) return
+    levouAceite.current = true
+    aceitar.mutate()
+  }, [pendenteConta, aceitar])
   const pendenteVisitante = !token && !restaurando && !localOk
   const aberto = !SEM_POPUP.some(p => pathname.startsWith(p)) && (pendenteConta || pendenteVisitante)
 
@@ -149,7 +171,7 @@ export default function TermoAceite() {
                 </span>
               </label>
               {aceitar.isError && (
-                <p className="mb-3 text-[12px] text-red">Não foi possível registrar o aceite. Tente novamente.</p>
+                <p className="mb-3 text-[12px] text-red">{erroApi(aceitar.error)}</p>
               )}
               <div className="flex gap-2.5">
                 <button
