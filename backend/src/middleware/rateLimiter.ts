@@ -110,10 +110,12 @@ export const revisaoLimiter = limitador('revisao', 60_000, 240, 'Muitas requisi�
 // Ranking (autenticado, consultas pesadas): 90 / 1 min por IP
 export const rankingLimiter = limitador('ranking', 60_000, 90, 'Muitas requisições. Tente em um minuto.', 3)
 
-// Login pelo Discord (início + volta do OAuth, cada uma conta): 30 / 15 min por IP.
-// A volta chama a API do Discord (troca do code + consulta ao servidor): limite apertado.
-export const discordLoginLimiter = limitador('login_discord', 15 * 60_000, 30,
-  'Muitas tentativas de login. Tente novamente em 15 minutos.', P)
+// Login pelo Discord (início + volta do OAuth, cada uma conta): 40 / 15 min por IP.
+// A volta chama a API do Discord (troca do code + consulta ao servidor): limite próprio.
+// Peso baixo no firewall: a senha é do Discord (não há força bruta aqui) e quem entra/sai muitas
+// vezes só espera o limite, sem ter o IP bloqueado (2 pontos por tentativa recusada, decaem 10/min).
+export const discordLoginLimiter = limitador('login_discord', 15 * 60_000, 40,
+  'Muitas tentativas de login. Tente novamente em 15 minutos.', 2)
 
 // Restaurar sessão ao recarregar a página: 60 / 15 min por IP
 export const sessaoLimiter = limitador('sessao', 15 * 60_000, 60,

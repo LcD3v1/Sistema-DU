@@ -10,34 +10,41 @@ import { useAuthStore } from '@/store/authStore'
 import { useMe } from '@/hooks/useMe'
 import { DOCUMENTOS, EMPRESAS, TERMOS } from '@/content/termos'
 
-// Visitante: só conveniência de UI (nenhum dado sensível). Logado: o aceite vale é o da conta.
+// Aceite guardado neste navegador (só versão, data e o nº das contas que aceitaram aqui — nada sensível).
+// Logado: o aceite que vale é o da conta no servidor; o daqui só evita pedir de novo enquanto o
+// registro não chega (servidor fora, IP limitado…) e é reenviado sozinho.
 const KEY = 'du_termos_aceite'
 const EASE = [0.16, 1, 0.3, 1] as const
 // Telas onde o aceite não deve cobrir: a própria leitura dos termos e o retorno do OAuth
 const SEM_POPUP = ['/termos']
-
-function aceitoNoNavegador(): boolean {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? 'null')?.versao === TERMOS.versao } catch { return false }
-}
-function marcarNoNavegador(): void {
-  try { localStorage.setItem(KEY, JSON.stringify({ versao: TERMOS.versao, em: new Date().toISOString() })) } catch { /* storage bloqueado */ }
-}
 // Aceitou na tela de login há pouco (antes de entrar): vale para a conta que acabou de entrar
 const JANELA_LOGIN_MS = 30 * 60_000
-function aceitoAgoraNoNavegador(): boolean {
+
+interface AceiteLocal { versao?: string; em?: string; contas?: number[] }
+function lerLocal(): AceiteLocal | null {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { versao?: string; em?: string } | null
-    return v?.versao === TERMOS.versao && Date.now() - Date.parse(v.em ?? '') < JANELA_LOGIN_MS
-  } catch { return false }
+    const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as AceiteLocal | null
+    return v?.versao === TERMOS.versao ? v : null
+  } catch { return null }
 }
-const erroApi = (e: unknown) =>
-  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Não foi possível registrar o aceite. Tente novamente.'
+function marcarNoNavegador(contaId?: number): void {
+  const atual = lerLocal()
+  const contas = [...new Set([...(atual?.contas ?? []), ...(contaId ? [contaId] : [])])].slice(-20)
+  try { localStorage.setItem(KEY, JSON.stringify({ versao: TERMOS.versao, em: new Date().toISOString(), contas })) } catch { /* storage bloqueado */ }
+}
+const aceitoPelaConta = (contaId: number) => lerLocal()?.contas?.includes(contaId) === true
+function aceitoAgoraNoNavegador(): boolean {
+  const v = lerLocal()
+  return !!v && Date.now() - Date.parse(v.em ?? '') < JANELA_LOGIN_MS
+}
 
 /**
  * Aceite dos documentos legais (Termos de Uso, Privacidade, Cookies, Propriedade
  * Intelectual, Licença de Uso e Responsabilidades).
  * Visitante: aparece na primeira visita (por navegador). Logado: aparece até a
  * conta aceitar a versão vigente — e de novo sempre que a versão mudar.
+ * Aceitou: fecha na hora e não volta mais para aquela conta; o registro no servidor
+ * é reenviado em segundo plano até dar certo.
  */
 export default function TermoAceite() {
   const { pathname } = useLocation()
@@ -45,28 +52,35 @@ export default function TermoAceite() {
   const restaurando = useAuthStore(s => s.restaurando)
   const logout = useAuthStore(s => s.logout)
   const { data: me } = useMe()
-  const [localOk, setLocalOk] = useState(aceitoNoNavegador)
+  const [localOk, setLocalOk] = useState(() => lerLocal() !== null)
+  const [, setVersaoLocal] = useState(0)   // re-renderiza depois de marcar a conta no navegador
   const [concordo, setConcordo] = useState(false)
   const [recusado, setRecusado] = useState(false)
 
   const aceitar = useMutation({
     mutationFn: () => api.post('/auth/me/termos', { versao: TERMOS.versao }),
-    // Fecha na hora (sem esperar o /me de novo) e depois confirma com o servidor
+    retry: 3,
+    retryDelay: n => Math.min(15_000 * 2 ** n, 60_000),
     onSuccess: () => {
       queryClient.setQueryData<typeof me>(['me'], old => old && { ...old, termos: { atual: TERMOS.versao, aceita: TERMOS.versao } })
       void queryClient.invalidateQueries({ queryKey: ['me'] })
     },
   })
 
-  const pendenteConta = !!token && !!me && me.termos?.aceita !== TERMOS.versao
+  const servidorPendente = !!token && !!me && me.termos?.aceita !== TERMOS.versao
+  const pendenteConta = servidorPendente && !aceitoPelaConta(me.contaId) && !aceitoAgoraNoNavegador()
 
-  // Aceitou como visitante (tela de login) e entrou logo depois: registra na conta sem pedir de novo
-  const levouAceite = useRef(false)
+  // Aceitou neste navegador (agora há pouco no login, ou antes com esta conta) e o servidor ainda não
+  // registrou: envia sozinho, sem mostrar os termos de novo
+  const enviouSozinho = useRef<number | null>(null)
   useEffect(() => {
-    if (!pendenteConta || levouAceite.current || !aceitoAgoraNoNavegador()) return
-    levouAceite.current = true
+    if (!servidorPendente || !me || enviouSozinho.current === me.contaId) return
+    const jaAceitou = aceitoPelaConta(me.contaId) || aceitoAgoraNoNavegador()
+    if (!jaAceitou) return
+    enviouSozinho.current = me.contaId
+    marcarNoNavegador(me.contaId)
     aceitar.mutate()
-  }, [pendenteConta, aceitar])
+  }, [servidorPendente, me, aceitar])
   const pendenteVisitante = !token && !restaurando && !localOk
   const aberto = !SEM_POPUP.some(p => pathname.startsWith(p)) && (pendenteConta || pendenteVisitante)
 
@@ -75,10 +89,12 @@ export default function TermoAceite() {
   if (aberto !== abertoAntes) { setAbertoAntes(aberto); if (!aberto) { setConcordo(false); setRecusado(false) } }
 
   function confirmar() {
-    if (!concordo || aceitar.isPending) return
-    marcarNoNavegador()
+    if (!concordo) return
+    // Fecha na hora: o aceite fica marcado para esta conta e o registro vai para o servidor
+    marcarNoNavegador(me?.contaId)
     setLocalOk(true)
-    if (token) aceitar.mutate()
+    setVersaoLocal(v => v + 1)
+    if (token && me) { enviouSozinho.current = me.contaId; aceitar.mutate() }
   }
 
   return (
@@ -170,9 +186,6 @@ export default function TermoAceite() {
                   Li e concordo com os Termos de Uso, a Política de Privacidade, a Política de Cookies, a Política de Propriedade Intelectual, a Licença de Uso e os Termos de Responsabilidade da {EMPRESAS}.
                 </span>
               </label>
-              {aceitar.isError && (
-                <p className="mb-3 text-[12px] text-red">{erroApi(aceitar.error)}</p>
-              )}
               <div className="flex gap-2.5">
                 <button
                   type="button" onClick={() => setRecusado(true)}
@@ -181,10 +194,10 @@ export default function TermoAceite() {
                   Recusar
                 </button>
                 <button
-                  type="button" onClick={confirmar} disabled={!concordo || aceitar.isPending}
+                  type="button" onClick={confirmar} disabled={!concordo}
                   className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-gold text-white hover:bg-gold2 transition-colors disabled:bg-card2 disabled:text-txt3 disabled:cursor-not-allowed"
                 >
-                  {aceitar.isPending ? 'Registrando…' : 'Aceitar e continuar'}
+                  Aceitar e continuar
                 </button>
               </div>
             </div>
