@@ -142,6 +142,16 @@ check(idx(index, "app.set('trust proxy', proxyConfiavel)") > 0 && idx(index, "ap
   check(cr.includes("from './jwt'") && cr.includes('verificarToken') && cr.includes('!isRevoked(p.jti)') && !/jwt\.(verify|decode)\(/.test(cr),
     'conta da requisição só pelo token assinado e não revogado', 'conta da requisição sem verificar assinatura/revogação')
 }
+// DoS de aplicação: tempo máximo de conexão (slowloris), requisições simultâneas por IP e sobrecarga
+{
+  const carga = ler('src/middleware/cargaServidor.ts')
+  check(index.includes('servidor.headersTimeout = 15_000') && index.includes('servidor.requestTimeout = 120_000') && index.includes('servidor.maxHeadersCount = 100'),
+    'servidor com tempo máximo de conexão (contra slowloris)', 'servidor sem headersTimeout/requestTimeout/maxHeadersCount')
+  check(idx(index, 'app.use(protecaoSobrecarga)') > idx(index, 'app.use(firewall)') && idx(index, 'app.use(limiteConcorrente)') > 0
+    && idx(index, 'app.use(limiteConcorrente)') < idx(index, 'app.use(globalLimiter)')
+    && /export const MAX_SIMULTANEAS_IP = \d+/.test(carga) && carga.includes('MAX_IPS') && carga.includes("res.once('close', liberar)"),
+    'requisições simultâneas por IP com teto (e liberação garantida) + proteção de sobrecarga', 'sem teto de requisições simultâneas ou sem proteção de sobrecarga')
+}
 // IP real atrás da Cloudflare: além do proxy direto (hop 0), só confia em Cloudflare e rede interna — nunca em qualquer IP
 {
   const proxyTs = ler('src/security/proxyConfiavel.ts')

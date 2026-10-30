@@ -48,6 +48,8 @@ Detalhes: `docs/SECURITY.md`.
 - Flood de quem está logado: `middleware/antiFlood.ts` (por conta e parte do sistema → 10 s de espera, sem banir).
   Conta logada (`security/contaDaRequisicao.ts`) não acumula pontos de ban no firewall; visitante continua acumulando.
 - IP real: `trust proxy` = `security/proxyConfiavel.ts` (proxy da hospedagem + Cloudflare + rede interna, nada mais).
+- Anti-DoS (`middleware/cargaServidor.ts` + tempos do servidor em `index.ts`): teto de requisições simultâneas por IP
+  (envio de arquivo: 3), recusa o não essencial com o servidor sobrecarregado, timeouts contra conexões lentas. Não remova.
 
 ## Logs e auditoria
 - Use `audit()` (`security/audit.ts`) para eventos de segurança; o console já passa por `redact()`.

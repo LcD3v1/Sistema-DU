@@ -16,6 +16,7 @@ import { firewall, registrarInfracao, PONTOS } from './security/firewall'
 import { proxyConfiavel } from './security/proxyConfiavel'
 import { contaDaRequisicao } from './security/contaDaRequisicao'
 import { antiFlood } from './middleware/antiFlood'
+import { limiteConcorrente, protecaoSobrecarga } from './middleware/cargaServidor'
 import { iniciarPersistenciaRevogacoes, encerrarPersistenciaRevogacoes } from './security/tokenBlacklist'
 import { initData, closeData, ensureDefaultAdmin, ensureNivelMigration, ensureDuPermissionRoles, migrarPatentesParaDpd } from './data'
 import { criptografiaDisponivel } from './security/crypto'
@@ -73,6 +74,10 @@ app.use(firewall)
 app.use(forcarHttps)
 app.use(securityHeaders)
 app.use(permissionsPolicy)
+
+// ── Segurança: camada 1.5 — servidor sobrecarregado e requisições simultâneas por IP ─
+app.use(protecaoSobrecarga)
+app.use(limiteConcorrente)
 
 // ── Segurança: camada 2 — rate limiting global ────────────────────────────────
 app.use(globalLimiter)
@@ -246,12 +251,19 @@ async function iniciar(): Promise<void> {
   { const d = lerDados(); if (atualizarPatentesDu(d)) { gravarDados(d); console.log('[DU][DADOS] Patentes da DU atualizadas (Supervisor of Detectives).') } }
   { const d = lerDados(); if (cadastrarPatentesESetores(d)) { gravarDados(d); console.log('[DU][DADOS] Patentes da DU e setores (COD, DNARC, COD/DNARC) cadastrados.') } }
   { const d = lerDados(); const n = vincularContasAoEfetivo(d); if (n) { gravarDados(d); console.log(`[DU][DADOS] ${n} conta(s) aprovada(s) vinculada(s) ao efetivo.`) } }
-  app.listen(PORT, '0.0.0.0', () => {
+  const servidor = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[DU] Sistema rodando na porta ${PORT} (${process.env.PORT ? 'definida pela hospedagem/.env' : 'padrão'})`)
     const publica = process.env.PUBLIC_URL?.trim().replace(/\/+$/, '')
     console.log(`[DU] ➜  Abra no navegador: ${PROD && publica ? publica : `http://localhost:${PORT}`}`)
     console.log(`[DU] Ambiente: ${PROD ? 'produção' : 'desenvolvimento'}`)
   })
+  // Contra conexões lentas de propósito (slowloris): cabeçalhos em até 15 s, requisição inteira em até 2 min
+  // (upload grande numa conexão ruim cabe), conexão parada fecha; poucos cabeçalhos por requisição
+  servidor.headersTimeout = 15_000
+  servidor.requestTimeout = 120_000
+  servidor.keepAliveTimeout = 65_000
+  servidor.maxHeadersCount = 100
+  servidor.maxRequestsPerSocket = 1000
 
   // Rotina (1 min): ausências (início/fim do período) e limpeza de notificações
   const rotina = () => {
