@@ -104,7 +104,7 @@ export default function TermoAceite() {
           key="termos"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[10000] grid place-items-center p-4"
+          className="fixed inset-0 z-10000 grid place-items-center p-4"
           style={{ background: 'rgba(4,5,8,0.84)', backdropFilter: 'blur(4px)' }}
           role="dialog" aria-modal="true" aria-labelledby="termos-titulo"
         >
@@ -179,7 +179,7 @@ export default function TermoAceite() {
                   onChange={e => { setConcordo(e.target.checked); if (e.target.checked) setRecusado(false) }}
                   className="peer sr-only"
                 />
-                <span className="w-5 h-5 mt-0.5 shrink-0 rounded-md border-[1.5px] border-bdrg bg-white/[0.02] grid place-items-center transition-colors peer-checked:bg-gold peer-checked:border-gold peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2">
+                <span className="w-5 h-5 mt-0.5 shrink-0 rounded-md border-[1.5px] border-bdrg bg-white/2 grid place-items-center transition-colors peer-checked:bg-gold peer-checked:border-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2">
                   <Check size={13} strokeWidth={3.2} className={`text-white transition-opacity ${concordo ? 'opacity-100' : 'opacity-0'}`} />
                 </span>
                 <span className="text-[13.5px] leading-snug text-txt">
