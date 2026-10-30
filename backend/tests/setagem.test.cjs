@@ -224,12 +224,12 @@ test('painel da setagem: imagens soltas na posição escolhida (antes do botão)
   assert.ok(!mensagens.get(data.setagem.mensagemId).corpo.components[0].components.some(c => c.type === 12))
 })
 
-test('pedido: apelido na hora, canal temporário privado com o painel do pedido; sem cargo antes da aprovação', async () => {
+test('pedido: apelido e cargos só na aprovação; canal temporário privado com o painel do pedido; sem cargo antes da aprovação', async () => {
   chamadas.length = 0; edicoes.length = 0
   await tratar(interacao(NOVO, 5, 'du:setagem:modal', { codinome: 'Raven', passaporte: '12345', patente: '1' }))
   const p = pedidoDe(NOVO)
   assert.equal(p.setagem.apelido, 'SGT Raven | 12345'); assert.equal(p.setagem.status, 'pendente')
-  assert.ok(chamadas.includes(`PATCH /guilds/${guild}/members/${NOVO}`))
+  assert.ok(!chamadas.includes(`PATCH /guilds/${guild}/members/${NOVO}`))                  // apelido só na aprovação
   assert.ok(!chamadas.some(c => c.startsWith('PUT')))
   // Canal temporário: na categoria, @everyone sem ver, cargo aprovador vê
   const canal = canaisCriados.at(-1)
@@ -320,6 +320,7 @@ test('aprovar pelo Discord: conta com os dados, cargo da patente, aviso no priva
   assert.equal(membro.status, 'Ativo'); assert.ok(data.membrosOrder.includes(membro.id))
   assert.ok(data.notificacoes.some(n => n.titulo === 'Novo membro na unidade'))
   assert.ok(chamadas.includes(`PUT /guilds/${guild}/members/${NOVO}/roles/${R_CB}`))
+  assert.ok(chamadas.includes(`PATCH /guilds/${guild}/members/${NOVO}`))                   // apelido troca na aprovação
   assert.equal(privados.length, 1)
   await new Promise(r => setTimeout(r, 5300))                                             // canal é apagado após 5 s
   assert.ok(chamadas.includes(`DELETE /channels/${p.setagem.canalTemp}`))

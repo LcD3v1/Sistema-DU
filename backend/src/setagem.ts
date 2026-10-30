@@ -187,8 +187,8 @@ export function montarPainelSetagem(s: Setagem, info: InfoPainel): { componentes
           '### Como funciona',
           '**1.** Clique em **Solicitar set** e preencha o formulário.',
           `**2.** Informe o **codinome**, o **passaporte** (ID in-game), a **patente**${s.setores?.length ? ' e, se quiser, o **setor**' : ''}.`,
-          '**3.** Seu apelido muda na hora e o comando avalia o pedido.',
-          '**4.** Aprovado, você recebe o cargo e o acesso ao painel.',
+          '**3.** O comando avalia o pedido.',
+          `**4.** Aprovado, seu apelido muda e você recebe os cargos da patente${s.setores?.length ? ' e do setor' : ''} e o acesso ao painel.`,
         ].join('\n')),
         ...g.em('passos'),
         ...(exemplo ? [texto(`### Seu apelido fica assim\n> **${exemplo.replace(/[*_~`|]/g, m => `\\${m}`)}**`)] : []),
@@ -471,12 +471,11 @@ async function tratarPedido(cfg: DiscordConfig, i: Interacao): Promise<void> {
   writeData(atual)
   audit('SIGNUP_REQUESTED', undefined, `Setagem${editando ? ' (edição)' : ''}: @${i.usuario.username} → ${pedido.patente.nome}`)
 
-  const r = await alterarApelido(cfg, i.usuario.id, pedido.apelido)
+  // O apelido só muda na aprovação (concederPatente), junto com os cargos
   await sincronizarCanalDoPedido(cfg, solId)
-  const apelidoTxt = r === 'ok' ? `Seu apelido agora é **${pedido.apelido}**.`
-    : 'Não consegui trocar seu apelido (o bot precisa de permissão ou você é o dono do servidor) — o comando ajusta.'
   await editarResposta(cfg, i.token, [
-    editando ? '✅ Pedido de set atualizado!' : '✅ Pedido de set enviado!', apelidoTxt,
+    editando ? '✅ Pedido de set atualizado!' : '✅ Pedido de set enviado!',
+    `Quando for aprovado, seu apelido vira **${pedido.apelido}**.`,
     'Aguarde a aprovação do comando para receber os cargos (patente e setor) e o acesso ao painel.',
     ...(urlDoSite() ? [`Depois de aprovado, entre com o Discord em ${urlDoSite()}`] : []),
   ].join('\n'))
@@ -719,13 +718,19 @@ export async function concederPatente(sol: SolicitacaoAcesso, patente: PatenteSe
   let resultado: ResultadoMembro = 'ok'
   const perigosos = await cargosPerigosos(cfg)
   const manuais: string[] = []
-  for (const roleId of [...patente.roleIds.slice(0, 2), ...(setor?.roleIds.slice(0, 2) ?? [])]) {
+  const cargos = [...new Set([...patente.roleIds.slice(0, 2), ...(setor?.roleIds.slice(0, 2) ?? [])])]
+  let falhas = 0
+  for (const roleId of cargos) {
     const nome = perigosos.get(roleId)
     if (nome !== undefined) { manuais.push(nome); continue }
     const r = await darCargo(cfg, sol.discordId, roleId)
-    if (r !== 'ok') resultado = r
+    if (r !== 'ok') { resultado = r; falhas++ }
   }
-  await alterarApelido(cfg, sol.discordId, sol.setagem.apelido)
+  const apelido = await alterarApelido(cfg, sol.discordId, sol.setagem.apelido)
+  // Página Logs: quantos cargos foram entregues e por que algum falhou (sem IDs)
+  audit('CONFIG_UPDATED', undefined, `Setagem: cargos no Discord — ${cargos.length - falhas - manuais.length}/${cargos.length} entregues`
+    + `${falhas ? ` (${falhas} falhou: ${resultado === 'sem_permissao' ? 'bot sem permissão ou cargo do bot abaixo do cargo' : 'erro da API do Discord'})` : ''}`
+    + `${manuais.length ? ` · à mão: ${manuais.join(', ')}` : ''} · apelido: ${apelido === 'ok' ? 'trocado' : 'não trocado'}`)
   return { resultado, manuais }
 }
 

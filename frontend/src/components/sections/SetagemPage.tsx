@@ -114,7 +114,7 @@ export default function SetagemPage() {
           <p className="font-mono text-[10px] text-txt2 tracking-[0.2em] uppercase mb-1">Sistema</p>
           <h1 className="text-2xl sm:text-3xl font-bold text-txt flex items-center gap-2"><ClipboardCheck size={26} className="text-gold" /> Setagem</h1>
           <p className="text-sm text-txt2 mt-1 max-w-2xl">
-            Painel com o botão <b>Solicitar set</b> no Discord. A pessoa informa codinome, passaporte, patente e, se quiser, o setor; o apelido muda na hora.
+            Painel com o botão <b>Solicitar set</b> no Discord. A pessoa informa codinome, passaporte, patente e, se quiser, o setor; na aprovação o apelido muda e os cargos da patente e do setor são entregues.
             Os cargos da patente e do setor e o acesso ao site só são liberados depois da aprovação.
           </p>
         </div>
