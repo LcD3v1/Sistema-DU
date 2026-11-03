@@ -1,6 +1,6 @@
 import { Ausencia, Conta, DuData, Membro } from './types'
 import { readData, writeData } from './data'
-import { isAdmin, isDev, getCargo, ehDono, cargoConcedeEditar } from './access'
+import { isAdmin, isDev, getCargo, ehContaDeDono, cargoConcedeEditar } from './access'
 import { audit } from './security/audit'
 import { notificar } from './notificacoes'
 
@@ -18,9 +18,9 @@ export function hoje(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: TZ })
 }
 
-/** Conta dona: a conta 1. */
+/** Conta de dono do .env (conta 1 ou 2º ID de DISCORD_DONO_ID): nunca exonerada nem bloqueada. */
 export function ehContaDona(conta: Conta | undefined): boolean {
-  return !!conta && ehDono(conta)
+  return !!conta && ehContaDeDono(conta)
 }
 
 export const statusAusencia = (a: Ausencia) => a.status ?? 'aprovada'

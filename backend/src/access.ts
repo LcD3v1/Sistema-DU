@@ -20,12 +20,30 @@ export function ehDono(conta: Conta): boolean {
   return conta.id === PROTECTED_OWNER_ID
 }
 
+/** Máximo de pessoas em DISCORD_DONO_ID (entram sem estar no servidor). */
+export const MAX_DONOS = 2
+
+/** IDs de DISCORD_DONO_ID (separados por vírgula), sem repetição; só os 2 primeiros valem. */
+export function idsDosDonos(valor: string | undefined): string[] {
+  return [...new Set((valor ?? '').split(/[\s,;]+/).map(v => v.trim()).filter(v => /^\d{17,20}$/.test(v)))].slice(0, MAX_DONOS)
+}
+
+/**
+ * Conta de um dos donos do .env: a conta 1 OU a conta ligada ao 2º ID de DISCORD_DONO_ID.
+ * As duas são intocáveis (nunca exoneradas) e sempre dev, mesmo que alguém tire o cargo.
+ */
+export function ehContaDeDono(conta: Conta): boolean {
+  if (ehDono(conta)) return true
+  const donos = idsDosDonos(process.env.DISCORD_DONO_ID)
+  return donos.length === MAX_DONOS && !!conta.discordId && conta.discordId === donos[1]
+}
+
 /**
  * Dev: poder total, um degrau acima do admin. Faz tudo e é o único que pode
  * conceder/retirar o próprio cargo de dev — nem admin promove alguém a dev.
  */
 export function isDev(conta: Conta, data: DuData): boolean {
-  if (ehDono(conta)) return true
+  if (ehContaDeDono(conta)) return true
   return getCargo(conta, data)?.dev === true
 }
 

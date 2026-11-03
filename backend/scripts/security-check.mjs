@@ -742,10 +742,19 @@ check(/export function ehDono\(conta: Conta\): boolean \{\s*return conta\.id ===
     && /c\.id !== PROTECTED_OWNER_ID && c\.discordId === discordId/.test(discordDono),
     'só o 1º ID de DISCORD_DONO_ID entra na conta dona (discordId gravado não basta)', 'outro Discord pode entrar na conta dona')
   // Fora do servidor: SÓ os (no máx. 2) donos do .env — nenhuma outra lista libera acesso
-  check(/export const MAX_DONOS = 2\b/.test(discordDono) && /\.slice\(0, MAX_DONOS\)/.test(discordDono)
+  check(/export const MAX_DONOS = 2\b/.test(accessExtTs) && /\.slice\(0, MAX_DONOS\)/.test(accessExtTs)
+    && /export \{ MAX_DONOS, idsDosDonos \}/.test(discordDono)
     && /return cfg\.donos\.includes\(discordId\)/.test(discordDono) && !/process\.env\.DISCORD_ACESSO_LIVRE|e\.DISCORD_ACESSO_LIVRE\)/.test(discordDono)
     && /no máximo 2 IDs/.test(ler('src/config/env.ts')),
     'só até 2 donos entram sem estar no servidor (mais que 2 derruba o boot)', 'mais pessoas podem entrar sem estar no servidor')
+  // Os 2 donos do .env (conta 1 + 2º ID) nunca são exonerados e são sempre dev; o 2º volta sozinho no login
+  const efetivoDono = ler('src/efetivo.ts')
+  const authDono = ler('src/routes/auth.ts')
+  check(/conta\.discordId === donos\[1\]/.test(accessExtTs) && /if \(ehContaDeDono\(conta\)\) return true/.test(accessExtTs)
+    && /return !!conta && ehContaDeDono\(conta\)/.test(efetivoDono)
+    && (efetivoDono.match(/if \(ehContaDona\(conta\)\) throw new Error\('Um dono do sistema não pode ser exonerado\.'\)/g) ?? []).length === 2
+    && /antes\?\.exonerado && !segundoDono/.test(authDono) && /if \(conta && segundoDono\) \{\s*if \(conta\.exonerado \|\| !conta\.ativo\)/.test(authDono),
+    'os 2 donos do .env nunca são exonerados, são sempre dev e o 2º recupera o acesso no login', 'segundo dono (dev) pode ser exonerado ou perder o acesso')
 }
 
 console.log('\n[ADV] Advertências')

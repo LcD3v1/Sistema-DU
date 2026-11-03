@@ -17,7 +17,7 @@ import { exonerarConta, MOTIVO_SAIU_DO_SERVIDOR } from './efetivo'
 import { notificarAdmins } from './notificacoes'
 import { audit } from './security/audit'
 import { Conta, DuData, CargoPermissao } from './types'
-import { PROTECTED_OWNER_ID } from './access'
+import { PROTECTED_OWNER_ID, MAX_DONOS, idsDosDonos } from './access'
 import { fullPermMap } from './permAreas'
 import { nomeDaConta } from './registros'
 
@@ -35,13 +35,7 @@ export interface DiscordConfig {
   donos: string[]
 }
 
-/** Máximo de pessoas que entram sem estar no servidor. */
-export const MAX_DONOS = 2
-
-/** IDs de DISCORD_DONO_ID (separados por vírgula), sem repetição; só os 2 primeiros valem. */
-export function idsDosDonos(valor: string | undefined): string[] {
-  return [...new Set((valor ?? '').split(/[\s,;]+/).map(v => v.trim()).filter(v => SNOWFLAKE.test(v)))].slice(0, MAX_DONOS)
-}
+export { MAX_DONOS, idsDosDonos }
 
 /** Configuração do login pelo Discord, ou undefined se faltar algo (login fica indisponível). */
 export function discordConfig(): DiscordConfig | undefined {

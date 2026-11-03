@@ -96,11 +96,13 @@ router.get('/discord/callback', discordLoginLimiter, async (req: Request, res: R
 
   // 1. Conta já existente: estado da conta antes de qualquer outra coisa
   const antes = contaDoDiscord(readData(), cfg, discordId)
-  if (antes?.exonerado) {
+  // Segundo dono do .env nunca fica de fora: exoneração/desativação é desfeita logo abaixo
+  const segundoDono = ehSegundoDono(cfg, discordId)
+  if (antes?.exonerado && !segundoDono) {
     audit('DISCORD_LOGIN_DENIED', req, `Exonerado: conta #${antes.id}`)
     voltarLogin(res, antes.exoneradoMotivo === MOTIVO_SAIU_DO_SERVIDOR ? 'saiu' : 'exonerado'); return
   }
-  if (antes && !antes.ativo) { audit('DISCORD_LOGIN_DENIED', req, `Conta desativada #${antes.id}`); voltarLogin(res, 'desativada'); return }
+  if (antes && !antes.ativo && !segundoDono) { audit('DISCORD_LOGIN_DENIED', req, `Conta desativada #${antes.id}`); voltarLogin(res, 'desativada'); return }
 
   // 2. Precisa estar no servidor (exceto os até 2 donos do .env). Falha da API = não entra.
   const livre = acessoLivre(cfg, discordId)
@@ -119,14 +121,24 @@ router.get('/discord/callback', discordLoginLimiter, async (req: Request, res: R
     data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.discordId !== discordId)
     audit('DISCORD_ACCOUNT_CREATED', req, `Segundo dono: conta #${conta.id} (cargo dev)`)
   }
-  // Segundo dono que já tinha conta (ex.: pedido de acesso antigo, sem cargo): ganha o cargo dev,
-  // senão ficava "aguardando aprovação" para sempre
-  if (conta && ehSegundoDono(cfg, discordId) && !conta.exonerado
-    && data.cargosPermissao.find(c => c.id === conta!.cargoPermId)?.dev !== true) {
-    conta.cargoPermId = cargoDev(data).id
-    conta.nivel = 'admin'
-    data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.discordId !== discordId)
-    audit('ACCOUNT_UPDATED', req, `Segundo dono: conta #${conta.id} recebeu o cargo dev`)
+  // Segundo dono que já tinha conta (pedido de acesso antigo, sem cargo) ou que foi exonerado/desativado
+  // indevidamente: volta ativo e com o cargo dev (a ficha arquivada volta em vincularContasAoEfetivo)
+  let donoRestaurado = false
+  if (conta && segundoDono) {
+    if (conta.exonerado || !conta.ativo) {
+      delete conta.exonerado
+      delete conta.exoneradoEm
+      delete conta.exoneradoMotivo
+      conta.ativo = true
+      donoRestaurado = true
+      audit('ACCOUNT_READMITTED', req, `Segundo dono: conta #${conta.id} — exoneração/desativação desfeita (dono do .env)`)
+    }
+    if (data.cargosPermissao.find(c => c.id === conta!.cargoPermId)?.dev !== true) {
+      conta.cargoPermId = cargoDev(data).id
+      conta.nivel = 'admin'
+      data.solicitacoesAcesso = data.solicitacoesAcesso.filter(s => s.discordId !== discordId)
+      audit('ACCOUNT_UPDATED', req, `Segundo dono: conta #${conta.id} recebeu o cargo dev`)
+    }
   }
 
   if (!conta) {
@@ -166,6 +178,10 @@ router.get('/discord/callback', discordLoginLimiter, async (req: Request, res: R
     voltarLogin(res, 'ausente', bloqueioAcesso.ate); return
   }
   writeData(data)
+  if (donoRestaurado) {
+    void registrarNoForum(conta.id, { titulo: 'READMISSÃO · Dono do sistema', emoji: '↩️', cor: COR_REGISTRO.aviso,
+      texto: 'Acesso e cargo dev restaurados automaticamente: dono do sistema não pode ser exonerado.', por: 'Sistema' })
+  }
 
   const token = issueToken(conta)
   audit('DISCORD_LOGIN_SUCCESS', req, `Conta #${conta.id} (@${usuario.username})`)
